@@ -142,7 +142,17 @@ function updateActionableCards() {
                 }
             }
 
-            if (canAttack || canChangePos) {
+            var hasHandCards = (player && player.hand) ? ((player.hand.monsters ? player.hand.monsters.length : 0) + (player.hand.spells ? player.hand.spells.length : 0) + (player.hand.traps ? player.hand.traps.length : 0) > 0) : false;
+            var canUseEffect = false;
+            if (isMainPhase && monster.position !== 'defense-down' && monster.lastEffectTurn !== turnCount) {
+                if (monster.cardId === 'time-wizard') {
+                    canUseEffect = true;
+                } else if (monster.cardId === 'harpie-lady' && hasHandCards && (typeof hasSpellTrapOnField === 'function' && hasSpellTrapOnField())) {
+                    canUseEffect = true;
+                }
+            }
+
+            if (canAttack || canChangePos || canUseEffect) {
                 zoneElem.addClass('card-actionable');
             } else {
                 zoneElem.removeClass('card-actionable');
@@ -169,6 +179,14 @@ function updateActionableCards() {
             $(this).addClass('card-actionable');
         } else {
             $(this).removeClass('card-actionable');
+        }
+
+        // During Main Phase, mark cards that have no available action so they
+        // can be visually de-emphasized (e.g. partial grayscale)
+        if (canPlayFromHand && !isPlayable) {
+            $(this).addClass('card-not-actionable');
+        } else {
+            $(this).removeClass('card-not-actionable');
         }
     });
 }
@@ -828,39 +846,64 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
         var ctxBar = $('#card-context-actions');
         var btnDefense = $('#ctx-btn-defense');
         var btnToAttack = $('#ctx-btn-to-attack');
+        var btnEffect = $('#ctx-btn-effect');
 
         btnDefense.hide();
         btnToAttack.hide();
+        btnEffect.hide();
         btnToAttack.prop('disabled', false).removeClass('is-locked').find('span').text('TO ATTACK');
 
+        var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+        var hasHandCards = (player && player.hand) ? ((player.hand.monsters ? player.hand.monsters.length : 0) + (player.hand.spells ? player.hand.spells.length : 0) + (player.hand.traps ? player.hand.traps.length : 0) > 0) : false;
+        var canUseEffect = false;
+        var effectBtnText = 'ACTIVATE EFFECT';
+
+        if (isMainPhase && monsterInst && cardPosition !== 'defense-down' && monsterInst.lastEffectTurn !== turnCount) {
+            if (monsterInst.cardId === 'time-wizard') {
+                canUseEffect = true;
+                effectBtnText = 'TIME ROULETTE';
+            } else if (monsterInst.cardId === 'harpie-lady' && hasHandCards && (typeof hasSpellTrapOnField === 'function' && hasSpellTrapOnField())) {
+                canUseEffect = true;
+                effectBtnText = 'HUNTING CLAW';
+            }
+        }
+
+        if (canUseEffect) {
+            btnEffect.find('span').text(effectBtnText);
+            btnEffect.show();
+        }
+
+        var showCtx = false;
         if (cardPosition !== 'attack' && isDragonLockedMonster) {
             // Dragon Capture Jar active: show explicit locked disabled state
             btnToAttack.prop('disabled', true).addClass('is-locked');
             btnToAttack.find('span').text('🔒 LOCKED BY DRAGON CAPTURE JAR');
             btnToAttack.show();
-            ctxBar.show();
-            var offset = $(this).offset();
-            var barWidth = ctxBar.outerWidth() || 240;
-            var squareWidth = $(this).outerWidth() || 100;
-            ctxBar.css({
-                top: (offset.top - 42) + 'px',
-                left: (offset.left + (squareWidth / 2) - (barWidth / 2)) + 'px'
-            });
+            showCtx = true;
         } else if (canChangePos) {
             if (cardPosition === 'attack') {
                 btnDefense.show();
             } else {
                 btnToAttack.show();
             }
+            showCtx = true;
+        }
 
+        if (canUseEffect) {
+            showCtx = true;
+        }
+
+        if (showCtx) {
             ctxBar.show();
             var offset = $(this).offset();
-            var barWidth = ctxBar.outerWidth() || 140;
+            var barWidth = ctxBar.outerWidth() || 180;
             var squareWidth = $(this).outerWidth() || 100;
             ctxBar.css({
                 top: (offset.top - 42) + 'px',
                 left: (offset.left + (squareWidth / 2) - (barWidth / 2)) + 'px'
             });
+        } else {
+            ctxBar.hide();
         }
     } else {
         if (typeof BattleFX !== 'undefined') BattleFX.cancelTargetSelection();
@@ -1036,6 +1079,7 @@ function changePositionSelected(position) {
         }
     }
 
+    var prevPosition = parentSquare.attr('data-card-position');
     parentSquare.attr('data-card-position', position);
     parentSquare.attr('data-turn-posChanged', turnCount);
 
@@ -1053,12 +1097,20 @@ function changePositionSelected(position) {
         activeCard.transition({ rotate: '0' }, turnDuration, animEasing, function() {
             updateActionableCards();
             if (typeof updateStatModBadges === 'function') updateStatModBadges();
+            if (prevPosition === 'defense-down' && typeof triggerFlipEffect === 'function') {
+                var mInst = GameState.player.field.monsters[zoneNum];
+                triggerFlipEffect(mInst, 'player', zoneNum);
+            }
         });
     } else if (position === 'defense-up') {
         activeCard.flip(false);
         activeCard.transition({ rotate: '90deg' }, turnDuration, animEasing, function() {
             updateActionableCards();
             if (typeof updateStatModBadges === 'function') updateStatModBadges();
+            if (prevPosition === 'defense-down' && typeof triggerFlipEffect === 'function') {
+                var mInst = GameState.player.field.monsters[zoneNum];
+                triggerFlipEffect(mInst, 'player', zoneNum);
+            }
         });
     } else if (position === 'defense-down') {
         activeCard.flip(true);
@@ -1066,6 +1118,22 @@ function changePositionSelected(position) {
             updateActionableCards();
             if (typeof updateStatModBadges === 'function') updateStatModBadges();
         });
+    }
+}
+
+// Activate monster ignition effect (e.g. Time Wizard, Harpie Lady)
+function activateSelectedMonsterEffect() {
+    hideAtkMenuIfVisible();
+    if (!selectedSquare || !selectedSquare.length) return;
+
+    var zoneNum = parseInt(selectedSquare.attr('data-zone'));
+    var monsterInst = (GameState && GameState.player && GameState.player.field && GameState.player.field.monsters) ? GameState.player.field.monsters[zoneNum] : null;
+    if (!monsterInst) return;
+
+    if (monsterInst.cardId === 'time-wizard') {
+        openTimeWizardModal(zoneNum);
+    } else if (monsterInst.cardId === 'harpie-lady') {
+        openHarpieLadyDiscardModal(zoneNum);
     }
 }
 
@@ -1164,6 +1232,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             defenderSquare.find('div.card-zone').flip(false);
             await sleep(250);
         }
+        if (typeof triggerFlipEffect === 'function') {
+            await triggerFlipEffect(defenderInst, defenderWho, defenderZone);
+        }
     }
 
     // Play 3D Combat Lunge & Impact Animation
@@ -1247,11 +1318,23 @@ async function destroyMonster(who, zoneNum) {
     GameState[ownerWho].graveyard.push(cardInst);
     delete GameState[who].field.monsters[zoneNum];
 
+    // Equip cards attached to the destroyed monster are destroyed with it
+    // (their "sent to Graveyard" effects resolve, e.g. Black Pendant's burn)
+    var equipZones = [];
+    for (var z = 1; z <= 6; z++) {
+        var sp = GameState[who].field.spells[z];
+        if (sp && sp.equippedToUid === cardInst.uid) equipZones.push(z);
+    }
+    for (var e = 0; e < equipZones.length; e++) {
+        await destroySpellTrap(who, equipZones[e], false);
+    }
+
     var square = getSquareElm(who, zoneNum);
     if (square && square.length) {
         square.find('.borrowed-monster-badge').remove();
         square.find('.def-locked-badge').remove();
         square.find('.stat-mod-badge').remove();
+        square.find('.equip-tag-badge').remove();
         square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
         square.find('div.card-zone').removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
     }
@@ -1288,7 +1371,7 @@ async function destroyMonster(who, zoneNum) {
 }
 
 // Destroy a spell/trap/field card: move to graveyard, clear state + DOM
-async function destroySpellTrap(who, zoneNum, isFieldZone) {
+async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) {
     var square;
 
     if (isFieldZone) {
@@ -1300,6 +1383,14 @@ async function destroySpellTrap(who, zoneNum, isFieldZone) {
     } else {
         var spellInst = GameState[who].field.spells[zoneNum];
         if (!spellInst) return;
+
+        // If this is an equipped card, sever the link and clear its visual tag
+        if (spellInst.equippedToUid) {
+            removeEquipTag(who, spellInst.equippedToUid);
+            spellInst.equippedToUid = null;
+            if (typeof updateStatModBadges === 'function') updateStatModBadges();
+        }
+
         GameState[who].graveyard.push(spellInst);
         delete GameState[who].field.spells[zoneNum];
         square = getSpellSquareElm(who, zoneNum);
@@ -1328,6 +1419,17 @@ async function destroySpellTrap(who, zoneNum, isFieldZone) {
     }
 
     updateResourceCounters();
+
+    // Equip cards that resolve "sent from field to Graveyard" effects
+    if (!suppressGraveEffect) {
+        var graveInst = isFieldZone ? fieldInst : spellInst;
+        if (graveInst && graveInst.cardId === 'black-pendant') {
+            var opp = GameState.getOpponent(who);
+            var pendantDef = cards['black-pendant'];
+            addToFeed('<em>' + (pendantDef ? pendantDef.name : 'Black Pendant') + '</em> is sent to the Graveyard: ' + formatWho(opp) + ' takes <strong>500</strong> damage!\n');
+            damageLP(opp, 500);
+        }
+    }
 }
 
 // Special Summon a monster from a graveyard to a free monster zone (Attack Position).

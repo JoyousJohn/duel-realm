@@ -117,7 +117,13 @@ img[src="#"] {
     cursor: pointer;
 }
 
+/* When any part of the hand is hovered, scale every card up slightly */
+#player-hand:hover > .card {
+    transform: scale(1.18);
+}
+
+/* The specific card under the cursor scales up more (later rule wins on tie) */
 #player-hand > .card:hover {
-    transform: translateY(-16px) scale(1.08);
+    transform: translateY(-16px) scale(1.42);
     z-index: 10 !important;
 }

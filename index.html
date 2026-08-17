@@ -443,6 +443,38 @@
             </div>
         </div>
 
+        <!-- Equip Spell Target Selection Modal -->
+        <div id="equip-target-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelEquipTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4);">
+                        <span class="action-pulse-dot" style="background: #f59e0b; box-shadow: 0 0 8px #f59e0b;"></span>
+                        <span class="action-header-category" style="color: #fbbf24;">EQUIP PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name">EQUIP CARD</h3>
+                    <div class="action-modal-card-stats">SELECT 1 FACE-UP MONSTER YOU CONTROL TO EQUIP</div>
+                </div>
+
+                <div class="rebirth-cards-scroll-container">
+                    <div id="equip-target-grid" class="rebirth-cards-grid">
+                        <!-- Populated dynamically with face-up player monster tiles -->
+                    </div>
+                    <div id="equip-empty-state" class="rebirth-empty-state" style="display: none;">
+                        <p class="rebirth-empty-title">NO FACE-UP MONSTERS ON FIELD</p>
+                        <span class="rebirth-empty-hint">The spell fizzles without a valid target.</span>
+                    </div>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelEquipTarget()">
+                        <span>&times; CANCEL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Remove Trap Target Selection Modal -->
         <div id="remove-trap-modal" class="tactical-action-modal" style="display: none;">
             <div class="action-modal-backdrop" onclick="cancelRemoveTrapTarget()"></div>
@@ -519,6 +551,119 @@
             </div>
         </div>
 
+        <!-- Man-Eater Bug Target Selection Modal -->
+        <div id="man-eater-bug-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelManEaterBugTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(234, 179, 8, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(234, 179, 8, 0.15); border-color: rgba(234, 179, 8, 0.4);">
+                        <span class="action-pulse-dot" style="background: #eab308; box-shadow: 0 0 8px #eab308;"></span>
+                        <span class="action-header-category" style="color: #facc15;">FLIP EFFECT ACTIVATION</span>
+                    </div>
+                    <h3 class="action-modal-card-name">MAN-EATER BUG</h3>
+                    <div class="action-modal-card-stats">SELECT 1 MONSTER ON THE FIELD TO DESTROY</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="man-eater-bug-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelManEaterBugTarget()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Wizard Coin Toss Modal -->
+        <div id="time-wizard-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelTimeWizardEffect()"></div>
+            <div class="action-modal-panel coin-toss-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(234, 179, 8, 0.45) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(234, 179, 8, 0.15); border-color: rgba(234, 179, 8, 0.4);">
+                        <span class="action-pulse-dot" style="background: #eab308; box-shadow: 0 0 8px #eab308;"></span>
+                        <span class="action-header-category" style="color: #facc15;">IGNITION EFFECT • TIME ROULETTE</span>
+                    </div>
+                    <h3 class="action-modal-card-name">TIME WIZARD</h3>
+                    <div class="action-modal-card-stats">CALL HEADS OR TAILS TO TOSS THE COIN</div>
+                </div>
+
+                <div class="coin-toss-stage">
+                    <div class="coin-3d-wrapper">
+                        <div id="time-wizard-coin" class="coin-3d">
+                            <div class="coin-face coin-heads">
+                                <span class="coin-icon">⚔</span>
+                                <span class="coin-label">HEADS</span>
+                            </div>
+                            <div class="coin-face coin-tails">
+                                <span class="coin-icon">🛡</span>
+                                <span class="coin-label">TAILS</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="coin-toss-status" class="coin-toss-status-text">Make your call to spin Time Roulette!</div>
+                </div>
+
+                <div id="coin-toss-buttons" class="coin-toss-actions">
+                    <button class="coin-call-btn call-heads-btn" onclick="onTimeWizardCall('heads')">
+                        <span class="coin-btn-symbol">⚔</span>
+                        <span class="coin-btn-text">CALL HEADS</span>
+                    </button>
+                    <button class="coin-call-btn call-tails-btn" onclick="onTimeWizardCall('tails')">
+                        <span class="coin-btn-symbol">🛡</span>
+                        <span class="coin-btn-text">CALL TAILS</span>
+                    </button>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" id="time-wizard-cancel-btn" onclick="cancelTimeWizardEffect()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Harpie Lady Discard Selection Modal -->
+        <div id="harpie-lady-discard-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelHarpieLadyEffect()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4);">
+                        <span class="action-pulse-dot" style="background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                        <span class="action-header-category" style="color: #34d399;">ACTIVATION COST</span>
+                    </div>
+                    <h3 class="action-modal-card-name">HARPIE LADY</h3>
+                    <div class="action-modal-card-stats">SELECT 1 CARD FROM YOUR HAND TO DISCARD</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="harpie-lady-discard-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelHarpieLadyEffect()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Harpie Lady Target Selection Modal -->
+        <div id="harpie-lady-target-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelHarpieLadyEffect()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4);">
+                        <span class="action-pulse-dot" style="background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                        <span class="action-header-category" style="color: #34d399;">EFFECT TARGET</span>
+                    </div>
+                    <h3 class="action-modal-card-name">HARPIE LADY</h3>
+                    <div class="action-modal-card-stats">SELECT 1 SPELL OR TRAP CARD ON THE FIELD TO DESTROY</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="harpie-lady-target-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelHarpieLadyEffect()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
         <!-- Cinematic Duel Outcome Screen (Victory / Defeat) -->
         <div id="duel-outcome-modal" class="tactical-action-modal duel-outcome-modal" style="display: none;">
             <div class="action-modal-backdrop outcome-backdrop"></div>
@@ -578,6 +723,13 @@
 
         <!-- Floating Card Context Action Bar (Pattern A) -->
         <div id="card-context-actions" class="card-context-bar" style="display: none;">
+            <button class="context-action-btn btn-effect" id="ctx-btn-effect" onclick="activateSelectedMonsterEffect()" style="display: none;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>TIME ROULETTE</span>
+            </button>
             <button class="context-action-btn btn-defense" id="ctx-btn-defense" onclick="changePositionSelected('defense-up')">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -971,8 +1123,8 @@
     </div>
 
     <script>
-        // Register the service worker for offline PWA support
-        if ('serviceWorker' in navigator) {
+        // Register the service worker for offline PWA support (only on http/https)
+        if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('sw.js').catch(function(err) {
                     console.warn('Service worker registration failed:', err);

@@ -46,7 +46,13 @@ function AICalcMonsterPosition(monsterName) {
         return 'defense-down';
     }
 
-    // 3. If monster has superior ATK or higher ATK than DEF, summon in Attack Position
+    // 3. If monster has superior ATK or higher ATK than DEF, summon in Attack Position.
+    // NOTE: This includes summoning in Attack even when the opponent may control stronger
+    // monsters (e.g. ones sitting in Defense). The incentive is deliberate: an exposed
+    // Attack monster acts as BAIT — it invites the player to spend their attack destroying
+    // it, so the AI trades a cheap card to absorb that attack instead of the player hitting
+    // the AI's Life Points directly or attacking a more valuable target. Losing a monster
+    // is preferable to losing LP.
     if (atk >= 1400 || atk >= def) {
         return 'attack';
     }
@@ -111,8 +117,8 @@ async function AIEvaluatePositionChanges() {
         var monsterInst = m.card;
         var zoneNum = m.zone;
 
-        // Legal rule checks: cannot change if summoned this turn or already changed this turn
-        if (monsterInst.turnSummoned === turnCount) continue;
+        // Legal rule checks: cannot change if summoned this turn (unless it is a borrowed monster from Change of Heart) or already changed this turn
+        if (monsterInst.turnSummoned === turnCount && !monsterInst.isBorrowed) continue;
         if (monsterInst.turnPosChanged === turnCount) continue;
         if (monsterInst.hasAttacked) continue;
 
@@ -127,8 +133,11 @@ async function AIEvaluatePositionChanges() {
             // Cannot switch to Attack Position if it is a Dragon under Dragon Capture Jar
             if (isJarActive && cardDef.monsterType === 'Dragon') continue;
 
-            // Favorable to switch to Attack if high ATK power or ATK >= DEF
-            if (atk >= 1400 || atk >= def) {
+            // Borrowed monsters with Change of Heart should always switch to Attack position to attack
+            if (monsterInst.isBorrowed && atk > 0) {
+                await AIChangeMonsterPosition(zoneNum, 'attack');
+            } else if (atk >= 1400 || atk >= def) {
+                // Favorable to switch to Attack if high ATK power or ATK >= DEF
                 await AIChangeMonsterPosition(zoneNum, 'attack');
             }
         } else if (currentPos === 'attack') {
@@ -181,6 +190,11 @@ async function AIPerformBattlePhase() {
 
         // 1. DIRECT ATTACK when player field is empty
         if (playerMonsters.length === 0) {
+            var computerMonsters = GameState.getMonstersOnField('computer');
+            if (currentAttacker.cardId === 'harpie-lady' && computerMonsters.length <= 1) {
+                // Harpie Lady cannot attack directly while she is the only monster controlled
+                continue;
+            }
             addToFeed('[AI Tactical] Direct attack opportunity detected!\n');
             await executeBattle('computer', attacker.zone, null);
             await sleep(700);
@@ -354,6 +368,93 @@ async function AIPlayTributeToTheDoomed() {
     await sleep(getAnimDuration(400));
 }
 
+// AI evaluates whether to activate Time Wizard on field
+async function AIPlayTimeWizard() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var wizardEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'time-wizard' && 
+               m.card.position !== 'defense-down' && 
+               m.card.lastEffectTurn !== turnCount;
+    });
+
+    if (!wizardEntry) return;
+
+    var playerMonsters = GameState.getMonstersOnField('player');
+    // Only activate if opponent has monsters to wipe or computer is in an advantageous position
+    if (playerMonsters.length > 0) {
+        var call = Math.random() < 0.5 ? 'heads' : 'tails';
+        if (typeof executeTimeWizardEffect === 'function') {
+            await executeTimeWizardEffect('computer', call, wizardEntry.zone);
+            await sleep(getAnimDuration(500));
+        }
+    }
+}
+
+// AI evaluates whether to activate Harpie Lady on field
+async function AIPlayHarpieLady() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var harpieEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'harpie-lady' && 
+               m.card.position !== 'defense-down' && 
+               m.card.lastEffectTurn !== turnCount;
+    });
+
+    if (!harpieEntry) return;
+
+    var handTotal = (computer.hand.monsters ? computer.hand.monsters.length : 0) + 
+                    (computer.hand.spells ? computer.hand.spells.length : 0) + 
+                    (computer.hand.traps ? computer.hand.traps.length : 0);
+    if (handTotal === 0) return;
+
+    var playerTargets = [];
+    for (var z = 1; z <= 6; z++) {
+        if (GameState.player.field.spells[z]) {
+            playerTargets.push({ zone: z, isField: false, inst: GameState.player.field.spells[z] });
+        }
+    }
+    if (GameState.player.field.fieldZone) {
+        playerTargets.push({ zone: null, isField: true, inst: GameState.player.field.fieldZone });
+    }
+
+    if (playerTargets.length === 0) return;
+
+    var target = playerTargets[0];
+    var discardCategory = null;
+    var discardCardName = null;
+
+    if (computer.hand.monsters.length > 0) {
+        discardCategory = 'monsters';
+        discardCardName = computer.hand.monsters[computer.hand.monsters.length - 1];
+    } else if (computer.hand.spells.length > 0) {
+        discardCategory = 'spells';
+        discardCardName = computer.hand.spells[0];
+    } else if (computer.hand.traps.length > 0) {
+        discardCategory = 'traps';
+        discardCardName = computer.hand.traps[0];
+    }
+
+    if (!discardCategory || !discardCardName) return;
+
+    var idx = computer.hand[discardCategory].indexOf(discardCardName);
+    if (idx !== -1) {
+        computer.hand[discardCategory].splice(idx, 1);
+    }
+    GameState.computer.graveyard.push(new CardInstance(discardCardName));
+
+    harpieEntry.card.lastEffectTurn = turnCount;
+
+    var discardDef = cards[discardCardName];
+    var targetDef = cards[target.inst.cardId];
+    var targetName = targetDef ? targetDef.name : 'Spell/Trap card';
+
+    addToFeed('Computer activates <em>Harpie Lady</em>: discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong> and destroys your <strong>' + targetName + '</strong>!\n\n');
+
+    await destroySpellTrap('player', target.zone, target.isField, false);
+    updateResourceCounters();
+    updateGraveyardZones();
+    await sleep(getAnimDuration(500));
+}
+
 // Step 2: AI Normal Summons the best monster currently in hand
 async function AISummonMonsterRoutine() {
     if (GameState.turn.normalSummonUsed || getNumOfFreeZones('computer') <= 0) return;
@@ -419,10 +520,20 @@ async function AIPlaySpellTrapCards() {
                             shouldPlay = (getFirstFreeZone('computer') !== undefined) && (GameState.getMonstersOnField('player').length > 0);
                         } else if (def.id === 'remove-trap') {
                             shouldPlay = findFaceUpTrap('player') !== null;
+                        } else if (def.id === 'fissure') {
+                            var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
+                                return m.card && !m.card.faceDown;
+                            });
+                            shouldPlay = playerFaceUp.length > 0;
                         } else if (def.id === 'monster-reborn') {
                             shouldPlay = (getFirstFreeZone('computer') !== undefined) && (getGraveyardMonsters().length > 0);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
+                        } else if (def.subType === 'equip') {
+                            var compFaceUp = GameState.getMonstersOnField('computer').filter(function(m) {
+                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+                            });
+                            shouldPlay = compFaceUp.length > 0;
                         } else {
                             shouldPlay = true;
                         }

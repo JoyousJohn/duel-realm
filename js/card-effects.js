@@ -75,18 +75,45 @@ function getFieldModifier(monsterDef) {
     return mods.atk;
 }
 
-// Effective ATK of a monster CardInstance (base + field ATK modifier, min 0)
+// Return { atk, def } stat modifiers contributed by all equipped cards on a monster
+// instance (equip spells link to their monster via `equippedToUid`).
+function getEquipMods(monsterInst) {
+    var atkMod = 0;
+    var defMod = 0;
+    if (!monsterInst || !monsterInst.uid) return { atk: 0, def: 0 };
+
+    ['player', 'computer'].forEach(function(who) {
+        var spells = GameState[who].field.spells;
+        for (var i = 1; i <= 6; i++) {
+            var inst = spells[i];
+            if (!inst || !inst.equippedToUid) continue;
+            var equipDef = cards[inst.cardId];
+            if (!equipDef || equipDef.type !== 'spells' || equipDef.subType !== 'equip') continue;
+            if (inst.equippedToUid !== monsterInst.uid) continue;
+            atkMod += (equipDef.atkMod || 0);
+            defMod += (equipDef.defMod || 0);
+        }
+    });
+
+    return { atk: atkMod, def: defMod };
+}
+
+// Effective ATK of a monster CardInstance (base + field/equip ATK modifier, min 0)
 function getMonsterAtk(instance) {
     var def = cards[instance.cardId];
     if (!def || def.type !== 'monsters') return 0;
-    return Math.max(0, (def.atk || 0) + getFieldMods(def).atk);
+    var fieldMods = getFieldMods(def);
+    var equipMods = getEquipMods(instance);
+    return Math.max(0, (def.atk || 0) + fieldMods.atk + equipMods.atk);
 }
 
-// Effective DEF of a monster CardInstance (base + field DEF modifier, min 0)
+// Effective DEF of a monster CardInstance (base + field/equip DEF modifier, min 0)
 function getMonsterDef(instance) {
     var def = cards[instance.cardId];
     if (!def || def.type !== 'monsters') return 0;
-    return Math.max(0, (def.def || 0) + getFieldMods(def).def);
+    var fieldMods = getFieldMods(def);
+    var equipMods = getEquipMods(instance);
+    return Math.max(0, (def.def || 0) + fieldMods.def + equipMods.def);
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +366,26 @@ async function activateCard(who, instance, zoneNum) {
                 var aiTarget = oppMonsters[0];
                 await destroySpellTrap(who, zoneNum, false);
                 await applyChangeOfHeart('computer', aiTarget.zone);
+            }
+            break;
+        }
+
+        case 'black-pendant': {
+            var faceUpOwn = getFaceUpMonstersOnField(who);
+            if (faceUpOwn.length === 0) {
+                addToFeed('<em>' + def.name + '</em> fizzles — no face-up monster to equip.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+            if (who === 'player') {
+                openEquipTargetModal('player', zoneNum);
+            } else {
+                // AI: equip to its strongest face-up monster
+                faceUpOwn.sort(function(a, b) {
+                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                });
+                var aiEquipTarget = faceUpOwn[0];
+                await applyEquipCard('computer', zoneNum, aiEquipTarget.zone);
             }
             break;
         }
@@ -703,6 +750,124 @@ function cancelTributeToTheDoomed() {
         tttdDiscardedCardId = null;
     }
 }
+// ---------------------------------------------------------------------------
+// Flip Effect Engine (e.g. Man-Eater Bug)
+// ---------------------------------------------------------------------------
+
+var manEaterBugPending = null;
+
+async function triggerFlipEffect(monsterInst, who, zoneNum) {
+    if (!monsterInst) return;
+    var def = cards[monsterInst.cardId];
+    if (!def) return;
+
+    if (monsterInst.cardId === 'man-eater-bug') {
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        var allMonsters = [
+            ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+            ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+        ];
+
+        if (allMonsters.length === 0) {
+            addToFeed('No monsters on the field to destroy.\n');
+            return;
+        }
+
+        if (who === 'player') {
+            openManEaterBugModal();
+        } else {
+            // AI auto-targets strongest player monster
+            var playerMonsters = GameState.getMonstersOnField('player');
+            if (playerMonsters.length > 0) {
+                playerMonsters.sort(function(a, b) {
+                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                });
+                var target = playerMonsters[0];
+                var targetDef = cards[target.card.cardId];
+                addToFeed('<em>Man-Eater Bug</em> destroys ' + (targetDef ? targetDef.name : 'monster') + ' on player\'s field!\n');
+                if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+                await destroyMonster('player', target.zone);
+            } else {
+                // If no player monsters, target highest ATK monster on field
+                allMonsters.sort(function(a, b) {
+                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                });
+                var fallback = allMonsters[0];
+                var fallbackDef = cards[fallback.card.cardId];
+                addToFeed('<em>Man-Eater Bug</em> destroys ' + (fallbackDef ? fallbackDef.name : 'monster') + '!\n');
+                await destroyMonster(fallback.side, fallback.zone);
+            }
+        }
+    }
+}
+
+function openManEaterBugModal() {
+    var grid = $('#man-eater-bug-grid');
+    grid.empty();
+
+    var allMonsters = [
+        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+    ];
+
+    if (allMonsters.length === 0) {
+        $('#man-eater-bug-modal').fadeOut(120);
+        return;
+    }
+
+    allMonsters.forEach(function(entry) {
+        var cardDef = cards[entry.card.cardId];
+        if (!cardDef) return;
+        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+
+        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
+        var displayName = isFaceDown ? '???' : cardDef.name;
+        var statsHtml = isFaceDown
+            ? '<span class="rebirth-tile-stats">Face-Down</span>'
+            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                statsHtml +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', (function(side, zone) {
+            return function() {
+                applyManEaterBugTarget(side, zone);
+            };
+        })(entry.side, entry.zone));
+
+        grid.append(tile);
+    });
+
+    $('#man-eater-bug-modal').fadeIn(150);
+}
+
+async function applyManEaterBugTarget(targetWho, targetZone) {
+    $('#man-eater-bug-modal').fadeOut(120);
+
+    var targetInst = GameState[targetWho].field.monsters[targetZone];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    addToFeed('<em>Man-Eater Bug</em> destroyed <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong>!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+    await destroyMonster(targetWho, targetZone);
+}
+
+function cancelManEaterBugTarget() {
+    $('#man-eater-bug-modal').fadeOut(120);
+    addToFeed('Man-Eater Bug effect selection was dismissed.\n');
+}
 
 // ---------------------------------------------------------------------------
 // Trap Auto-Trigger Engine
@@ -747,6 +912,12 @@ EventBus.on('MONSTER_SUMMONED', async function(data) {
                 await destroySpellTrap(opponent, trapHoleZone, false);
                 await destroyMonster(summonerWho, data.zone);
                 addToFeed('Trap Hole destroyed ' + def.name + '!\n\n');
+
+                // The summoned monster is gone, so clear any lingering attack-target
+                // highlighting that was active around the opponent's monsters.
+                if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+                    BattleFX.cancelTargetSelection();
+                }
             }
         }
     }
@@ -994,6 +1165,132 @@ async function applyChangeOfHeart(controllerWho, targetOppZone) {
 }
 
 // ---------------------------------------------------------------------------
+// Equip Spells — Targeting + Application
+// ---------------------------------------------------------------------------
+
+// All monsters on `who`'s field that are currently face-up (valid equip targets)
+function getFaceUpMonstersOnField(who) {
+    return GameState.getMonstersOnField(who).filter(function(m) {
+        return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+    });
+}
+
+var pendingEquipSourceZone = null;
+
+function openEquipTargetModal(who, sourceZoneNum) {
+    pendingEquipSourceZone = sourceZoneNum;
+
+    var grid = $('#equip-target-grid');
+    grid.empty();
+
+    var faceUp = getFaceUpMonstersOnField(who);
+    if (faceUp.length === 0) {
+        $('#equip-empty-state').show();
+        grid.hide();
+        $('#equip-target-modal').fadeIn(150);
+        return;
+    }
+
+    $('#equip-empty-state').hide();
+    grid.show();
+
+    faceUp.forEach(function(target) {
+        var def = cards[target.card.cardId];
+        if (!def) return;
+
+        var tile = $('<div class="rebirth-card-tile" data-target-zone="' + target.zone + '">' +
+            '<div class="rebirth-card-img-wrap">' +
+                '<img src="cards/' + def.file + '" alt="' + def.name + '">' +
+            '</div>' +
+            '<div class="rebirth-card-info-bar">' +
+                '<span class="rebirth-card-name">' + def.name + '</span>' +
+                '<span class="rebirth-card-stats">ZONE #' + target.zone + ' • ATK ' + getMonsterAtk(target.card) + ' / DEF ' + getMonsterDef(target.card) + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            var targetZone = parseInt($(this).attr('data-target-zone'));
+            equipTargetSelected(who, targetZone);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#equip-target-modal').fadeIn(150);
+}
+
+function equipTargetSelected(who, targetZone) {
+    $('#equip-target-modal').fadeOut(120);
+    var zoneNum = pendingEquipSourceZone;
+    pendingEquipSourceZone = null;
+
+    var equipInst = GameState[who].field.spells[zoneNum];
+    var monsterInst = GameState[who].field.monsters[targetZone];
+    if (!equipInst || !monsterInst) return;
+
+    applyEquipCard(who, zoneNum, targetZone);
+}
+
+function cancelEquipTarget() {
+    $('#equip-target-modal').fadeOut(120);
+    $('#equip-target-grid').empty();
+
+    var zoneNum = pendingEquipSourceZone;
+    pendingEquipSourceZone = null;
+
+    if (zoneNum !== null && zoneNum !== undefined && GameState.player.field.spells[zoneNum]) {
+        destroySpellTrap('player', zoneNum, false, true);
+        addToFeed('The equip card was cancelled and sent to the graveyard.\n');
+    }
+}
+
+async function applyEquipCard(who, sourceZoneNum, targetZone) {
+    var equipInst = GameState[who].field.spells[sourceZoneNum];
+    var monsterInst = GameState[who].field.monsters[targetZone];
+    if (!equipInst || !monsterInst) return;
+
+    var equipDef = cards[equipInst.cardId];
+    var monsterDef = cards[monsterInst.cardId];
+
+    equipInst.equippedToUid = monsterInst.uid;
+    equipInst.position = 'active';
+
+    // Visual tag on the equipped monster
+    var monsterSquare = getSquareElm(who, targetZone);
+    if (monsterSquare && monsterSquare.length) {
+        monsterSquare.find('.equip-tag-badge').remove();
+        var tag = $('<div class="equip-tag-badge">' +
+            '<span class="equip-tag-icon">⚔</span>' +
+            '<span class="equip-tag-label">EQUIPPED</span>' +
+        '</div>');
+        monsterSquare.append(tag);
+    }
+
+    updateResourceCounters();
+    updateStatModBadges();
+
+    var equipName = equipDef ? equipDef.name : 'the card';
+    var monsterName = monsterDef ? monsterDef.name : 'a monster';
+    if (who === 'player') {
+        addToFeed('You equip <em>' + equipName + '</em> to <strong>' + monsterName + '</strong> in zone #' + targetZone + '.\n');
+    } else {
+        addToFeed('Computer equips <em>' + equipName + '</em> to <strong>' + monsterName + '</strong> in zone #' + targetZone + '.\n');
+    }
+}
+
+// Remove the EQUIPPED visual tag from a monster square (by monster uid).
+function removeEquipTag(who, monsterUid) {
+    var monsters = GameState[who].field.monsters;
+    for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+        if (monsters[zoneNum] && monsters[zoneNum].uid === monsterUid) {
+            var square = getSquareElm(who, zoneNum);
+            if (square && square.length) square.find('.equip-tag-badge').remove();
+            return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // End Phase Effects
 // ---------------------------------------------------------------------------
 
@@ -1180,8 +1477,9 @@ function updateStatModBadges() {
             if (monsterInst && !isFaceDown) {
                 var def = cards[monsterInst.cardId];
                 var mods = getFieldMods(def);
-                var atkMod = mods.atk;
-                var defMod = mods.def;
+                var equipMods = getEquipMods(monsterInst);
+                var atkMod = mods.atk + equipMods.atk;
+                var defMod = mods.def + equipMods.def;
 
                 existingBadge.remove();
 
@@ -1228,27 +1526,38 @@ function updateStatModBadges() {
         var existingBadge = $(this).find('.stat-mod-badge');
 
         if (cardDef && cardDef.type === 'monsters') {
-            var mod = getFieldModifier(cardDef);
-            if (mod !== 0) {
-                var isPos = mod > 0;
-                var sign = isPos ? '+' : '';
-                var icon = isPos ? '▲' : '▼';
-                var label = sign + mod;
-                var modClass = (isPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview';
+            var mods = getFieldMods(cardDef);
+            var atkMod = mods.atk;
+            var defMod = mods.def;
 
-                if (!existingBadge.length) {
-                    existingBadge = $('<div class="stat-mod-badge ' + modClass + '">' +
-                        '<span class="stat-mod-icon">' + icon + '</span>' +
-                        '<span class="stat-mod-label">' + label + '</span>' +
-                    '</div>');
-                    $(this).append(existingBadge);
+            existingBadge.remove();
+
+            if (atkMod !== 0 || defMod !== 0) {
+                if (atkMod === defMod) {
+                    // Symmetric: single combined preview badge
+                    var isPos = atkMod > 0;
+                    var modClass = (isPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview';
+                    $(this).append($('<div class="stat-mod-badge ' + modClass + '">' +
+                        '<span class="stat-mod-icon">' + (isPos ? '▲' : '▼') + '</span>' +
+                        '<span class="stat-mod-label">' + (isPos ? '+' : '') + atkMod + '</span>' +
+                    '</div>'));
                 } else {
-                    existingBadge.removeClass('stat-mod-buff stat-mod-debuff').addClass(modClass);
-                    existingBadge.find('.stat-mod-icon').text(icon);
-                    existingBadge.find('.stat-mod-label').text(label);
+                    // Asymmetric: show ATK and DEF separately
+                    if (atkMod !== 0) {
+                        var atkIsPos = atkMod > 0;
+                        $(this).append($('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview">' +
+                            '<span class="stat-mod-icon">' + (atkIsPos ? '▲' : '▼') + '</span>' +
+                            '<span class="stat-mod-label">ATK ' + (atkIsPos ? '+' : '') + atkMod + '</span>' +
+                        '</div>'));
+                    }
+                    if (defMod !== 0) {
+                        var defIsPos = defMod > 0;
+                        $(this).append($('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview">' +
+                            '<span class="stat-mod-icon">' + (defIsPos ? '▲' : '▼') + '</span>' +
+                            '<span class="stat-mod-label">DEF ' + (defIsPos ? '+' : '') + defMod + '</span>' +
+                        '</div>'));
+                    }
                 }
-            } else if (existingBadge.length) {
-                existingBadge.remove();
             }
         } else if (existingBadge.length) {
             existingBadge.remove();
@@ -1292,3 +1601,360 @@ function updateDefLockedBadges() {
         }
     });
 }
+
+// ==========================================================================
+// Time Wizard Engine (Ignition Effect: Time Roulette / Coin Toss)
+// ==========================================================================
+
+var pendingTimeWizardZone = null;
+var pendingTimeWizardWho = null;
+
+function openTimeWizardModal(zoneNum) {
+    pendingTimeWizardZone = zoneNum;
+    pendingTimeWizardWho = 'player';
+
+    $('#time-wizard-coin').css({
+        'transition': 'none',
+        'transform': 'rotateY(0deg)'
+    });
+    $('#coin-toss-status').text('Make your call to spin Time Roulette!');
+    $('#coin-toss-buttons button').prop('disabled', false);
+    $('#time-wizard-cancel-btn').show();
+    $('#time-wizard-modal').fadeIn(150);
+}
+
+function cancelTimeWizardEffect() {
+    $('#time-wizard-modal').fadeOut(120);
+    pendingTimeWizardZone = null;
+    pendingTimeWizardWho = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+}
+
+async function onTimeWizardCall(playerChoice) {
+    $('#coin-toss-buttons button').prop('disabled', true);
+    $('#time-wizard-cancel-btn').hide();
+    
+    var zoneNum = pendingTimeWizardZone;
+    var who = pendingTimeWizardWho || 'player';
+    
+    await executeTimeWizardEffect(who, playerChoice, zoneNum);
+}
+
+async function executeTimeWizardEffect(who, callChoice, zoneNum) {
+    var monsterInst = (GameState && GameState[who] && GameState[who].field && GameState[who].field.monsters) ? GameState[who].field.monsters[zoneNum] : null;
+    if (!monsterInst || monsterInst.cardId !== 'time-wizard') {
+        $('#time-wizard-modal').fadeOut(120);
+        return;
+    }
+
+    monsterInst.lastEffectTurn = turnCount;
+
+    var opp = GameState.getOpponent(who);
+    var isPlayer = (who === 'player');
+    var prefix = isPlayer ? 'You' : 'Computer';
+    
+    addToFeed('<em>Time Wizard</em> activates <strong>Time Roulette</strong>! ' + prefix + ' called <strong>' + callChoice.toUpperCase() + '</strong>.\n');
+
+    // If computer activated, show the modal for dramatic animation
+    if (!isPlayer) {
+        $('#time-wizard-coin').css({
+            'transition': 'none',
+            'transform': 'rotateY(0deg)'
+        });
+        $('#coin-toss-status').text('Computer calls ' + callChoice.toUpperCase() + '...');
+        $('#coin-toss-buttons button').prop('disabled', true);
+        $('#time-wizard-cancel-btn').hide();
+        $('#time-wizard-modal').fadeIn(150);
+        await sleep(600);
+    }
+
+    // Coin toss calculation
+    var isHeads = Math.random() < 0.5;
+    var coinResult = isHeads ? 'heads' : 'tails';
+    var isCorrect = (callChoice.toLowerCase() === coinResult);
+
+    // Animate Coin Toss
+    var extraSpins = 5;
+    var targetDeg = (extraSpins * 360) + (isHeads ? 0 : 180);
+
+    $('#coin-toss-status').text('Tossing the coin...');
+    
+    var coinElm = $('#time-wizard-coin');
+    coinElm.css({
+        'transition': 'transform 1.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        'transform': 'rotateY(' + targetDeg + 'deg)'
+    });
+
+    await sleep(2000);
+
+    var resultText = isHeads ? 'HEADS' : 'TAILS';
+    if (isCorrect) {
+        $('#coin-toss-status').html('<span style="color: #4ade80;">RESULT: ' + resultText + ' • CALL CORRECT!</span>');
+        addToFeed('Coin toss landed on <strong>' + resultText + '</strong>! The call was <strong style="color:#4ade80;">CORRECT</strong>!\n');
+    } else {
+        $('#coin-toss-status').html('<span style="color: #f87171;">RESULT: ' + resultText + ' • CALL WRONG!</span>');
+        addToFeed('Coin toss landed on <strong>' + resultText + '</strong>! The call was <strong style="color:#f87171;">WRONG</strong>!\n');
+    }
+
+    await sleep(1200);
+    $('#time-wizard-modal').fadeOut(200);
+    await sleep(250);
+
+    if (isCorrect) {
+        // Success: Destroy all monsters opponent controls
+        addToFeed('<em>Time Wizard</em> rapidly accelerates time — destroying all monsters ' + formatWho(opp) + ' controls!\n');
+        
+        var oppMonsters = [];
+        for (var z = 1; z <= 6; z++) {
+            if (GameState[opp].field.monsters[z]) {
+                oppMonsters.push(z);
+            }
+        }
+
+        if (oppMonsters.length === 0) {
+            addToFeed('No monsters on ' + formatWho(opp) + '\'s field to destroy.\n\n');
+        } else {
+            for (var i = 0; i < oppMonsters.length; i++) {
+                var oppZone = oppMonsters[i];
+                var oppInst = GameState[opp].field.monsters[oppZone];
+                var oppDef = oppInst ? cards[oppInst.cardId] : null;
+                addToFeed('<em>Time Wizard</em> destroyed ' + formatWho(opp) + '\'s <strong>' + (oppDef ? oppDef.name : 'monster') + '</strong>!\n');
+                await destroyMonster(opp, oppZone);
+            }
+            addToFeed('\n');
+        }
+    } else {
+        // Failure: Destroy all monsters activator controls, and take damage equal to half the total ATK of those destroyed monsters
+        addToFeed('<em>Time Wizard</em>\'s roulette spell backfires!\n');
+
+        var ownMonsters = [];
+        var totalAtk = 0;
+
+        for (var z = 1; z <= 6; z++) {
+            var inst = GameState[who].field.monsters[z];
+            if (inst) {
+                ownMonsters.push({ zone: z, inst: inst, atk: getMonsterAtk(inst) });
+                totalAtk += getMonsterAtk(inst);
+            }
+        }
+
+        var damageAmount = Math.floor(totalAtk / 2);
+
+        // Destroy all activator's monsters
+        for (var j = 0; j < ownMonsters.length; j++) {
+            var item = ownMonsters[j];
+            var mDef = item.inst ? cards[item.inst.cardId] : null;
+            addToFeed('<em>Time Wizard</em>\'s explosion destroys ' + (isPlayer ? 'your' : 'Computer\'s') + ' <strong>' + (mDef ? mDef.name : 'monster') + '</strong>!\n');
+            await destroyMonster(who, item.zone);
+        }
+
+        addToFeed(prefix + ' takes <strong>' + damageAmount + '</strong> damage (half of destroyed monsters\' total ' + totalAtk + ' ATK)!\n\n');
+        damageLP(who, damageAmount);
+    }
+
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateResourceCounters();
+}
+
+// ==========================================================================
+// Harpie Lady Engine (Ignition Effect: Discard 1 -> Destroy 1 Spell/Trap)
+// ==========================================================================
+
+var pendingHarpieLadyZone = null;
+var pendingHarpieLadyDiscardUid = null;
+
+function hasSpellTrapOnField() {
+    var targets = [];
+    ['player', 'computer'].forEach(function(side) {
+        for (var z = 1; z <= 6; z++) {
+            if (GameState[side].field.spells[z]) {
+                targets.push({ side: side, zone: z, isField: false });
+            }
+        }
+        if (GameState[side].field.fieldZone) {
+            targets.push({ side: side, zone: null, isField: true });
+        }
+    });
+    return targets.length > 0;
+}
+
+function openHarpieLadyDiscardModal(zoneNum) {
+    pendingHarpieLadyZone = zoneNum;
+    pendingHarpieLadyDiscardUid = null;
+
+    var grid = $('#harpie-lady-discard-grid');
+    grid.empty();
+
+    var handElms = $('#player-hand > .card');
+    if (handElms.length === 0) {
+        addToFeed('You have no cards in hand to discard for Harpie Lady.\n');
+        return;
+    }
+
+    handElms.each(function() {
+        var cardName = $(this).attr('data-card-name');
+        var cardUid = $(this).attr('data-uid');
+        var cardDef = cards[cardName];
+        if (!cardDef) return;
+
+        var typeBadge = cardDef.type === 'monsters' 
+            ? 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0)
+            : (cardDef.subType ? cardDef.subType.toUpperCase() + ' ' : '') + cardDef.type.slice(0, -1).toUpperCase();
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag tag-player">HAND</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            applyHarpieLadyDiscard(cardUid, cardName);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#harpie-lady-discard-modal').fadeIn(150);
+}
+
+function cancelHarpieLadyEffect() {
+    $('#harpie-lady-discard-modal').fadeOut(120);
+    $('#harpie-lady-target-modal').fadeOut(120);
+    pendingHarpieLadyZone = null;
+    pendingHarpieLadyDiscardUid = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+}
+
+async function applyHarpieLadyDiscard(cardUid, cardName) {
+    $('#harpie-lady-discard-modal').fadeOut(120);
+    pendingHarpieLadyDiscardUid = cardUid;
+
+    var def = cards[cardName];
+    addToFeed('You discard <strong>' + (def ? def.name : 'a card') + '</strong> from your hand for Harpie Lady.\n');
+
+    var handElm = $('#player-hand > .card[data-uid="' + cardUid + '"]');
+    if (!handElm.length) {
+        handElm = $('#player-hand > .card[data-card-name="' + cardName + '"]').first();
+    }
+    
+    var removed = false;
+    ['monsters', 'spells', 'traps'].forEach(function(cat) {
+        if (removed) return;
+        var idx = player.hand[cat].indexOf(cardName);
+        if (idx !== -1) {
+            player.hand[cat].splice(idx, 1);
+            removed = true;
+        }
+    });
+
+    GameState.player.graveyard.push(new CardInstance(cardName));
+
+    if (handElm.length) {
+        handElm.fadeOut(250, function() {
+            handElm.remove();
+            updateResourceCounters();
+            updateGraveyardZones();
+        });
+    } else {
+        updateResourceCounters();
+        updateGraveyardZones();
+    }
+
+    await sleep(300);
+    openHarpieLadyTargetModal();
+}
+
+function openHarpieLadyTargetModal() {
+    var grid = $('#harpie-lady-target-grid');
+    grid.empty();
+
+    var targets = [];
+    ['computer', 'player'].forEach(function(side) {
+        for (var z = 1; z <= 6; z++) {
+            var inst = GameState[side].field.spells[z];
+            if (inst) {
+                targets.push({ side: side, zone: z, isField: false, inst: inst });
+            }
+        }
+        var fieldInst = GameState[side].field.fieldZone;
+        if (fieldInst) {
+            targets.push({ side: side, zone: null, isField: true, inst: fieldInst });
+        }
+    });
+
+    if (targets.length === 0) {
+        addToFeed('No Spell or Trap cards on the field to destroy.\n');
+        $('#harpie-lady-target-modal').fadeOut(120);
+        return;
+    }
+
+    targets.forEach(function(entry) {
+        var cardDef = cards[entry.inst.cardId];
+        var isFaceDown = entry.inst.faceDown || entry.inst.position === 'set';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+        var zoneLabel = entry.isField ? 'FIELD ZONE' : 'SPELL ZONE #' + entry.zone;
+
+        var imgSrc = (isFaceDown && isOpp) ? 'cards/card_back.png' : 'cards/' + (cardDef ? cardDef.file : 'card_back.png');
+        var displayName = (isFaceDown && isOpp) ? 'Set Card (Hidden)' : (cardDef ? cardDef.name : 'Spell/Trap');
+        var subTypeLabel = (isFaceDown && isOpp) ? 'Face-Down' : (cardDef ? (cardDef.subType || cardDef.type).toUpperCase() : '');
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ' + zoneLabel + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                '<span class="rebirth-tile-stats">' + subTypeLabel + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            applyHarpieLadyTarget(entry.side, entry.zone, entry.isField);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#harpie-lady-target-modal').fadeIn(150);
+}
+
+async function applyHarpieLadyTarget(side, zoneNum, isFieldZone) {
+    $('#harpie-lady-target-modal').fadeOut(120);
+
+    var zone = pendingHarpieLadyZone;
+    var monsterInst = (GameState.player && GameState.player.field && GameState.player.field.monsters) ? GameState.player.field.monsters[zone] : null;
+    if (monsterInst) {
+        monsterInst.lastEffectTurn = turnCount;
+    }
+
+    var targetInst = isFieldZone ? GameState[side].field.fieldZone : GameState[side].field.spells[zoneNum];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    var targetName = targetDef ? targetDef.name : 'Spell/Trap card';
+
+    addToFeed('<em>Harpie Lady</em> targeted and destroyed ' + formatWho(side) + '\'s <strong>' + targetName + '</strong>!\n\n');
+
+    await destroySpellTrap(side, zoneNum, isFieldZone, false);
+
+    pendingHarpieLadyZone = null;
+    pendingHarpieLadyDiscardUid = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateResourceCounters();
+}
+
+

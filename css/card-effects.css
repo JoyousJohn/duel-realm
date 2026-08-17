@@ -202,6 +202,53 @@ div.card-zone.field-available-zone {
 }
 
 /* ==========================================================================
+   Tribute to the Doomed / Remove Trap Modal Tiles
+   (rebirth-card-preview-frame + rebirth-thumb-img based tiles)
+   ========================================================================== */
+
+.rebirth-card-preview-frame {
+    width: 100%;
+    height: 165rem;
+    position: relative;
+    background: #000;
+    overflow: hidden;
+}
+
+.rebirth-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.rebirth-tile-meta {
+    padding: 4rem 6rem 6rem 6rem;
+    background: rgba(22, 27, 34, 0.95);
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    border-top: 1px solid rgba(240, 246, 252, 0.08);
+}
+
+.rebirth-tile-name {
+    font-family: 'Cinzel', serif;
+    font-size: 10rem;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+}
+
+.rebirth-tile-stats {
+    font-family: 'Inter', sans-serif;
+    font-size: 9rem;
+    font-weight: 700;
+    color: #facc15;
+}
+
+/* ==========================================================================
    Swords of Revealing Light Turn Counter Badge
    ========================================================================== */
 
@@ -342,6 +389,17 @@ div.card-zone.field-available-zone {
     transform: translate(-50%, calc(-50% - 19rem));
 }
 
+/* Stack separate ATK/DEF stat mod badges vertically (asymmetric deltas) */
+.card-zone-square .stat-mod-badge ~ .stat-mod-badge {
+    bottom: 20rem;
+    transform: translate(-50%, 50%);
+}
+
+.card-zone-square[data-card-position*="defense"] .stat-mod-badge ~ .stat-mod-badge {
+    bottom: calc(50% - (var(--card-width) / 2) + 20rem);
+    transform: translate(-50%, 50%);
+}
+
 .card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .def-locked-badge,
 .card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .borrowed-monster-badge {
     top: calc(50% - (var(--card-width) / 2));
@@ -389,6 +447,58 @@ div.card-zone.field-available-zone {
         box-shadow: 0 0 16px rgba(251, 191, 36, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
         filter: brightness(1.15);
     }
+}
+
+/* ==========================================================================
+   Equip Card "EQUIPPED" Tag (shown on the equipped monster)
+   ========================================================================== */
+
+.equip-tag-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(202, 138, 4, 0.95) 100%);
+    border: 1px solid #fde68a;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 76;
+    pointer-events: none;
+}
+
+.equip-tag-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+/* Defense-position monsters display horizontally — nudge the tag to their top edge */
+.card-zone-square[data-card-position*="defense"] .equip-tag-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, -50%);
+}
+
+/* Vertical stacking with other top badges */
+.card-zone-square .equip-tag-badge ~ .borrowed-monster-badge,
+.card-zone-square .borrowed-monster-badge ~ .equip-tag-badge,
+.card-zone-square .equip-tag-badge ~ .def-locked-badge,
+.card-zone-square .def-locked-badge ~ .equip-tag-badge {
+    transform: translate(-50%, calc(-50% - 19rem));
+}
+
+.card-zone-square .equip-tag-badge ~ .def-locked-badge ~ .borrowed-monster-badge,
+.card-zone-square .borrowed-monster-badge ~ .equip-tag-badge ~ .def-locked-badge,
+.card-zone-square .def-locked-badge ~ .equip-tag-badge ~ .borrowed-monster-badge {
+    transform: translate(-50%, calc(-50% - 38rem));
 }
 
 /* Dragon Capture Jar Summon Menu Alert */
@@ -489,6 +599,16 @@ div.card-zone.field-available-zone {
 
 #player-hand > .card:hover .stat-mod-badge.stat-mod-preview {
     opacity: 1;
+    transform: translate(-50%, 50%) scale(1);
+}
+
+/* Stack separate ATK/DEF preview badges on hand cards */
+#player-hand .stat-mod-badge.stat-mod-preview ~ .stat-mod-badge.stat-mod-preview {
+    bottom: 20rem;
+    transform: translate(-50%, 50%) scale(0.92);
+}
+
+#player-hand > .card:hover .stat-mod-badge.stat-mod-preview ~ .stat-mod-badge.stat-mod-preview {
     transform: translate(-50%, 50%) scale(1);
 }
 

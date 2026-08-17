@@ -64,10 +64,26 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         // Show ATK & DEF gauges with active stat modifiers (+/-)
         var baseAtk = cardData.atk !== undefined ? cardData.atk : 0;
         var baseDef = cardData.def !== undefined ? cardData.def : 0;
-        var mod = (typeof getFieldModifier === 'function') ? getFieldModifier(cardData) : 0;
+        var mods = (typeof getFieldMods === 'function') ? getFieldMods(cardData) : { atk: 0, def: 0 };
+        var atkMod = mods.atk;
+        var defMod = mods.def;
 
-        var effAtk = Math.max(0, baseAtk + mod);
-        var effDef = Math.max(0, baseDef + mod);
+        // Include equip spell modifiers for monsters that are actually on the field
+        // (equip cards attach to field instances via equippedToUid)
+        var zoneNum = square.length ? parseInt(square.attr('data-zone')) : null;
+        if (zoneNum && GameState && GameState.player && GameState.player.field) {
+            var monsterInst = isOpponentField
+                ? (GameState.computer && GameState.computer.field ? GameState.computer.field.monsters[zoneNum] : null)
+                : GameState.player.field.monsters[zoneNum];
+            if (monsterInst && typeof getEquipMods === 'function') {
+                var equipMods = getEquipMods(monsterInst);
+                atkMod += equipMods.atk;
+                defMod += equipMods.def;
+            }
+        }
+
+        var effAtk = Math.max(0, baseAtk + atkMod);
+        var effDef = Math.max(0, baseDef + defMod);
 
         var atkValElem = $('#preview-atk-val');
         var defValElem = $('#preview-def-val');
@@ -77,18 +93,32 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         atkValElem.removeClass('has-stat-buff has-stat-debuff');
         defValElem.removeClass('has-stat-buff has-stat-debuff');
 
-        if (mod !== 0) {
-            var isPos = mod > 0;
-            var sign = isPos ? '+' : '';
-            var modText = sign + mod;
-            var modClass = isPos ? 'mod-buff' : 'mod-debuff';
-            var valueClass = isPos ? 'has-stat-buff' : 'has-stat-debuff';
+        if (atkMod !== 0 || defMod !== 0) {
+            if (atkMod !== 0) {
+                var atkIsPos = atkMod > 0;
+                var atkSign = atkIsPos ? '+' : '';
+                var atkModText = atkSign + atkMod;
+                var atkModClass = atkIsPos ? 'mod-buff' : 'mod-debuff';
+                var atkValueClass = atkIsPos ? 'has-stat-buff' : 'has-stat-debuff';
+                atkValElem.text(effAtk).addClass(atkValueClass);
+                atkModElem.removeClass('mod-buff mod-debuff').addClass(atkModClass).text(atkModText).show();
+            } else {
+                atkValElem.text(effAtk);
+                atkModElem.hide();
+            }
 
-            atkValElem.text(effAtk).addClass(valueClass);
-            defValElem.text(effDef).addClass(valueClass);
-
-            atkModElem.removeClass('mod-buff mod-debuff').addClass(modClass).text(modText).show();
-            defModElem.removeClass('mod-buff mod-debuff').addClass(modClass).text(modText).show();
+            if (defMod !== 0) {
+                var defIsPos = defMod > 0;
+                var defSign = defIsPos ? '+' : '';
+                var defModText = defSign + defMod;
+                var defModClass = defIsPos ? 'mod-buff' : 'mod-debuff';
+                var defValueClass = defIsPos ? 'has-stat-buff' : 'has-stat-debuff';
+                defValElem.text(effDef).addClass(defValueClass);
+                defModElem.removeClass('mod-buff mod-debuff').addClass(defModClass).text(defModText).show();
+            } else {
+                defValElem.text(effDef);
+                defModElem.hide();
+            }
         } else {
             atkValElem.text(baseAtk);
             defValElem.text(baseDef);

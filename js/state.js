@@ -27,6 +27,8 @@ function CardInstance(cardId) {
     this.hasAttacked = false;
     this.faceDown = false;   // true for set traps (and face-down monsters)
     this.turnCounter = null; // Swords of Revealing Light remaining turns
+    this.equippedToUid = null; // equip spells: uid of the equipped monster
+    this.lastEffectTurn = null; // Once-per-turn monster effects (e.g. Time Wizard)
 }
 
 CardInstance.prototype.getDef = function() {

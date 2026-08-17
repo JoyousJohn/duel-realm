@@ -139,6 +139,13 @@ function isCardCurrentlyPlayable(cardDef) {
 
     if (freeSlots <= 0) return false;
 
+    // Equip spells need a face-up monster on your field to attach to
+    if (cardDef.type === 'spells' && cardDef.subType === 'equip') {
+        var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player') : [];
+        var faceUpOwn = ownMonsters.filter(function(m) { return m.card && !m.card.faceDown && m.card.position !== 'defense-down'; });
+        return faceUpOwn.length > 0;
+    }
+
     // Tactical spell checks
     if (cardDef.id === 'change-of-heart') {
         var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
@@ -191,6 +198,10 @@ function getCardUnplayableReason(cardDef) {
 
     if (freeSlots <= 0) {
         return 'There are no free slots on your field.';
+    }
+
+    if (cardDef.type === 'spells' && cardDef.subType === 'equip') {
+        return 'You need a face-up monster on your field to equip this card to.';
     }
 
     if (cardDef.id === 'change-of-heart') {

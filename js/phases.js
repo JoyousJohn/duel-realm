@@ -93,6 +93,14 @@ async function computerTurn() {
         await AISummonMonsterRoutine();
     }
 
+    // 3b. AI activates ignition effects (Time Wizard, Harpie Lady) if threats exist
+    if (typeof AIPlayTimeWizard === 'function') {
+        await AIPlayTimeWizard();
+    }
+    if (typeof AIPlayHarpieLady === 'function') {
+        await AIPlayHarpieLady();
+    }
+
     // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game
     if (typeof AIPlayOokazi === 'function') {
         await AIPlayOokazi();
@@ -113,6 +121,11 @@ async function computerTurn() {
 
     // 5. Computer plays spells and sets traps dynamically
     await AIPlaySpellTrapCards();
+
+    // 5b. Re-evaluate monster positions before Battle Phase (e.g. monsters acquired via Change of Heart)
+    if (typeof AIEvaluatePositionChanges === 'function') {
+        await AIEvaluatePositionChanges();
+    }
 
     setPhase(3); // Battle Phase
     await AIPerformBattlePhase();

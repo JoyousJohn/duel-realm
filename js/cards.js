@@ -30,7 +30,7 @@ var cards = {
         'name': 'Hitotsu-Me Giant',
         'monsterType': 'Beast-Warrior',
         'attribute': 'EARTH',
-        'level': 4,
+        'level': 5,
         'atk': 1200,
         'def': 1000
     },
@@ -89,8 +89,8 @@ var cards = {
         'file': 'celtic_guardian.png',
         'name': 'Celtic Guardian',
         'monsterType': 'Warrior',
-        'attribute': 'EARTH',
-        'level': 4,
+        'attribute': 'DARK',
+        'level': 6,
         'atk': 1400,
         'def': 1200
     },
@@ -102,7 +102,7 @@ var cards = {
         'name': 'Basic Insect',
         'monsterType': 'Insect',
         'attribute': 'EARTH',
-        'level': 2,
+        'level': 4,
         'atk': 500,
         'def': 700
     },
@@ -124,11 +124,11 @@ var cards = {
         'type': 'monsters',
         'file': 'silver_fang.png',
         'name': 'Silver Fang',
-        'monsterType': 'Beast',
+        'monsterType': 'Beast-Warrior',
         'attribute': 'EARTH',
-        'level': 3,
-        'atk': 1200,
-        'def': 800
+        'level': 6,
+        'atk': 1800,
+        'def': 1000
     },
 
     'red-eyes': {
@@ -160,8 +160,8 @@ var cards = {
         'type': 'monsters',
         'file': 'dark_gray.png',
         'name': 'Dark Gray',
-        'monsterType': 'Beast',
-        'attribute': 'EARTH',
+        'monsterType': 'Beast-Warrior',
+        'attribute': 'DARK',
         'level': 3,
         'atk': 800,
         'def': 900
@@ -184,11 +184,11 @@ var cards = {
         'type': 'monsters',
         'file': 'nemuriko.png',
         'name': 'Nemuriko',
-        'monsterType': 'Spellcaster',
-        'attribute': 'DARK',
-        'level': 3,
-        'atk': 800,
-        'def': 700
+        'monsterType': 'Fairy',
+        'attribute': 'LIGHT',
+        'level': 4,
+        'atk': 1400,
+        'def': 1200
     },
 
     'summoned-skull': {
@@ -234,7 +234,7 @@ var cards = {
         'name': 'Baby Dragon',
         'monsterType': 'Dragon',
         'attribute': 'WIND',
-        'level': 3,
+        'level': 1,
         'atk': 1200,
         'def': 700
     },
@@ -242,13 +242,15 @@ var cards = {
     'time-wizard': {
         'id': 'time-wizard',
         'type': 'monsters',
+        'subType': 'effect',
         'file': 'time_wizard.png',
         'name': 'Time Wizard',
         'monsterType': 'Spellcaster',
         'attribute': 'LIGHT',
         'level': 2,
         'atk': 500,
-        'def': 400
+        'def': 400,
+        'desc': 'Once per turn: You can toss a coin. If you call it right, destroy all monsters your opponent controls. If you call it wrong, destroy all monsters you control, and if you do, take damage equal to half the total ATK of those destroyed monsters.'
     },
 
     'kuriboh': {
@@ -270,7 +272,7 @@ var cards = {
         'name': 'Winged Dragon, Guardian of the Fortress #1',
         'monsterType': 'Dragon',
         'attribute': 'LIGHT',
-        'level': 4,
+        'level': 6,
         'atk': 1400,
         'def': 1200
     },
@@ -290,13 +292,15 @@ var cards = {
     'harpie-lady': {
         'id': 'harpie-lady',
         'type': 'monsters',
+        'subType': 'effect',
         'file': 'harpie_lady.png',
         'name': 'Harpie Lady',
         'monsterType': 'Winged Beast',
         'attribute': 'WIND',
         'level': 4,
         'atk': 1300,
-        'def': 1400
+        'def': 1400,
+        'desc': 'Once per turn, you can discard 1 card to target 1 Spell/Trap Card on the field; destroy that target. If you control no monsters, this card cannot attack directly.'
     },
 
     'mystical-elf': {
@@ -314,13 +318,15 @@ var cards = {
     'man-eater-bug': {
         'id': 'man-eater-bug',
         'type': 'monsters',
-        'file': 'man_eater_bug.jpg',
+        'subType': 'effect',
+        'file': 'man_eater_bug.png',
         'name': 'Man-Eater Bug',
         'monsterType': 'Insect',
         'attribute': 'EARTH',
         'level': 2,
         'atk': 450,
-        'def': 600
+        'def': 600,
+        'desc': 'FLIP: Target 1 monster on the field; destroy that target.'
     },
 
     'battle-ox': {
@@ -341,7 +347,7 @@ var cards = {
         'file': 'jinzo.png',
         'name': 'Jinzo',
         'monsterType': 'Machine',
-        'attribute': 'DARK',
+        'attribute': 'LIGHT',
         'level': 6,
         'atk': 2400,
         'def': 1500
@@ -516,6 +522,16 @@ var cards = {
         'file': 'monster_reborn.png',
         'name': 'Monster Reborn',
         'desc': 'Target 1 Monster in either Graveyard and Special Summon it.'
+    },
+
+    'black-pendant': {
+        'id': 'black-pendant',
+        'type': 'spells',
+        'subType': 'equip',
+        'file': 'black_pendant.png',
+        'name': 'Black Pendant',
+        'atkMod': 500,
+        'desc': 'The equipped monster gains 500 ATK. When this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.'
     },
 
     'dark-hole': {

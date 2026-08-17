@@ -518,6 +518,9 @@ var BattleFX = {
     startPlayerTargetSelection: function(attackerZone) {
         var computerMonsters = GameState.getMonstersOnField('computer');
         var isBlocked = (typeof isAttackBlocked === 'function') && isAttackBlocked('player');
+        var attackerInst = (GameState.player && GameState.player.field && GameState.player.field.monsters) ? GameState.player.field.monsters[attackerZone] : null;
+        var playerMonsters = GameState.getMonstersOnField('player');
+        var isHarpieDirectRestricted = (attackerInst && attackerInst.cardId === 'harpie-lady' && playerMonsters.length <= 1);
 
         // Direct attack if opponent field is clear
         if (computerMonsters.length === 0) {
@@ -527,6 +530,12 @@ var BattleFX = {
                 addToFeed('(Targeting) Opponent field is clear, but Swords of Revealing Light prevents your monsters from attacking.\n');
                 $('#opponent-lp').off('click.targetAttack').on('click.targetAttack', function() {
                     addToFeed('[Attack Blocked] Swords of Revealing Light prevents your monsters from attacking!\n');
+                });
+            } else if (isHarpieDirectRestricted) {
+                $('#opponent-lp').addClass('is-blocked');
+                addToFeed('(Targeting) Harpie Lady cannot attack directly while you control no other monsters.\n');
+                $('#opponent-lp').off('click.targetAttack').on('click.targetAttack', function() {
+                    addToFeed('[Attack Restricted] Harpie Lady cannot attack directly while she is your only monster on the field!\n');
                 });
             } else {
                 $('#opponent-lp').removeClass('is-blocked');
