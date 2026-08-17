@@ -127,11 +127,23 @@ function showAvailableZonesForCard(cardDef) {
 function isCardCurrentlyPlayable(cardDef) {
     if (!cardDef) return false;
 
+    // Declarative Unified Registry Resolution
+    if (typeof cardDef.canActivate === 'function') {
+        return cardDef.canActivate('player');
+    }
+
     var freeSlots = getNumOfFreeZones('player');
     var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
 
     if (cardDef.type === 'monsters') {
         if (normalSummonUsed) return false;
+        if (cardDef.id === 'infernal-incinerator') {
+            var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player') : [];
+            var eligibleTributes = ownMonsters.filter(function(m) {
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof getMonsterAtk === 'function' ? getMonsterAtk(m.card) >= 2000 : (cards[m.card.cardId] && cards[m.card.cardId].atk >= 2000));
+            });
+            return eligibleTributes.length > 0;
+        }
         var reqTributes = getRequiredTributes(cardDef.level);
         var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
         if (ownMonsters < reqTributes) return false;
@@ -169,7 +181,7 @@ function isCardCurrentlyPlayable(cardDef) {
         return oppMonsters.length > 0;
     }
 
-    if (cardDef.id === 'fissure') {
+    if (cardDef.id === 'fissure' || cardDef.id === 'smashing-ground') {
         var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
         var faceUpOpp = oppMonsters.filter(function(m) { return m.card && !m.card.faceDown; });
         return faceUpOpp.length > 0;
@@ -180,18 +192,47 @@ function isCardCurrentlyPlayable(cardDef) {
         return hasFaceUpTrap;
     }
 
+    if (cardDef.id === 'mystical-space-typhoon' || cardDef.id === 'heavy-storm') {
+        var hasSpellTrap = false;
+        ['player', 'computer'].forEach(function(side) {
+            if (typeof GameState !== 'undefined' && GameState && GameState[side] && GameState[side].field) {
+                for (var z = 1; z <= 6; z++) {
+                    if (GameState[side].field.spells[z]) hasSpellTrap = true;
+                }
+                if (GameState[side].field.fieldZone) hasSpellTrap = true;
+            }
+        });
+        return hasSpellTrap && freeSlots > 0;
+    }
+
     return true;
 }
 
 // Get descriptive reason why card cannot be played
 function getCardUnplayableReason(cardDef) {
     if (!cardDef) return 'Invalid card.';
+
+    // Declarative Unified Registry Resolution
+    if (typeof cardDef.unplayableReason === 'function') {
+        return cardDef.unplayableReason('player');
+    }
+
     var freeSlots = getNumOfFreeZones('player');
     var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
 
     if (cardDef.type === 'monsters') {
         if (normalSummonUsed) {
             return 'You have already used your Normal Summon / Set for this turn.';
+        }
+        if (cardDef.id === 'infernal-incinerator') {
+            var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player') : [];
+            var eligibleTributes = ownMonsters.filter(function(m) {
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof getMonsterAtk === 'function' ? getMonsterAtk(m.card) >= 2000 : (cards[m.card.cardId] && cards[m.card.cardId].atk >= 2000));
+            });
+            if (eligibleTributes.length === 0) {
+                return 'Requires Tributing 1 face-up monster you control with 2000+ ATK (and discards other hand cards).';
+            }
+            return '';
         }
         var reqTributes = getRequiredTributes(cardDef.level);
         var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
@@ -243,12 +284,16 @@ function getCardUnplayableReason(cardDef) {
         return 'Opponent controls no monsters to destroy.';
     }
 
-    if (cardDef.id === 'fissure') {
+    if (cardDef.id === 'fissure' || cardDef.id === 'smashing-ground') {
         return 'Opponent controls no face-up monsters to destroy.';
     }
 
     if (cardDef.id === 'remove-trap') {
         return 'There are no face-up Trap cards on the field to destroy.';
+    }
+
+    if (cardDef.id === 'mystical-space-typhoon' || cardDef.id === 'heavy-storm') {
+        return 'There are no Spell or Trap cards on the field to destroy.';
     }
 
     return 'Card cannot be activated right now.';

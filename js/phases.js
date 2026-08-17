@@ -93,12 +93,15 @@ async function computerTurn() {
         await AISummonMonsterRoutine();
     }
 
-    // 3b. AI activates ignition effects (Time Wizard, Harpie Lady) if threats exist
+    // 3b. AI activates ignition effects (Time Wizard, Harpie Lady, Exiled Force) if threats exist
     if (typeof AIPlayTimeWizard === 'function') {
         await AIPlayTimeWizard();
     }
     if (typeof AIPlayHarpieLady === 'function') {
         await AIPlayHarpieLady();
+    }
+    if (typeof AIPlayExiledForce === 'function') {
+        await AIPlayExiledForce();
     }
 
     // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game

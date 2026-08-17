@@ -121,3 +121,68 @@ function getRequiredTributes(level) {
     if (level <= 6) return 1;
     return 2;
 }
+
+// ---------------------------------------------------------------------------
+// Unified Query API
+// ---------------------------------------------------------------------------
+var Queries = {
+    // Face-up monsters controlled by `who`
+    getFaceUpMonsters: function(who) {
+        if (!GameState || !GameState[who]) return [];
+        return GameState.getMonstersOnField(who).filter(function(m) {
+            return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+        });
+    },
+
+    // Face-up monsters controlled by opponent of `who`
+    getOpponentFaceUpMonsters: function(who) {
+        var opp = (typeof GameState !== 'undefined' && GameState.getOpponent) ? GameState.getOpponent(who) : (who === 'player' ? 'computer' : 'player');
+        return this.getFaceUpMonsters(opp);
+    },
+
+    // All monsters on field across both players
+    getAllMonsters: function() {
+        if (!GameState) return [];
+        return [
+            ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+            ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+        ];
+    },
+
+    // All Spells/Traps on `who`'s field (including Field Zone)
+    getSpellTraps: function(who) {
+        var result = [];
+        if (!GameState || !GameState[who] || !GameState[who].field) return result;
+        for (var z = 1; z <= 6; z++) {
+            var inst = GameState[who].field.spells[z];
+            if (inst) result.push({ side: who, zone: z, isField: false, inst: inst });
+        }
+        if (GameState[who].field.fieldZone) {
+            result.push({ side: who, zone: null, isField: true, inst: GameState[who].field.fieldZone });
+        }
+        return result;
+    },
+
+    // All Spells/Traps across both fields
+    getAllSpellTraps: function() {
+        return [...this.getSpellTraps('computer'), ...this.getSpellTraps('player')];
+    },
+
+    // Face-up traps on `who`'s field
+    getFaceUpTraps: function(who) {
+        return this.getSpellTraps(who).filter(function(entry) {
+            var def = cards[entry.inst.cardId];
+            return def && def.type === 'traps' && entry.inst.position !== 'set' && !entry.inst.faceDown;
+        });
+    },
+
+    // Graveyard monsters across either or specific player
+    getGraveyardMonsters: function(who) {
+        if (typeof getGraveyardMonsters === 'function') {
+            var gy = getGraveyardMonsters();
+            if (who) return gy.filter(function(m) { return m.who === who; });
+            return gy;
+        }
+        return [];
+    }
+};

@@ -14,6 +14,19 @@ var EventBus = {
         this.events[event].forEach(function(callback) {
             try { callback(data); } catch (err) { console.error('EventBus error:', err); }
         });
+    },
+    emitAsync: async function(event, data) {
+        if (!this.events[event]) return;
+        for (var i = 0; i < this.events[event].length; i++) {
+            try {
+                var res = this.events[event][i](data);
+                if (res && typeof res.then === 'function') {
+                    await res;
+                }
+            } catch (err) {
+                console.error('EventBus async error:', err);
+            }
+        }
     }
 };
 

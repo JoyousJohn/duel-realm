@@ -64,26 +64,31 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         // Show ATK & DEF gauges with active stat modifiers (+/-)
         var baseAtk = cardData.atk !== undefined ? cardData.atk : 0;
         var baseDef = cardData.def !== undefined ? cardData.def : 0;
-        var mods = (typeof getFieldMods === 'function') ? getFieldMods(cardData) : { atk: 0, def: 0 };
-        var atkMod = mods.atk;
-        var defMod = mods.def;
+        var atkMod = 0;
+        var defMod = 0;
+        var effAtk = baseAtk;
+        var effDef = baseDef;
 
-        // Include equip spell modifiers for monsters that are actually on the field
-        // (equip cards attach to field instances via equippedToUid)
         var zoneNum = square.length ? parseInt(square.attr('data-zone')) : null;
-        if (zoneNum && GameState && GameState.player && GameState.player.field) {
-            var monsterInst = isOpponentField
+        var monsterInst = null;
+        if (zoneNum && typeof GameState !== 'undefined' && GameState) {
+            monsterInst = isOpponentField
                 ? (GameState.computer && GameState.computer.field ? GameState.computer.field.monsters[zoneNum] : null)
-                : GameState.player.field.monsters[zoneNum];
-            if (monsterInst && typeof getEquipMods === 'function') {
-                var equipMods = getEquipMods(monsterInst);
-                atkMod += equipMods.atk;
-                defMod += equipMods.def;
-            }
+                : (GameState.player && GameState.player.field ? GameState.player.field.monsters[zoneNum] : null);
         }
 
-        var effAtk = Math.max(0, baseAtk + atkMod);
-        var effDef = Math.max(0, baseDef + defMod);
+        if (monsterInst && typeof getMonsterAtk === 'function') {
+            effAtk = getMonsterAtk(monsterInst);
+            effDef = getMonsterDef(monsterInst);
+            atkMod = effAtk - baseAtk;
+            defMod = effDef - baseDef;
+        } else {
+            var mods = (typeof getFieldMods === 'function') ? getFieldMods(cardData) : { atk: 0, def: 0 };
+            atkMod = mods.atk;
+            defMod = mods.def;
+            effAtk = Math.max(0, baseAtk + atkMod);
+            effDef = Math.max(0, baseDef + defMod);
+        }
 
         var atkValElem = $('#preview-atk-val');
         var defValElem = $('#preview-def-val');

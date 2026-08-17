@@ -289,6 +289,19 @@ var cards = {
         'def': 2300
     },
 
+    'barrel-dragon': {
+        'id': 'barrel-dragon',
+        'type': 'monsters',
+        'file': 'barrel_dragon.png',
+        'name': 'Barrel Dragon',
+        'monsterType': 'Machine',
+        'attribute': 'DARK',
+        'level': 7,
+        'atk': 2600,
+        'def': 2200,
+        'desc': 'This mechanical dragon is armed with three revolver gun barrels on its body, firing continuous barrages with devastating precision.'
+    },
+
     'harpie-lady': {
         'id': 'harpie-lady',
         'type': 'monsters',
@@ -329,6 +342,48 @@ var cards = {
         'desc': 'FLIP: Target 1 monster on the field; destroy that target.'
     },
 
+    'hane-hane': {
+        'id': 'hane-hane',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'hane_hane.png',
+        'name': 'Hane-Hane',
+        'monsterType': 'Beast',
+        'attribute': 'EARTH',
+        'level': 2,
+        'atk': 450,
+        'def': 500,
+        'desc': 'FLIP: Target 1 monster on the field; return that target to the hand.'
+    },
+
+    'giant-germ': {
+        'id': 'giant-germ',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'giant_germ.png',
+        'name': 'Giant Germ',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 2,
+        'atk': 1000,
+        'def': 100,
+        'desc': 'When this card is destroyed by battle and sent to the Graveyard: Inflict 500 damage to your opponent, and you can Special Summon any number of "Giant Germ" from your Deck in Attack Position.'
+    },
+
+    'spear-cretin': {
+        'id': 'spear-cretin',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'spear_cretin.png',
+        'name': 'Spear Cretin',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 2,
+        'atk': 500,
+        'def': 500,
+        'desc': 'FLIP: After this card is flipped, when it is sent to the Graveyard, both you and your opponent select 1 monster from your respective Graveyards and Special Summon it on the field in face-up Attack Position or face-down Defense Position.'
+    },
+
     'battle-ox': {
         'id': 'battle-ox',
         'type': 'monsters',
@@ -344,13 +399,143 @@ var cards = {
     'jinzo': {
         'id': 'jinzo',
         'type': 'monsters',
+        'subType': 'effect',
         'file': 'jinzo.png',
         'name': 'Jinzo',
         'monsterType': 'Machine',
         'attribute': 'LIGHT',
         'level': 6,
         'atk': 2400,
-        'def': 1500
+        'def': 1500,
+        'desc': 'As long as this card remains face-up on the field, Trap Cards, and their effects on the field, cannot be activated. Negate all Trap Effects on the field.'
+    },
+
+    'chainsaw-insect': {
+        'id': 'chainsaw-insect',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'chainsaw_insect.png',
+        'name': 'Chainsaw Insect',
+        'monsterType': 'Insect',
+        'attribute': 'EARTH',
+        'level': 4,
+        'atk': 2400,
+        'def': 0,
+        'desc': 'If this card battled, at the end of the Damage Step: Your opponent draws 1 card.',
+        onDamageStepEnd: async function(data) {
+            var opp = (data.role === 'attacker') ? data.defenderWho : data.attackerWho;
+            if (GameState[opp] && GameState[opp].lp > 0) {
+                addToFeed('<em>Chainsaw Insect</em>\'s effect activated: ' + formatWho(opp) + ' draws 1 card!\n\n');
+                await getCards(opp, 1);
+            }
+        }
+    },
+
+    'lionhearted-locomotive': {
+        'id': 'lionhearted-locomotive',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'lionhearted_locomotive.png',
+        'name': 'Lionhearted Locomotive',
+        'monsterType': 'Machine',
+        'attribute': 'EARTH',
+        'level': 4,
+        'atk': 2400,
+        'def': 2100,
+        'desc': 'When this card declares an attack: Its ATK becomes half its original ATK until the end of the Damage Step.'
+    },
+
+    'exiled-force': {
+        'id': 'exiled-force',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'exiled_force.png',
+        'name': 'Exiled Force',
+        'monsterType': 'Warrior',
+        'attribute': 'EARTH',
+        'level': 4,
+        'atk': 1000,
+        'def': 1000,
+        'desc': 'You can Tribute this card, then target 1 monster on the field; destroy that target.',
+        onIgnitionEffect: async function(who, zoneNum) {
+            var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters().filter(function(m) {
+                return !(m.side === who && m.zone === zoneNum);
+            }) : [];
+
+            if (allMonsters.length === 0) {
+                addToFeed('No other monsters on the field to destroy.\n');
+                return false;
+            }
+
+            var target = await TargetEngine.requestTarget(who, {
+                title: 'EXILED FORCE',
+                subtitle: 'TRIBUTE THIS CARD TO TARGET 1 MONSTER ON THE FIELD TO DESTROY',
+                badge: { category: 'MONSTER EFFECT', color: '#ea580c', glowColor: 'rgba(234, 88, 12, 0.45)' },
+                candidates: allMonsters,
+                aiPick: function(candidates) {
+                    var oppTargets = candidates.filter(function(c) { return c.side !== who; });
+                    if (oppTargets.length > 0) {
+                        oppTargets.sort(function(a, b) { return getMonsterAtk(b.inst || b.card) - getMonsterAtk(a.inst || a.card); });
+                        return oppTargets[0];
+                    }
+                    return candidates[0];
+                }
+            });
+
+            if (!target) return false;
+
+            var targetDef = target.def || (target.inst ? cards[target.inst.cardId] : (target.card ? cards[target.card.cardId] : null));
+            var targetName = targetDef ? targetDef.name : 'Monster';
+
+            addToFeed(formatWho(who) + ' Tributes <strong>Exiled Force</strong> to destroy ' + formatWho(target.side) + '\'s <strong>' + targetName + '</strong>!\n\n');
+
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+            await destroyMonster(who, zoneNum);
+            await destroyMonster(target.side, target.zone);
+            return true;
+        }
+    },
+
+    'infernal-incinerator': {
+        'id': 'infernal-incinerator',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'infernal_incinerator.png',
+        'name': 'Infernal Incinerator',
+        'monsterType': 'Fiend',
+        'attribute': 'FIRE',
+        'level': 6,
+        'atk': 2800,
+        'def': 1800,
+        'desc': 'This card can only be Normal Summoned or Set by discarding all other card(s) in your hand and Tributing 1 card you control with 2000 or more ATK. This card gains 200 ATK for each monster your opponent controls. This card loses 500 ATK for each other monster you control.'
+    },
+
+    'dragon-piper': {
+        'id': 'dragon-piper',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'dragon_piper.png',
+        'name': 'Dragon Piper',
+        'monsterType': 'Pyro',
+        'attribute': 'FIRE',
+        'level': 3,
+        'atk': 200,
+        'def': 1800,
+        'desc': 'FLIP: Destroy all face-up "Dragon Capture Jar"(s) on the field. If you destroy any, change all face-up Dragon-Type monsters on the field to Attack Position.'
+    },
+
+    'yomi-ship': {
+        'id': 'yomi-ship',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'yomi_ship.png',
+        'name': 'Yomi Ship',
+        'monsterType': 'Aqua',
+        'attribute': 'WATER',
+        'level': 3,
+        'atk': 800,
+        'def': 1400,
+        'desc': 'If this card is destroyed by battle and sent to the Graveyard: Destroy the monster that destroyed this card.'
     },
 
     'trap-hole': {
@@ -360,6 +545,15 @@ var cards = {
         'file': 'trap_hole.png',
         'name': 'Trap Hole',
         'desc': 'When your opponent Normal or Flip Summons a monster with 1000 or more ATK, destroy that monster.'
+    },
+
+    'torrential-tribute': {
+        'id': 'torrential-tribute',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'torrential_tribute.png',
+        'name': 'Torrential Tribute',
+        'desc': 'When a monster is Summoned: Destroy all monsters on the field.'
     },
 
     'dragon-capture-jar': {
@@ -470,13 +664,116 @@ var cards = {
         'desc': 'Destroy 1 face-up Trap Card on the field.'
     },
 
+    'mystical-space-typhoon': {
+        'id': 'mystical-space-typhoon',
+        'type': 'spells',
+        'subType': 'quick-play',
+        'file': 'mystical_space_typhoon.png',
+        'name': 'Mystical Space Typhoon',
+        'desc': 'Target 1 Spell/Trap on the field; destroy that target.',
+        canActivate: function(who) {
+            return (typeof Queries !== 'undefined') ? (Queries.getAllSpellTraps().length > 0 && getNumOfFreeZones(who) > 0) : true;
+        },
+        unplayableReason: function(who) {
+            return 'There are no Spell or Trap cards on the field to destroy.';
+        },
+        onActivate: async function(ctx) {
+            var allTargets = (typeof Queries !== 'undefined') ? Queries.getAllSpellTraps().filter(function(t) {
+                return !(t.side === ctx.who && t.zone === ctx.zoneNum);
+            }) : [];
+
+            if (allTargets.length === 0) {
+                addToFeed(ctx.def.name + ' fizzles — no other Spell or Trap cards on the field.\n');
+                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                return true;
+            }
+
+            var target = await TargetEngine.requestTarget(ctx.who, {
+                title: 'MYSTICAL SPACE TYPHOON',
+                subtitle: 'SELECT 1 SPELL OR TRAP CARD ON THE FIELD TO DESTROY',
+                badge: { category: 'QUICK-PLAY SPELL', color: '#0ea5e9', glowColor: 'rgba(14, 165, 233, 0.45)' },
+                candidates: allTargets,
+                aiPick: function(candidates) {
+                    var oppTargets = candidates.filter(function(c) { return c.side !== ctx.who; });
+                    return oppTargets.length > 0 ? oppTargets[0] : candidates[0];
+                }
+            });
+
+            if (!target) {
+                // Cancelled by player
+                return false;
+            }
+
+            var targetDef = target.def || (target.inst ? cards[target.inst.cardId] : null);
+            var isFaceDown = target.inst ? (target.inst.faceDown || target.inst.position === 'set') : false;
+            var targetName = (isFaceDown && target.side === 'computer') ? 'Set Card' : (targetDef ? targetDef.name : 'Spell/Trap');
+
+            addToFeed('Mystical Space Typhoon destroyed ' + targetName + ' on ' + formatWho(target.side) + '\'s field!\n\n');
+            await destroySpellTrap(target.side, target.zone, target.isField, false);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        },
+        ai: {
+            shouldPlay: function(who) {
+                var oppST = (typeof Queries !== 'undefined') ? Queries.getSpellTraps(GameState.getOpponent(who)) : [];
+                return oppST.length > 0;
+            }
+        }
+    },
+
+    'heavy-storm': {
+        'id': 'heavy-storm',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'heavy_storm.png',
+        'name': 'Heavy Storm',
+        'desc': 'Destroy all Spell and Trap Cards on the field.',
+        canActivate: function(who) {
+            return (typeof Queries !== 'undefined') ? (Queries.getAllSpellTraps().length > 0 && getNumOfFreeZones(who) > 0) : true;
+        },
+        unplayableReason: function(who) {
+            return 'There are no Spell or Trap cards on the field to destroy.';
+        },
+        onActivate: async function(ctx) {
+            addToFeed('<em>' + ctx.def.name + '</em> activated: All Spell and Trap cards on the field are destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+
+            var allST = (typeof Queries !== 'undefined') ? Queries.getAllSpellTraps().filter(function(t) {
+                return !(t.side === ctx.who && t.zone === ctx.zoneNum);
+            }) : [];
+
+            for (var i = 0; i < allST.length; i++) {
+                await destroySpellTrap(allST[i].side, allST[i].zone, allST[i].isField, false);
+            }
+
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        },
+        ai: {
+            shouldPlay: function(who) {
+                var opp = GameState.getOpponent(who);
+                var compST = (typeof Queries !== 'undefined') ? Queries.getSpellTraps(who).length : 0;
+                var oppST = (typeof Queries !== 'undefined') ? Queries.getSpellTraps(opp).length : 0;
+                var playerSwords = hasActiveCard(opp, 'swords-of-revealing-light');
+                var playerJar = (typeof isDragonLocked === 'function') && isDragonLocked();
+                return (oppST > 0 && (oppST > compST || playerSwords || playerJar));
+            }
+        }
+    },
+
     'ookazi': {
         'id': 'ookazi',
         'type': 'spells',
         'subType': 'normal',
         'file': 'ookazi.png',
         'name': 'Ookazi',
-        'desc': 'Inflict 800 points of direct damage to your opponent\'s Life Points.'
+        'desc': 'Inflict 800 points of direct damage to your opponent\'s Life Points.',
+        onActivate: async function(ctx) {
+            addToFeed('<em>' + ctx.def.name + '</em> activated! ' + formatWho(ctx.opp) + ' takes <strong>800</strong> points of direct damage!\n');
+            damageLP(ctx.opp, 800);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        }
     },
 
     'hinotama': {
@@ -485,7 +782,13 @@ var cards = {
         'subType': 'normal',
         'file': 'hinotama.png',
         'name': 'Hinotama',
-        'desc': 'Inflict 500 points of direct damage to your opponent\'s Life Points.'
+        'desc': 'Inflict 500 points of direct damage to your opponent\'s Life Points.',
+        onActivate: async function(ctx) {
+            addToFeed('<em>' + ctx.def.name + '</em> activated! ' + formatWho(ctx.opp) + ' takes <strong>500</strong> points of direct damage!\n');
+            damageLP(ctx.opp, 500);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        }
     },
 
     'fissure': {
@@ -494,7 +797,74 @@ var cards = {
         'subType': 'normal',
         'file': 'fissure.png',
         'name': 'Fissure',
-        'desc': 'Destroy the 1 face-up monster on your opponent\'s side of the field that has the lowest ATK.'
+        'desc': 'Destroy the 1 face-up monster on your opponent\'s side of the field that has the lowest ATK.',
+        canActivate: function(who) {
+            return (typeof Queries !== 'undefined') ? (Queries.getOpponentFaceUpMonsters(who).length > 0 && getNumOfFreeZones(who) > 0) : true;
+        },
+        unplayableReason: function(who) {
+            return 'Opponent controls no face-up monsters to destroy.';
+        },
+        onActivate: async function(ctx) {
+            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(ctx.who) : [];
+            if (faceUpOpp.length === 0) {
+                addToFeed(ctx.def.name + ' fizzles — no face-up opponent monsters.\n');
+                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                return true;
+            }
+            faceUpOpp.sort(function(a, b) {
+                return getMonsterAtk(a.card) - getMonsterAtk(b.card);
+            });
+            var target = faceUpOpp[0];
+            var targetDef = cards[target.card.cardId];
+            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterAtk(target.card) + ' ATK) is destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+            await destroyMonster(ctx.opp, target.zone);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        },
+        ai: {
+            shouldPlay: function(who) {
+                return (typeof Queries !== 'undefined') ? (Queries.getOpponentFaceUpMonsters(who).length > 0) : false;
+            }
+        }
+    },
+
+    'smashing-ground': {
+        'id': 'smashing-ground',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'smashing_ground.png',
+        'name': 'Smashing Ground',
+        'desc': 'Destroy the 1 face-up monster your opponent controls that has the highest DEF (your choice, if tied).',
+        canActivate: function(who) {
+            return (typeof Queries !== 'undefined') ? (Queries.getOpponentFaceUpMonsters(who).length > 0 && getNumOfFreeZones(who) > 0) : true;
+        },
+        unplayableReason: function(who) {
+            return 'Opponent controls no face-up monsters to destroy.';
+        },
+        onActivate: async function(ctx) {
+            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(ctx.who) : [];
+            if (faceUpOpp.length === 0) {
+                addToFeed(ctx.def.name + ' fizzles — no face-up opponent monsters.\n');
+                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                return true;
+            }
+            faceUpOpp.sort(function(a, b) {
+                return getMonsterDef(b.card) - getMonsterDef(a.card);
+            });
+            var target = faceUpOpp[0];
+            var targetDef = cards[target.card.cardId];
+            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterDef(target.card) + ' DEF) is destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+            await destroyMonster(ctx.opp, target.zone);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        },
+        ai: {
+            shouldPlay: function(who) {
+                return (typeof Queries !== 'undefined') ? (Queries.getOpponentFaceUpMonsters(who).length > 0) : false;
+            }
+        }
     },
 
     'tribute-to-the-doomed': {
@@ -512,7 +882,13 @@ var cards = {
         'subType': 'normal',
         'file': 'pot_of_greed.png',
         'name': 'Pot of Greed',
-        'desc': 'Draw 2 cards.'
+        'desc': 'Draw 2 cards.',
+        onActivate: async function(ctx) {
+            addToFeed(ctx.def.name + ' activated: ' + formatWho(ctx.who) + ' draws 2 cards.\n');
+            await getCards(ctx.who, 2);
+            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            return true;
+        }
     },
 
     'monster-reborn': {
@@ -531,7 +907,44 @@ var cards = {
         'file': 'black_pendant.png',
         'name': 'Black Pendant',
         'atkMod': 500,
-        'desc': 'The equipped monster gains 500 ATK. When this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.'
+        'desc': 'The equipped monster gains 500 ATK. When this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
+        onSentToGraveyard: async function(data) {
+            var opp = GameState.getOpponent(data.who);
+            var pendantDef = cards['black-pendant'];
+            addToFeed('<em>' + (pendantDef ? pendantDef.name : 'Black Pendant') + '</em> is sent to the Graveyard: ' + formatWho(opp) + ' takes <strong>500</strong> damage!\n');
+            damageLP(opp, 500);
+        }
+    },
+
+    'horn-of-the-unicorn': {
+        'id': 'horn-of-the-unicorn',
+        'type': 'spells',
+        'subType': 'equip',
+        'file': 'horn_of_the_unicorn.png',
+        'name': 'Horn of the Unicorn',
+        'atkMod': 700,
+        'defMod': 700,
+        'desc': 'The equipped monster gains 700 ATK/DEF. When this card is sent from the field to the Graveyard: Return it to the top of the Deck.',
+        onSentToGraveyard: async function(data) {
+            var hornDef = cards['horn-of-the-unicorn'];
+            var ownerWho = (data.cardInst && data.cardInst.originalOwner) || data.who;
+            if (GameState[ownerWho] && GameState[ownerWho].graveyard) {
+                var gy = GameState[ownerWho].graveyard;
+                var gyIdx = gy.lastIndexOf(data.cardInst);
+                if (gyIdx > -1) {
+                    gy.splice(gyIdx, 1);
+                }
+            }
+            if (GameState[ownerWho] && GameState[ownerWho].deck) {
+                GameState[ownerWho].deck.push('horn-of-the-unicorn');
+                if (ownerWho === 'player' && typeof deck !== 'undefined') {
+                    deck = GameState.player.deck;
+                }
+            }
+            addToFeed('<em>' + (hornDef ? hornDef.name : 'Horn of the Unicorn') + '</em> returned from the Graveyard to the top of ' + formatWho(ownerWho) + '\'s Deck!\n\n');
+            if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+            if (typeof BattleFX !== 'undefined' && typeof BattleFX.updateDeckVisuals === 'function') BattleFX.updateDeckVisuals();
+        }
     },
 
     'dark-hole': {

@@ -4,6 +4,168 @@
  */
 
 // ---------------------------------------------------------------------------
+// Universal Promise-Based Tactical Target Engine
+// ---------------------------------------------------------------------------
+var TargetEngine = {
+    _activeResolver: null,
+
+    // Request a target candidate from player or AI
+    // config: {
+    //   title: string,
+    //   subtitle: string,
+    //   badge: { category: string, color: string, glowColor: string },
+    //   candidates: Array<{ side, zone, isField, inst, name, def, type }>,
+    //   aiPick: Function(candidates) -> candidate
+    // }
+    requestTarget: function(who, config) {
+        var self = this;
+        var candidates = config.candidates || [];
+
+        if (candidates.length === 0) {
+            return Promise.resolve(null);
+        }
+
+        // Computer AI Resolution
+        if (who === 'computer') {
+            return new Promise(function(resolve) {
+                var chosen = null;
+                if (typeof config.aiPick === 'function') {
+                    chosen = config.aiPick(candidates);
+                }
+                if (!chosen) chosen = candidates[0];
+                setTimeout(function() {
+                    resolve(chosen);
+                }, (typeof getAnimDuration === 'function') ? getAnimDuration(300) : 300);
+            });
+        }
+
+        // Player UI Resolution
+        return new Promise(function(resolve) {
+            self._activeResolver = resolve;
+
+            // Update modal headers & badges
+            $('#tactical-target-title').text(config.title || 'SELECT TARGET');
+            $('#tactical-target-subtitle').text(config.subtitle || 'CHOOSE A VALID TARGET CARD');
+            
+            var badgeCat = (config.badge && config.badge.category) ? config.badge.category : 'TARGET SELECTION';
+            var badgeColor = (config.badge && config.badge.color) ? config.badge.color : '#0ea5e9';
+            var glowColor = (config.badge && config.badge.glowColor) ? config.badge.glowColor : 'rgba(14, 165, 233, 0.45)';
+
+            $('#tactical-target-category').text(badgeCat).css('color', badgeColor);
+            $('#tactical-target-dot').css({ background: badgeColor, 'box-shadow': '0 0 8px ' + badgeColor });
+            $('#tactical-target-glow').css('background', 'radial-gradient(circle, ' + glowColor + ' 0%, transparent 70%)');
+
+            var grid = $('#tactical-target-grid');
+            grid.empty();
+
+            candidates.forEach(function(entry) {
+                var cardDef = entry.def || (entry.inst ? cards[entry.inst.cardId] : (entry.cardId ? cards[entry.cardId] : null));
+                var isFaceDown = entry.inst ? (entry.inst.faceDown || entry.inst.position === 'defense-down' || entry.inst.position === 'set') : false;
+                var isOpp = entry.side === 'computer';
+                var ownerLabel = entry.customOwnerLabel || (isOpp ? 'OPPONENT' : 'YOUR FIELD');
+                var ownerClass = entry.customOwnerClass || (isOpp ? 'tag-opponent' : 'tag-player');
+                var zoneLabel = entry.zoneLabel || (entry.isField ? 'FIELD ZONE' : (entry.zone !== undefined ? 'ZONE #' + entry.zone : ''));
+
+                var imgSrc = (isFaceDown && isOpp) ? 'cards/card_back.png' : 'cards/' + (cardDef ? cardDef.file : 'card_back.png');
+                var displayName = (isFaceDown && isOpp) ? 'Face-Down Card' : (cardDef ? cardDef.name : (entry.name || 'Card'));
+                
+                var statsHtml = '';
+                if (entry.statsHtml) {
+                    statsHtml = entry.statsHtml;
+                } else if (isFaceDown && isOpp) {
+                    statsHtml = '<span class="rebirth-tile-stats">Set (Hidden)</span>';
+                } else if (cardDef && cardDef.type === 'monsters') {
+                    var curAtk = entry.inst ? (typeof getMonsterAtk === 'function' ? getMonsterAtk(entry.inst) : cardDef.atk) : (cardDef.atk || 0);
+                    var curDef = entry.inst ? (typeof getMonsterDef === 'function' ? getMonsterDef(entry.inst) : cardDef.def) : (cardDef.def || 0);
+                    statsHtml = '<span class="rebirth-tile-stats">ATK ' + curAtk + ' / DEF ' + curDef + '</span>';
+                } else if (cardDef) {
+                    statsHtml = '<span class="rebirth-tile-stats">' + (cardDef.subType || cardDef.type || 'Spell/Trap').toUpperCase() + '</span>';
+                }
+
+                var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                    '<div class="rebirth-card-preview-frame">' +
+                        '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                        '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + (zoneLabel ? ' • ' + zoneLabel : '') + '</span>' +
+                    '</div>' +
+                    '<div class="rebirth-tile-meta">' +
+                        '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                        statsHtml +
+                    '</div>' +
+                '</div>');
+
+                tile.on('click', function() {
+                    self._resolveTarget(entry);
+                });
+
+                grid.append(tile);
+            });
+
+            $('#tactical-target-modal').fadeIn(150);
+        });
+    },
+
+    _resolveTarget: function(target) {
+        $('#tactical-target-modal').fadeOut(120);
+        if (this._activeResolver) {
+            var res = this._activeResolver;
+            this._activeResolver = null;
+            res(target);
+        }
+    },
+
+    cancelTarget: function() {
+        this._resolveTarget(null);
+        if (typeof resetActiveCardClass === 'function') resetActiveCardClass();
+        if (typeof hideAtkMenuIfVisible === 'function') hideAtkMenuIfVisible();
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Card Reactive Triggers Engine (EventBus Subscriptions)
+// ---------------------------------------------------------------------------
+function initCardTriggers() {
+    if (typeof EventBus === 'undefined') return;
+
+    EventBus.on('CARD_SENT_TO_GRAVE', async function(data) {
+        if (data.suppressGraveEffect) return;
+        var cardInst = data.cardInst;
+        if (!cardInst) return;
+        var cardDef = cards[cardInst.cardId];
+        if (cardDef && typeof cardDef.onSentToGraveyard === 'function') {
+            await cardDef.onSentToGraveyard(data);
+        }
+    });
+
+    EventBus.on('DAMAGE_STEP_END', async function(data) {
+        if (data.attackerInst) {
+            var attDef = cards[data.attackerInst.cardId];
+            if (attDef && typeof attDef.onDamageStepEnd === 'function') {
+                await attDef.onDamageStepEnd(Object.assign({ role: 'attacker' }, data));
+            }
+        }
+        if (data.defenderInst) {
+            var defDef = cards[data.defenderInst.cardId];
+            if (defDef && typeof defDef.onDamageStepEnd === 'function') {
+                await defDef.onDamageStepEnd(Object.assign({ role: 'defender' }, data));
+            }
+        }
+    });
+
+    EventBus.on('BATTLE_DESTROYED', async function(data) {
+        if (data.destroyedInst) {
+            var cardDef = cards[data.destroyedInst.cardId];
+            if (cardDef && typeof cardDef.onBattleDestroyed === 'function') {
+                await cardDef.onBattleDestroyed(data);
+            }
+        }
+    });
+}
+
+$(document).ready(function() {
+    initCardTriggers();
+});
+
+// ---------------------------------------------------------------------------
 // Field Spell Stat Modifiers
 // ---------------------------------------------------------------------------
 
@@ -104,7 +266,34 @@ function getMonsterAtk(instance) {
     if (!def || def.type !== 'monsters') return 0;
     var fieldMods = getFieldMods(def);
     var equipMods = getEquipMods(instance);
-    return Math.max(0, (def.atk || 0) + fieldMods.atk + equipMods.atk);
+    var selfMod = 0;
+
+    if (instance.cardId === 'infernal-incinerator' && typeof GameState !== 'undefined' && GameState) {
+        if (!instance.faceDown && instance.position !== 'defense-down') {
+            var controller = null;
+            ['player', 'computer'].forEach(function(who) {
+                if (GameState[who] && GameState[who].field && GameState[who].field.monsters) {
+                    for (var z = 1; z <= 6; z++) {
+                        var m = GameState[who].field.monsters[z];
+                        if (m && (m === instance || (instance.uid && m.uid === instance.uid))) {
+                            controller = who;
+                            break;
+                        }
+                    }
+                }
+            });
+
+            if (controller) {
+                var opp = GameState.getOpponent(controller);
+                var oppMonstersCount = GameState.getMonstersOnField(opp).length;
+                var ownMonstersCount = GameState.getMonstersOnField(controller).length;
+                var otherOwnMonsters = Math.max(0, ownMonstersCount - 1);
+                selfMod += (oppMonstersCount * 200) - (otherOwnMonsters * 500);
+            }
+        }
+    }
+
+    return Math.max(0, (def.atk || 0) + fieldMods.atk + equipMods.atk + selfMod);
 }
 
 // Effective DEF of a monster CardInstance (base + field/equip DEF modifier, min 0)
@@ -157,6 +346,15 @@ async function activateCard(who, instance, zoneNum) {
 
     var opp = GameState.getOpponent(who);
 
+    // Declarative Unified Registry Resolution
+    if (typeof def.onActivate === 'function') {
+        var ctx = { who: who, instance: instance, zoneNum: zoneNum, opp: opp, def: def };
+        var res = await def.onActivate(ctx);
+        if (res !== false) {
+            return;
+        }
+    }
+
     switch (cardId) {
         case 'pot-of-greed':
             addToFeed(def.name + ' activated: ' + formatWho(who) + ' draws 2 cards.\n');
@@ -197,6 +395,77 @@ async function activateCard(who, instance, zoneNum) {
                 addToFeed('Remove Trap destroyed ' + (trapDef ? trapDef.name : 'Trap') + ' on ' + aiChoice.who + '\'s field!\n');
                 await destroySpellTrap(who, zoneNum, false);
             }
+            break;
+        }
+
+        case 'mystical-space-typhoon': {
+            addToFeed(def.name + ' activated.\n');
+            var targets = [];
+            ['computer', 'player'].forEach(function(side) {
+                for (var z = 1; z <= 6; z++) {
+                    var inst = GameState[side].field.spells[z];
+                    if (inst && !(side === who && z === zoneNum)) {
+                        targets.push({ side: side, zone: z, isField: false, inst: inst });
+                    }
+                }
+                var fieldInst = GameState[side].field.fieldZone;
+                if (fieldInst) {
+                    targets.push({ side: side, zone: null, isField: true, inst: fieldInst });
+                }
+            });
+
+            if (targets.length === 0) {
+                addToFeed('No valid Spell or Trap cards on the field to destroy; ' + def.name + ' fizzles.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+
+            if (who === 'player') {
+                openMSTTargetModal(who, zoneNum);
+            } else {
+                // AI targeting preference:
+                // 1. Opponent's swords of revealing light or dragon capture jar
+                // 2. Opponent's field spell
+                // 3. Opponent's set trap
+                // 4. Any opponent spell/trap
+                var aiTarget = targets.find(function(t) { return t.side === 'player' && t.inst.cardId === 'swords-of-revealing-light'; }) ||
+                               targets.find(function(t) { return t.side === 'player' && t.inst.cardId === 'dragon-capture-jar'; }) ||
+                               targets.find(function(t) { return t.side === 'player' && t.isField; }) ||
+                               targets.find(function(t) { return t.side === 'player'; }) ||
+                               targets[0];
+
+                var targetDef = cards[aiTarget.inst.cardId];
+                var isFaceDown = aiTarget.inst.faceDown || aiTarget.inst.position === 'set';
+                var targetName = (isFaceDown && aiTarget.side === 'player') ? (targetDef ? targetDef.name : 'Set Card') : (targetDef ? targetDef.name : 'Spell/Trap');
+
+                addToFeed('Mystical Space Typhoon destroyed ' + targetName + ' on ' + formatWho(aiTarget.side) + '\'s field!\n\n');
+                await destroySpellTrap(aiTarget.side, aiTarget.zone, aiTarget.isField, false);
+                await destroySpellTrap(who, zoneNum, false);
+            }
+            break;
+        }
+
+        case 'heavy-storm': {
+            addToFeed('<em>' + def.name + '</em> activated: All Spell and Trap cards on the field are destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+
+            var allST = [];
+            ['player', 'computer'].forEach(function(side) {
+                for (var z = 1; z <= 6; z++) {
+                    if (GameState[side].field.spells[z] && !(side === who && z === zoneNum)) {
+                        allST.push({ side: side, zone: z, isField: false });
+                    }
+                }
+                if (GameState[side].field.fieldZone) {
+                    allST.push({ side: side, zone: null, isField: true });
+                }
+            });
+
+            for (var i = 0; i < allST.length; i++) {
+                await destroySpellTrap(allST[i].side, allST[i].zone, allST[i].isField, false);
+            }
+
+            await destroySpellTrap(who, zoneNum, false);
             break;
         }
 
@@ -292,6 +561,28 @@ async function activateCard(who, instance, zoneNum) {
             break;
         }
 
+        case 'smashing-ground': {
+            var faceUpOpp = GameState.getMonstersOnField(opp).filter(function(m) {
+                return m.card && !m.card.faceDown;
+            });
+            if (faceUpOpp.length === 0) {
+                addToFeed(def.name + ' fizzles — no face-up opponent monsters.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+            // Find the highest effective DEF monster
+            faceUpOpp.sort(function(a, b) {
+                return getMonsterDef(b.card) - getMonsterDef(a.card);
+            });
+            var target = faceUpOpp[0];
+            var targetDef = cards[target.card.cardId];
+            addToFeed(def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterDef(target.card) + ' DEF) is destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+            await destroyMonster(opp, target.zone);
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
         case 'tribute-to-the-doomed': {
             // Needs a card in hand to discard (besides itself on the field)
             var handCards = GameState[who].hand.filter(function(c) { return c.uid !== instance.uid; });
@@ -370,7 +661,8 @@ async function activateCard(who, instance, zoneNum) {
             break;
         }
 
-        case 'black-pendant': {
+        case 'black-pendant':
+        case 'horn-of-the-unicorn': {
             var faceUpOwn = getFaceUpMonstersOnField(who);
             if (faceUpOwn.length === 0) {
                 addToFeed('<em>' + def.name + '</em> fizzles — no face-up monster to equip.\n');
@@ -800,6 +1092,110 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
                 await destroyMonster(fallback.side, fallback.zone);
             }
         }
+    } else if (monsterInst.cardId === 'hane-hane') {
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        var allMonsters = [
+            ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+            ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+        ];
+
+        if (allMonsters.length === 0) {
+            addToFeed('No monsters on the field to return to hand.\n');
+            return;
+        }
+
+        if (who === 'player') {
+            openHaneHaneModal();
+        } else {
+            // AI auto-targets strongest player monster to bounce
+            var playerMonsters = GameState.getMonstersOnField('player');
+            if (playerMonsters.length > 0) {
+                playerMonsters.sort(function(a, b) {
+                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                });
+                var target = playerMonsters[0];
+                var targetDef = cards[target.card.cardId];
+                addToFeed('<em>Hane-Hane</em> returns ' + (targetDef ? targetDef.name : 'monster') + ' on player\'s field to hand!\n');
+                if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+                await returnMonsterToHand('player', target.zone);
+            } else {
+                // If no player monsters, target highest ATK monster on field
+                allMonsters.sort(function(a, b) {
+                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                });
+                var fallback = allMonsters[0];
+                var fallbackDef = cards[fallback.card.cardId];
+                addToFeed('<em>Hane-Hane</em> returns ' + (fallbackDef ? fallbackDef.name : 'monster') + ' to hand!\n');
+                await returnMonsterToHand(fallback.side, fallback.zone);
+            }
+        }
+    } else if (monsterInst.cardId === 'dragon-piper') {
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        // Find all face-up Dragon Capture Jars on both fields
+        var jarsToDestroy = [];
+        ['player', 'computer'].forEach(function(side) {
+            if (GameState[side] && GameState[side].field && GameState[side].field.spells) {
+                for (var z = 1; z <= 6; z++) {
+                    var sInst = GameState[side].field.spells[z];
+                    if (sInst && sInst.cardId === 'dragon-capture-jar' && sInst.position !== 'set' && !sInst.faceDown) {
+                        jarsToDestroy.push({ side: side, zone: z });
+                    }
+                }
+            }
+        });
+
+        if (jarsToDestroy.length === 0) {
+            addToFeed('<em>' + def.name + '</em>: No face-up Dragon Capture Jars on the field to destroy.\n\n');
+        } else {
+            addToFeed('<em>' + def.name + '</em> destroys ' + jarsToDestroy.length + ' face-up <strong>Dragon Capture Jar</strong>(s)!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+
+            for (var j = 0; j < jarsToDestroy.length; j++) {
+                var targetJar = jarsToDestroy[j];
+                await destroySpellTrap(targetJar.side, targetJar.zone, false, false);
+            }
+
+            // "If you destroy any, change all face-up Dragon-Type monsters on the field to Attack Position."
+            var dragonsChanged = [];
+            ['player', 'computer'].forEach(function(side) {
+                if (GameState[side] && GameState[side].field && GameState[side].field.monsters) {
+                    for (var z = 1; z <= 6; z++) {
+                        var m = GameState[side].field.monsters[z];
+                        if (m && !m.faceDown && m.position !== 'defense-down') {
+                            var mDef = cards[m.cardId];
+                            if (mDef && mDef.monsterType === 'Dragon') {
+                                if (m.position !== 'attack') {
+                                    m.position = 'attack';
+                                    var sq = $('#' + side + '-field .card-zone-square[data-zone="' + z + '"]');
+                                    sq.attr('data-card-position', 'attack');
+                                    var cz = sq.find('.card-zone.main-zone');
+                                    if (typeof cz.flip === 'function') cz.flip(false);
+                                    cz.transition({ rotate: '0deg' }, getAnimDuration(350), 'cubic-bezier(0.2, 0.9, 0.3, 1)');
+                                    dragonsChanged.push((side === 'player' ? 'Player\'s ' : 'Computer\'s ') + (mDef ? mDef.name : 'Dragon'));
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (dragonsChanged.length > 0) {
+                addToFeed('<em>' + def.name + '</em> melody commands: <strong>' + dragonsChanged.join(', ') + '</strong> rise into Attack Position!\n\n');
+            } else {
+                addToFeed('<em>' + def.name + '</em> melody echoes across the duel arena (no Dragon-Type monsters in Defense Position).\n\n');
+            }
+
+            if (typeof updateActionableCards === 'function') updateActionableCards();
+            if (typeof updateStatModBadges === 'function') updateStatModBadges();
+        }
+    } else if (monsterInst.cardId === 'spear-cretin') {
+        monsterInst.spearCretinPrimed = true;
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT primed: When this card is sent to the Graveyard, both players can Special Summon 1 monster from their respective Graveyards!\n\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
     }
 }
 
@@ -869,6 +1265,182 @@ function cancelManEaterBugTarget() {
     addToFeed('Man-Eater Bug effect selection was dismissed.\n');
 }
 
+function openHaneHaneModal() {
+    var grid = $('#hane-hane-grid');
+    grid.empty();
+
+    var allMonsters = [
+        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+    ];
+
+    if (allMonsters.length === 0) {
+        $('#hane-hane-modal').fadeOut(120);
+        return;
+    }
+
+    allMonsters.forEach(function(entry) {
+        var cardDef = cards[entry.card.cardId];
+        if (!cardDef) return;
+        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+
+        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
+        var displayName = isFaceDown ? '???' : cardDef.name;
+        var statsHtml = isFaceDown
+            ? '<span class="rebirth-tile-stats">Face-Down</span>'
+            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                statsHtml +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', (function(side, zone) {
+            return function() {
+                applyHaneHaneTarget(side, zone);
+            };
+        })(entry.side, entry.zone));
+
+        grid.append(tile);
+    });
+
+    $('#hane-hane-modal').fadeIn(150);
+}
+
+async function applyHaneHaneTarget(targetWho, targetZone) {
+    $('#hane-hane-modal').fadeOut(120);
+
+    var targetInst = GameState[targetWho].field.monsters[targetZone];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    addToFeed('<em>Hane-Hane</em> returned <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> to hand!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+    await returnMonsterToHand(targetWho, targetZone);
+}
+
+function cancelHaneHaneTarget() {
+    $('#hane-hane-modal').fadeOut(120);
+    addToFeed('Hane-Hane effect selection was dismissed.\n');
+}
+
+// ---------------------------------------------------------------------------
+// Spear Cretin Graveyard Revival Engine
+// ---------------------------------------------------------------------------
+
+var pendingSpearCretinChosenCard = null;
+
+async function triggerSpearCretinGraveyardEffect() {
+    addToFeed('<em>Spear Cretin</em> activates from the Graveyard!\nBoth players may Special Summon 1 monster from their respective Graveyards!\n\n');
+
+    // 1. Resolve AI / Computer side revival
+    var compMonstersInGY = (GameState.computer && GameState.computer.graveyard) ? GameState.computer.graveyard.filter(function(inst) {
+        return cards[inst.cardId] && cards[inst.cardId].type === 'monsters';
+    }) : [];
+
+    var compFreeZones = getNumOfFreeZones('computer');
+    if (compMonstersInGY.length > 0 && compFreeZones > 0) {
+        // AI chooses highest ATK monster
+        compMonstersInGY.sort(function(a, b) {
+            return (cards[b.cardId].atk || 0) - (cards[a.cardId].atk || 0);
+        });
+        var chosenComp = compMonstersInGY[0];
+        var compPos = AICalcMonsterPosition(chosenComp.cardId);
+        if (compPos === 'defense-up') compPos = 'defense-down'; // Spear Cretin is face-up Attack or face-down Defense
+        await specialSummonMonster('computer', chosenComp.cardId, 'computer', compPos);
+    } else if (compMonstersInGY.length === 0) {
+        addToFeed('Computer has no monsters in Graveyard for Spear Cretin.\n');
+    } else {
+        addToFeed('Computer has no free zones for Spear Cretin.\n');
+    }
+
+    // 2. Resolve Player side revival
+    var playerMonstersInGY = (GameState.player && GameState.player.graveyard) ? GameState.player.graveyard.filter(function(inst) {
+        return cards[inst.cardId] && cards[inst.cardId].type === 'monsters';
+    }) : [];
+
+    var playerFreeZones = getNumOfFreeZones('player');
+    if (playerMonstersInGY.length > 0 && playerFreeZones > 0) {
+        openSpearCretinTargetModal();
+    } else if (playerMonstersInGY.length === 0) {
+        addToFeed('You have no monsters in your Graveyard for Spear Cretin.\n');
+    } else {
+        addToFeed('You have no free monster zones for Spear Cretin.\n');
+    }
+}
+
+function openSpearCretinTargetModal() {
+    var grid = $('#spear-cretin-grid');
+    grid.empty();
+
+    var playerMonstersInGY = (GameState.player && GameState.player.graveyard) ? GameState.player.graveyard.filter(function(inst) {
+        return cards[inst.cardId] && cards[inst.cardId].type === 'monsters';
+    }) : [];
+
+    if (playerMonstersInGY.length === 0) {
+        $('#spear-cretin-modal').fadeOut(120);
+        return;
+    }
+
+    playerMonstersInGY.forEach(function(inst) {
+        var cardDef = cards[inst.cardId];
+        if (!cardDef) return;
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag tag-player">YOUR GRAVEYARD</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                '<span class="rebirth-tile-stats">ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0) + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            spearCretinCardSelected(inst.cardId);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#spear-cretin-modal').fadeIn(150);
+}
+
+function spearCretinCardSelected(cardId) {
+    pendingSpearCretinChosenCard = cardId;
+    var cardDef = cards[cardId];
+    $('#spear-cretin-chosen-name').text(cardDef ? cardDef.name : 'MONSTER');
+    $('#spear-cretin-modal').fadeOut(120);
+    $('#spear-cretin-position-modal').fadeIn(150);
+}
+
+async function applySpearCretinPosition(position) {
+    $('#spear-cretin-position-modal').fadeOut(120);
+    var cardId = pendingSpearCretinChosenCard;
+    pendingSpearCretinChosenCard = null;
+    if (cardId) {
+        await specialSummonMonster('player', cardId, 'player', position);
+    }
+}
+
+function cancelSpearCretinPosition() {
+    $('#spear-cretin-position-modal').fadeOut(120);
+    openSpearCretinTargetModal();
+}
+
+function cancelSpearCretinTarget() {
+    $('#spear-cretin-modal').fadeOut(120);
+    addToFeed('Spear Cretin effect selection was dismissed.\n');
+}
+
 // ---------------------------------------------------------------------------
 // Trap Auto-Trigger Engine
 // ---------------------------------------------------------------------------
@@ -922,6 +1494,42 @@ EventBus.on('MONSTER_SUMMONED', async function(data) {
         }
     }
 
+    // Torrential Tribute response window
+    // Triggers when any monster is Summoned face-up (Normal, Tribute, Special, or Flip Summon)
+    if (instance.position !== 'defense-down' && !instance.faceDown) {
+        // 1. Check Player's Torrential Tribute
+        var playerTTZone = findSetTrapZone('player', 'torrential-tribute');
+        if (playerTTZone !== null) {
+            var activatedByPlayer = await promptPlayerTorrentialTribute(playerTTZone, def);
+            if (activatedByPlayer) {
+                await executeTorrentialTribute('player', playerTTZone);
+                return;
+            }
+        }
+
+        // 2. Check Computer's Torrential Tribute
+        var compTTZone = findSetTrapZone('computer', 'torrential-tribute');
+        if (compTTZone !== null) {
+            var compMonsters = GameState.getMonstersOnField('computer');
+            var playerMonsters = GameState.getMonstersOnField('player');
+            
+            var compTotalAtk = compMonsters.reduce(function(sum, m) { return sum + getMonsterAtk(m.card); }, 0);
+            var playerTotalAtk = playerMonsters.reduce(function(sum, m) { return sum + getMonsterAtk(m.card); }, 0);
+            
+            // AI triggers if player controls more monsters, higher total ATK, multiple threats, or summoned a high ATK monster
+            var shouldTrigger = (playerMonsters.length > compMonsters.length) || 
+                                (playerTotalAtk >= compTotalAtk && playerMonsters.length > 0) ||
+                                (playerMonsters.length >= 2) ||
+                                (summonerWho === 'player' && getMonsterAtk(instance) >= 1500 && compMonsters.length <= 1);
+            
+            if (shouldTrigger) {
+                await sleep(getAnimDuration(300));
+                await executeTorrentialTribute('computer', compTTZone);
+                return;
+            }
+        }
+    }
+
     // Dragon Capture Jar: If active and the summoned monster is a face-up Dragon in Attack Position, continuously force it into Defense Position
     var currentMonster = GameState[summonerWho].field.monsters[data.zone];
     if (currentMonster && def.monsterType === 'Dragon' && currentMonster.position === 'attack' && (typeof isDragonLocked === 'function') && isDragonLocked()) {
@@ -944,6 +1552,92 @@ EventBus.on('MONSTER_SUMMONED', async function(data) {
         }
     }
 });
+
+// ---------------------------------------------------------------------------
+// Torrential Tribute Prompt & Execution
+// ---------------------------------------------------------------------------
+
+var torrentialTributeResolver = null;
+
+function promptPlayerTorrentialTribute(zoneNum, summonedDef) {
+    return new Promise(function(resolve) {
+        torrentialTributeResolver = resolve;
+
+        var playerMonstersCount = GameState.getMonstersOnField('player').length;
+        var compMonstersCount = GameState.getMonstersOnField('computer').length;
+
+        $('#tt-trigger-cause').text((summonedDef ? summonedDef.name.toUpperCase() : 'A MONSTER') + ' WAS SUMMONED');
+        $('#tt-modal-casualty-preview').html(
+            '<strong>Predicted Casualties:</strong> ' +
+            '<span style="color: #93c5fd; margin-right: 8px;">Your Monsters: ' + playerMonstersCount + '</span> • ' +
+            '<span style="color: #f87171; margin-left: 8px;">Opponent Monsters: ' + compMonstersCount + '</span>'
+        );
+
+        $('#torrential-tribute-modal').fadeIn(150);
+    });
+}
+
+function resolveTorrentialTributePrompt(shouldActivate) {
+    $('#torrential-tribute-modal').fadeOut(120);
+    if (typeof torrentialTributeResolver === 'function') {
+        var res = torrentialTributeResolver;
+        torrentialTributeResolver = null;
+        res(shouldActivate);
+    }
+}
+
+async function executeTorrentialTribute(who, zoneNum) {
+    var trapSquare = getSpellSquareElm(who, zoneNum);
+
+    // Reveal Trap card face-up
+    if (trapSquare && trapSquare.length) {
+        var trapZone = trapSquare.find('div.card-zone');
+        if (typeof trapZone.flip === 'function') {
+            try {
+                trapZone.flip({ trigger: 'manual' });
+                trapZone.flip(false);
+            } catch (e) {}
+        }
+    }
+
+    addToFeed('<strong>' + (who === 'player' ? 'Player' : 'Computer') + '</strong> activates Trap Card: <strong>Torrential Tribute</strong>!\n');
+    addToFeed('🌊 A massive tidal wave sweeps over the arena, engulfing all monsters in a devastating flood!\n');
+
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.triggerScreenShake('heavy');
+    }
+
+    await sleep(getAnimDuration(450));
+
+    // Destroy the trap itself
+    await destroySpellTrap(who, zoneNum, false);
+
+    // Collect all monsters currently on both fields
+    var victims = [];
+    ['player', 'computer'].forEach(function(side) {
+        var monsters = GameState.getMonstersOnField(side);
+        monsters.forEach(function(m) {
+            victims.push({ side: side, zone: m.zone, cardId: m.card.cardId });
+        });
+    });
+
+    if (victims.length > 0) {
+        for (var i = 0; i < victims.length; i++) {
+            var v = victims[i];
+            await destroyMonster(v.side, v.zone);
+        }
+        addToFeed('<em>Torrential Tribute</em> destroyed all ' + victims.length + ' monster(s) on the field!\n\n');
+    } else {
+        addToFeed('No monsters remained on the field to be destroyed.\n\n');
+    }
+
+    // Cancel any ongoing battle highlights
+    if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+        BattleFX.cancelTargetSelection();
+    }
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+}
 
 // Find the spell zone on `who`'s field containing a SET copy of cardId (or null).
 function findSetTrapZone(who, cardId) {
@@ -1956,5 +2650,273 @@ async function applyHarpieLadyTarget(side, zoneNum, isFieldZone) {
     if (typeof updateActionableCards === 'function') updateActionableCards();
     updateResourceCounters();
 }
+
+// ==========================================================================
+// Mystical Space Typhoon Target Engine
+// ==========================================================================
+
+var pendingMSTWho = null;
+var pendingMSTZone = null;
+
+function openMSTTargetModal(who, zoneNum) {
+    pendingMSTWho = who;
+    pendingMSTZone = zoneNum;
+
+    var grid = $('#mst-target-grid');
+    grid.empty();
+
+    var targets = [];
+    ['computer', 'player'].forEach(function(side) {
+        for (var z = 1; z <= 6; z++) {
+            var inst = GameState[side].field.spells[z];
+            if (inst && !(side === who && z === zoneNum)) {
+                targets.push({ side: side, zone: z, isField: false, inst: inst });
+            }
+        }
+        var fieldInst = GameState[side].field.fieldZone;
+        if (fieldInst) {
+            targets.push({ side: side, zone: null, isField: true, inst: fieldInst });
+        }
+    });
+
+    if (targets.length === 0) {
+        addToFeed('No other Spell or Trap cards on the field to destroy.\n');
+        $('#mst-target-modal').fadeOut(120);
+        destroySpellTrap(who, zoneNum, false);
+        return;
+    }
+
+    targets.forEach(function(entry) {
+        var cardDef = cards[entry.inst.cardId];
+        var isFaceDown = entry.inst.faceDown || entry.inst.position === 'set';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+        var zoneLabel = entry.isField ? 'FIELD ZONE' : 'SPELL ZONE #' + entry.zone;
+
+        var imgSrc = (isFaceDown && isOpp) ? 'cards/card_back.png' : 'cards/' + (cardDef ? cardDef.file : 'card_back.png');
+        var displayName = (isFaceDown && isOpp) ? 'Set Card (Hidden)' : (cardDef ? cardDef.name : 'Spell/Trap');
+        var subTypeLabel = (isFaceDown && isOpp) ? 'Face-Down' : (cardDef ? (cardDef.subType || cardDef.type).toUpperCase() : '');
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ' + zoneLabel + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                '<span class="rebirth-tile-stats">' + subTypeLabel + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            applyMSTTarget(entry.side, entry.zone, entry.isField);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#mst-target-modal').fadeIn(150);
+}
+
+function cancelMSTEffect() {
+    $('#mst-target-modal').fadeOut(120);
+    if (pendingMSTWho && pendingMSTZone !== null) {
+        destroySpellTrap(pendingMSTWho, pendingMSTZone, false);
+    }
+    pendingMSTWho = null;
+    pendingMSTZone = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+}
+
+async function applyMSTTarget(side, zoneNum, isFieldZone) {
+    $('#mst-target-modal').fadeOut(120);
+
+    var targetInst = isFieldZone ? GameState[side].field.fieldZone : GameState[side].field.spells[zoneNum];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    var targetName = targetDef ? targetDef.name : 'Spell/Trap card';
+
+    addToFeed('<em>Mystical Space Typhoon</em> destroyed ' + formatWho(side) + '\'s <strong>' + targetName + '</strong>!\n\n');
+
+    await destroySpellTrap(side, zoneNum, isFieldZone, false);
+
+    if (pendingMSTWho && pendingMSTZone !== null) {
+        await destroySpellTrap(pendingMSTWho, pendingMSTZone, false);
+    }
+
+    pendingMSTWho = null;
+    pendingMSTZone = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateResourceCounters();
+}
+
+// ---------------------------------------------------------------------------
+// Battle Destruction Graveyard Effects (e.g. Yomi Ship, Giant Germ)
+// ---------------------------------------------------------------------------
+
+async function triggerBattleDestructionGraveyardEffect(destroyedInst, destroyedWho, destroyedZone, destroyerInst, destroyerWho, destroyerZone) {
+    if (!destroyedInst) return;
+
+    if (destroyedInst.cardId === 'yomi-ship') {
+        var cardDef = cards[destroyedInst.cardId];
+        var cardName = cardDef ? cardDef.name : 'Yomi Ship';
+
+        // Check if the destroyer monster is still present on the field
+        var currentDestroyer = GameState[destroyerWho] && GameState[destroyerWho].field && GameState[destroyerWho].field.monsters[destroyerZone];
+        if (currentDestroyer && (!destroyerInst || !destroyerInst.uid || currentDestroyer.uid === destroyerInst.uid)) {
+            var destroyerDef = cards[currentDestroyer.cardId];
+            var destroyerName = destroyerDef ? destroyerDef.name : 'the monster';
+
+            addToFeed('<em>' + cardName + '</em> activates from the Graveyard!\n' +
+                'The ghostly phantom vessel drags down and destroys ' + formatWho(destroyerWho) + '\'s <strong>' + destroyerName + '</strong>!\n\n');
+
+            if (typeof BattleFX !== 'undefined') {
+                BattleFX.triggerScreenShake('medium');
+            }
+
+            await destroyMonster(destroyerWho, destroyerZone);
+        }
+    } else if (destroyedInst.cardId === 'giant-germ') {
+        var cardDef = cards[destroyedInst.cardId];
+        var cardName = cardDef ? cardDef.name : 'Giant Germ';
+        var oppWho = GameState.getOpponent(destroyedWho);
+        var burnDmg = 500;
+
+        GameState[oppWho].lp = Math.max(0, GameState[oppWho].lp - burnDmg);
+        addToFeed('<em>' + cardName + '</em> activates from the Graveyard!\n' +
+            'Inflicts 500 damage to ' + formatWho(oppWho) + '!\n');
+
+        if (typeof BattleFX !== 'undefined') {
+            BattleFX.spawnFloatingDamage(oppWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), burnDmg, 'burn');
+            BattleFX.animateLPCount(oppWho, GameState[oppWho].lp);
+            BattleFX.triggerScreenShake('light');
+        }
+        EventBus.emit('LP_CHANGED', { who: oppWho, lp: GameState[oppWho].lp, damage: burnDmg });
+
+        // Search deck for additional copies of Giant Germ and Special Summon them in Attack Position
+        var deckArr = GameState[destroyedWho] && GameState[destroyedWho].deck;
+        if (deckArr && deckArr.length > 0) {
+            var germCopies = deckArr.filter(function(id) { return id === 'giant-germ'; }).length;
+            var freeZonesCount = getNumOfFreeZones(destroyedWho);
+            var toSummon = Math.min(germCopies, freeZonesCount);
+
+            if (toSummon > 0) {
+                addToFeed(formatWho(destroyedWho) + ' calls forth ' + toSummon + ' additional <em>Giant Germ</em> from the Deck!\n');
+                for (var g = 0; g < toSummon; g++) {
+                    await specialSummonMonsterFromDeck(destroyedWho, 'giant-germ');
+                    await sleep(300);
+                }
+            } else if (germCopies === 0) {
+                addToFeed('No additional copies of <em>Giant Germ</em> found in ' + formatWho(destroyedWho) + '\'s Deck.\n\n');
+            } else {
+                addToFeed('No free monster zones to Special Summon additional copies of <em>Giant Germ</em>.\n\n');
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Exiled Force Engine (Ignition Effect: Tribute self -> Destroy 1 monster)
+// ---------------------------------------------------------------------------
+
+var pendingExiledForceZone = null;
+
+function openExiledForceTargetModal(zoneNum) {
+    pendingExiledForceZone = zoneNum;
+
+    var grid = $('#exiled-force-target-grid');
+    grid.empty();
+
+    var allMonsters = [];
+    ['computer', 'player'].forEach(function(side) {
+        for (var z = 1; z <= 6; z++) {
+            var inst = GameState[side].field.monsters[z];
+            if (inst && !(side === 'player' && z === zoneNum)) {
+                allMonsters.push({ side: side, zone: z, inst: inst });
+            }
+        }
+    });
+
+    if (allMonsters.length === 0) {
+        addToFeed('No other monsters on the field to destroy.\n');
+        return;
+    }
+
+    allMonsters.forEach(function(entry) {
+        var cardDef = cards[entry.inst.cardId];
+        var isFaceDown = entry.inst.faceDown || entry.inst.position === 'defense-down';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+        var zoneLabel = 'MONSTER ZONE #' + entry.zone;
+
+        var imgSrc = (isFaceDown && isOpp) ? 'cards/card_back.png' : 'cards/' + (cardDef ? cardDef.file : 'card_back.png');
+        var displayName = (isFaceDown && isOpp) ? 'Face-Down Monster' : (cardDef ? cardDef.name : 'Monster');
+        var statsHtml = (isFaceDown && isOpp)
+            ? '<span class="rebirth-tile-stats">Position: Set (Face-Down)</span>'
+            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.inst) + ' / DEF ' + getMonsterDef(entry.inst) + '</span>';
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ' + zoneLabel + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                statsHtml +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            applyExiledForceTarget(entry.side, entry.zone);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#exiled-force-target-modal').fadeIn(150);
+}
+
+function cancelExiledForceEffect() {
+    $('#exiled-force-target-modal').fadeOut(120);
+    pendingExiledForceZone = null;
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+}
+
+async function applyExiledForceTarget(targetSide, targetZone) {
+    $('#exiled-force-target-modal').fadeOut(120);
+    var sourceZone = pendingExiledForceZone;
+    pendingExiledForceZone = null;
+
+    if (sourceZone === null) return;
+
+    var targetInst = GameState[targetSide].field.monsters[targetZone];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    var targetName = targetDef ? targetDef.name : 'Monster';
+
+    addToFeed('You Tribute <strong>Exiled Force</strong> to destroy ' + formatWho(targetSide) + '\'s <strong>' + targetName + '</strong>!\n\n');
+
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.triggerScreenShake('medium');
+    }
+
+    // Tribute Exiled Force
+    await destroyMonster('player', sourceZone);
+
+    // Destroy target monster
+    await destroyMonster(targetSide, targetZone);
+
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateResourceCounters();
+}
+
 
 

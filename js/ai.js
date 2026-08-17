@@ -6,6 +6,11 @@ function AICalcMonsterPosition(monsterName) {
     const atk = getMonsterAtk({ cardId: monsterName });
     const def = getMonsterDef({ cardId: monsterName });
 
+    // FLIP effect monsters should always be Set in defense-down
+    if (monsterName === 'man-eater-bug' || monsterName === 'hane-hane' || monsterName === 'dragon-piper') {
+        return 'defense-down';
+    }
+
     // Dragon Capture Jar: Dragons cannot enter Attack Position while jar is active
     if (isDragonLocked() && cardDef.monsterType === 'Dragon') {
         return 'defense-down';
@@ -185,6 +190,12 @@ async function AIPerformBattlePhase() {
         var attackerDef = cards[currentAttacker.cardId];
         if (!attackerDef) continue;
         var attackerAtk = getMonsterAtk(currentAttacker);
+        if (currentAttacker.cardId === 'lionhearted-locomotive') {
+            var halvedBase = Math.floor((attackerDef.atk || 0) / 2);
+            var fieldMods = getFieldMods(attackerDef);
+            var equipMods = getEquipMods(currentAttacker);
+            attackerAtk = Math.max(0, halvedBase + fieldMods.atk + equipMods.atk);
+        }
 
         var playerMonsters = GameState.getMonstersOnField('player');
 
@@ -455,6 +466,42 @@ async function AIPlayHarpieLady() {
     await sleep(getAnimDuration(500));
 }
 
+// AI evaluates whether to activate Exiled Force on field
+async function AIPlayExiledForce() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var exiledEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'exiled-force' && 
+               m.card.position !== 'defense-down' && 
+               m.card.lastEffectTurn !== turnCount;
+    });
+
+    if (!exiledEntry) return;
+
+    var playerMonsters = GameState.getMonstersOnField('player');
+    if (playerMonsters.length === 0) return;
+
+    // Target the highest threat player monster
+    playerMonsters.sort(function(a, b) {
+        return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+    });
+
+    var target = playerMonsters[0];
+    var targetDef = cards[target.card.cardId];
+    var targetName = targetDef ? targetDef.name : 'Monster';
+
+    addToFeed('Computer Tributes <em>Exiled Force</em> to destroy your <strong>' + targetName + '</strong>!\n\n');
+
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.triggerScreenShake('medium');
+    }
+
+    await destroyMonster('computer', exiledEntry.zone);
+    await destroyMonster('player', target.zone);
+    updateResourceCounters();
+    updateGraveyardZones();
+    await sleep(getAnimDuration(500));
+}
+
 // Step 2: AI Normal/Tribute Summons the best monster currently in hand
 async function AISummonMonsterRoutine() {
     if (GameState.turn.normalSummonUsed) return;
@@ -471,6 +518,32 @@ async function AISummonMonsterRoutine() {
     currentHand.forEach(function(mName) {
         var mDef = cards[mName];
         if (!mDef) return;
+        var isInfernal = (mName === 'infernal-incinerator');
+        if (isInfernal) {
+            var eligibleTributes = fieldMonsters.filter(function(entry) {
+                var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
+                return !isFaceDown && (typeof getMonsterAtk === 'function' ? getMonsterAtk(entry.card) >= 2000 : (cards[entry.card.cardId] && cards[entry.card.cardId].atk >= 2000));
+            });
+            if (eligibleTributes.length > 0) {
+                eligibleTributes.sort(function(a, b) {
+                    return getMonsterAtk(a.card) - getMonsterAtk(b.card);
+                });
+                var tribute = eligibleTributes[0];
+                var oppMonstersCount = GameState.getMonstersOnField('player').length;
+                var otherOwnMonsters = Math.max(0, fieldMonsters.length - 1);
+                var estimatedAtk = (mDef.atk || 2800) + (oppMonstersCount * 200) - (otherOwnMonsters * 500);
+                summonable.push({
+                    name: mName,
+                    def: mDef,
+                    reqTributes: 1,
+                    tributes: [tribute],
+                    isInfernal: true,
+                    score: estimatedAtk - (getMonsterAtk(tribute.card) * 0.6)
+                });
+            }
+            return;
+        }
+
         var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(mDef.level) : 0;
         
         if (req === 0 && freeZones > 0) {
@@ -512,11 +585,43 @@ async function AISummonMonsterRoutine() {
             tributeNames.push(tDef ? tDef.name : 'a monster');
             await destroyMonster('computer', tributeItem.zone);
         }
-        addToFeed('Computer Tributes <strong>' + tributeNames.join(' and ') + '</strong> to Tribute Summon <em>' + chosen.def.name + '</em>!\n\n');
-        await sleep(getAnimDuration(350));
-    }
 
-    await summonMonster('computer', chosen.name);
+        var discardedCount = 0;
+        if (chosen.isInfernal) {
+            var remainingMonsters = computer.hand.monsters.filter(function(n) { return n !== chosen.name; });
+            var remainingSpells = [...computer.hand.spells];
+            var remainingTraps = [...computer.hand.traps];
+            discardedCount = remainingMonsters.length + remainingSpells.length + remainingTraps.length;
+
+            remainingMonsters.forEach(function(n) { GameState.computer.graveyard.push(new CardInstance(n)); });
+            remainingSpells.forEach(function(n) { GameState.computer.graveyard.push(new CardInstance(n)); });
+            remainingTraps.forEach(function(n) { GameState.computer.graveyard.push(new CardInstance(n)); });
+
+            computer.hand.monsters = [chosen.name];
+            computer.hand.spells = [];
+            computer.hand.traps = [];
+
+            var infernalInst = GameState.computer.hand.find(function(c) { return c.cardId === chosen.name; });
+            GameState.computer.hand = infernalInst ? [infernalInst] : [];
+            if (typeof updateResourceCounters === 'function') updateResourceCounters();
+        }
+
+        var mode = AICalcMonsterPosition(chosen.name);
+        var firstFree = getFirstFreeZone('computer');
+        var actionType = (mode === 'defense-down') ? 'Tribute Set' : 'Tribute Summon';
+        var stanceLabel = (mode === 'defense-down') ? 'Defense Position' : 'Attack Position';
+        var monsterLabel = (mode === 'defense-down') ? 'a monster' : '<em>' + chosen.def.name + '</em>';
+
+        var discardMsg = (chosen.isInfernal && discardedCount > 0)
+            ? ' and discards ' + discardedCount + ' other card(s) from hand'
+            : '';
+
+        addToFeed('Computer Tributes <strong>' + tributeNames.join(' and ') + '</strong>' + discardMsg + ' to ' + actionType + ' ' + monsterLabel + ' in ' + stanceLabel + ' in zone #' + firstFree + '.\n\n');
+        await sleep(getAnimDuration(350));
+        await summonMonster('computer', chosen.name, true);
+    } else {
+        await summonMonster('computer', chosen.name, false);
+    }
     await sleep(getAnimDuration(300));
 }
 
@@ -555,7 +660,9 @@ async function AIPlaySpellTrapCards() {
                     }
                 } else {
                     if (getNumOfFreeZones('computer') > 0) {
-                        if (def.id === 'pot-of-greed') {
+                        if (def.ai && typeof def.ai.shouldPlay === 'function') {
+                            shouldPlay = def.ai.shouldPlay('computer', instance);
+                        } else if (def.id === 'pot-of-greed') {
                             shouldPlay = true;
                         } else if (def.id === 'raigeki') {
                             shouldPlay = GameState.getMonstersOnField('player').length > 0;
@@ -567,7 +674,25 @@ async function AIPlaySpellTrapCards() {
                             shouldPlay = (getFirstFreeZone('computer') !== undefined) && (GameState.getMonstersOnField('player').length > 0);
                         } else if (def.id === 'remove-trap') {
                             shouldPlay = findFaceUpTrap('player') !== null;
-                        } else if (def.id === 'fissure') {
+                        } else if (def.id === 'mystical-space-typhoon') {
+                            var hasPlayerST = false;
+                            for (var z = 1; z <= 6; z++) {
+                                if (GameState.player.field.spells[z]) hasPlayerST = true;
+                            }
+                            if (GameState.player.field.fieldZone) hasPlayerST = true;
+                            shouldPlay = hasPlayerST;
+                        } else if (def.id === 'heavy-storm') {
+                            var compST = 0;
+                            var playerST = 0;
+                            for (var z = 1; z <= 6; z++) {
+                                if (GameState.computer.field.spells[z]) compST++;
+                                if (GameState.player.field.spells[z]) playerST++;
+                            }
+                            if (GameState.player.field.fieldZone) playerST++;
+                            var playerSwords = hasActiveCard('player', 'swords-of-revealing-light');
+                            var playerJar = (typeof isDragonLocked === 'function') && isDragonLocked();
+                            shouldPlay = (playerST > 0 && (playerST > compST || playerSwords || playerJar));
+                        } else if (def.id === 'fissure' || def.id === 'smashing-ground') {
                             var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
                                 return m.card && !m.card.faceDown;
                             });
@@ -625,6 +750,11 @@ async function AIPlaySpellTrapCards() {
                         if (compHasDragon && !playerHasDragon) {
                             shouldSet = false;
                         }
+                    }
+                } else if (def.id === 'torrential-tribute') {
+                    var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', 'torrential-tribute') !== null);
+                    if (alreadySet) {
+                        shouldSet = false;
                     }
                 }
 
