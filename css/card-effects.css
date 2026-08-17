@@ -1,0 +1,519 @@
+/* ==========================================================================
+   Spell / Trap Zone & Card Effects Styling
+   ========================================================================== */
+
+/* Field zone square (replaces static placeholder) */
+.field-zone-square {
+    position: relative;
+}
+
+.field-zone-square .main-zone.field-zone-slot {
+    border-color: rgba(240, 246, 252, 0.2);
+    background: rgba(22, 27, 34, 0.55);
+}
+
+.field-zone-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #8b949e;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
+    transition: all 0.2s ease;
+}
+
+.field-zone-square:hover .field-zone-label {
+    color: #c9a84d;
+}
+
+.field-zone-square[data-card-name]:not([data-card-name=""]) .field-zone-label {
+    display: none;
+}
+
+/* Available-zone highlights for spell/trap placement (targets inner rectangle card-zone) */
+.card-zone-square.spell-available-zone,
+.card-zone-square.field-available-zone {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+div.card-zone.spell-available-zone {
+    border: 2px solid #10b981 !important;
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.65), inset 0 0 10px rgba(16, 185, 129, 0.35) !important;
+    background-color: rgba(16, 185, 129, 0.15) !important;
+    animation: pulseSpellAvailable 1.5s infinite ease-in-out;
+}
+
+#computer-field div.card-zone.spell-available-zone {
+    border: 2px solid #ec4899 !important;
+    box-shadow: 0 0 16px rgba(236, 72, 153, 0.65), inset 0 0 10px rgba(236, 72, 153, 0.35) !important;
+    background-color: rgba(236, 72, 153, 0.15) !important;
+    animation: pulseSpellAvailable 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseSpellAvailable {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.5), inset 0 0 8px rgba(16, 185, 129, 0.25);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(16, 185, 129, 0.85), inset 0 0 14px rgba(16, 185, 129, 0.45);
+    }
+}
+
+div.card-zone.field-available-zone {
+    border: 2px solid #f59e0b !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.65), inset 0 0 10px rgba(245, 158, 11, 0.35) !important;
+    background-color: rgba(245, 158, 11, 0.15) !important;
+    animation: pulseFieldAvailable 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseFieldAvailable {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(245, 158, 11, 0.5), inset 0 0 8px rgba(245, 158, 11, 0.25);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(245, 158, 11, 0.85), inset 0 0 14px rgba(245, 158, 11, 0.45);
+    }
+}
+
+/* Face-down spell/trap card in spell zone */
+.card-zone-square.spell-zone-square[data-card-name]:not([data-card-name=""])[data-card-position="set"] .card-zone.main-zone .front {
+    transform: rotateY(180deg);
+}
+
+.card-zone-square.spell-zone-square[data-card-name]:not([data-card-name=""])[data-card-position="set"] .card-zone.main-zone .back {
+    transform: rotateY(0deg);
+}
+
+/* ==========================================================================
+   Monster Reborn Target Modal
+   ========================================================================== */
+
+.rebirth-modal-panel {
+    width: 620rem !important;
+    max-width: 95vw;
+}
+
+.rebirth-cards-scroll-container {
+    max-height: 380rem;
+    overflow-y: auto;
+    padding: 6rem 4rem 10rem 4rem;
+    min-height: 160rem;
+}
+
+.rebirth-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110rem, 1fr));
+    gap: 12rem;
+}
+
+.rebirth-card-tile {
+    position: relative;
+    border-radius: 6rem;
+    overflow: hidden;
+    background: rgba(13, 17, 23, 0.9);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    box-shadow: 0 4px 14rem rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.rebirth-card-tile:hover {
+    transform: translateY(-4rem) scale(1.05);
+    border-color: #fef08a;
+    box-shadow: 0 10rem 26rem rgba(0, 0, 0, 0.8), 0 0 16rem rgba(212, 175, 55, 0.45);
+    z-index: 10;
+}
+
+.rebirth-card-img-wrap {
+    width: 100%;
+    height: 145rem;
+    position: relative;
+    background: #000;
+}
+
+.rebirth-card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.rebirth-card-info-bar {
+    padding: 4rem 6rem;
+    background: rgba(22, 27, 34, 0.95);
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    border-top: 1px solid rgba(240, 246, 252, 0.08);
+}
+
+.rebirth-card-name {
+    font-family: 'Cinzel', serif;
+    font-size: 10rem;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rebirth-card-stats {
+    font-family: 'Inter', sans-serif;
+    font-size: 9rem;
+    font-weight: 700;
+    color: #facc15;
+}
+
+.rebirth-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 36rem 16rem;
+    gap: 8rem;
+    color: #6e7681;
+}
+
+.rebirth-empty-title {
+    margin: 0;
+    font-family: 'Cinzel', serif;
+    font-size: 14rem;
+    font-weight: 700;
+    letter-spacing: 1.5rem;
+    color: #c9a84d;
+}
+
+.rebirth-empty-hint {
+    font-size: 11rem;
+    line-height: 1.4;
+    max-width: 280rem;
+}
+
+/* ==========================================================================
+   Swords of Revealing Light Turn Counter Badge
+   ========================================================================== */
+
+.swords-turn-counter-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.95) 0%, rgba(202, 138, 4, 0.95) 100%);
+    border: 1px solid #fef08a;
+    border-radius: 4rem;
+    padding: 2rem 7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4rem;
+    font-family: 'Cinzel', serif;
+    font-size: 8.5rem;
+    font-weight: 900;
+    letter-spacing: 1rem;
+    color: #1a1500;
+    box-shadow: 0 0 12px rgba(234, 179, 8, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    z-index: 70;
+    pointer-events: none;
+    animation: swordsBadgeGlow 1.5s infinite alternate ease-in-out;
+}
+
+.swords-counter-icon {
+    font-size: 9rem;
+    line-height: 1;
+}
+
+@keyframes swordsBadgeGlow {
+    from {
+        box-shadow: 0 0 8px rgba(234, 179, 8, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(234, 179, 8, 1), 0 2px 6px rgba(0, 0, 0, 0.5);
+        filter: brightness(1.15);
+    }
+}
+
+.swords-turn-counter-badge.counter-updated {
+    animation: swordsBadgeBump 0.4s ease-out;
+}
+
+@keyframes swordsBadgeBump {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.3); filter: brightness(1.4); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ==========================================================================
+   Change of Heart Borrowed Monster Badge
+   ========================================================================== */
+
+.borrowed-monster-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.95) 0%, rgba(147, 51, 234, 0.95) 100%);
+    border: 1px solid #fbcfe8;
+    border-radius: 4rem;
+    padding: 2rem 7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4rem;
+    font-family: 'Cinzel', serif;
+    font-size: 8rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(225, 29, 72, 0.75), 0 2px 6px rgba(0, 0, 0, 0.6);
+    white-space: nowrap;
+    z-index: 70;
+    pointer-events: none;
+    animation: borrowedBadgeGlow 1.6s infinite alternate ease-in-out;
+}
+
+.borrowed-badge-icon {
+    font-size: 9rem;
+    line-height: 1;
+}
+
+@keyframes borrowedBadgeGlow {
+    from {
+        box-shadow: 0 0 8px rgba(225, 29, 72, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(236, 72, 153, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+/* ==========================================================================
+   Monster ATK/DEF Stat Modifier Badge (+/- Diff)
+   ========================================================================== */
+
+.stat-mod-badge {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3rem;
+    font-family: 'Cinzel', serif;
+    font-size: 8rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    z-index: 70;
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+/* Position adjustments for Defense Position horizontal monsters */
+.card-zone-square[data-card-position*="defense"] .stat-mod-badge {
+    bottom: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, 50%);
+}
+
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge,
+.card-zone-square[data-card-position*="defense"] .def-locked-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, -50%);
+}
+
+/* Vertical Stacking for Multiple Top Badges (e.g. Borrowed + DEF LOCKED) */
+.card-zone-square .borrowed-monster-badge ~ .def-locked-badge {
+    transform: translate(-50%, calc(-50% - 19rem));
+}
+
+.card-zone-square .def-locked-badge ~ .borrowed-monster-badge {
+    transform: translate(-50%, calc(-50% - 19rem));
+}
+
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .borrowed-monster-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, calc(-50% - 19rem));
+}
+
+/* ==========================================================================
+   Dragon Capture Jar "DEF LOCKED" Badge
+   ========================================================================== */
+
+.def-locked-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.95) 0%, rgba(180, 83, 9, 0.95) 100%);
+    border: 1px solid #fde68a;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 75;
+    pointer-events: none;
+    animation: defLockedGlow 1.8s infinite alternate ease-in-out;
+}
+
+.def-locked-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+@keyframes defLockedGlow {
+    from {
+        box-shadow: 0 0 6px rgba(217, 119, 6, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(251, 191, 36, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+/* Dragon Capture Jar Summon Menu Alert */
+.summon-jar-alert {
+    display: flex;
+    align-items: center;
+    gap: 8rem;
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.28) 0%, rgba(180, 83, 9, 0.18) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    border-radius: 6rem;
+    padding: 6rem 12rem;
+    margin-top: 10rem;
+    margin-bottom: 4rem;
+    text-align: left;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+    animation: defLockedGlow 2s infinite alternate ease-in-out;
+}
+
+.summon-jar-alert-icon {
+    font-size: 16rem;
+    line-height: 1;
+}
+
+.summon-jar-alert-text {
+    font-size: 10rem;
+    line-height: 1.4;
+    color: #fef3c7;
+}
+
+.summon-jar-alert-text strong {
+    color: #fbbf24;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.5rem;
+}
+
+.stat-mod-buff {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%);
+    border: 1px solid #a7f3d0;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.75), 0 2px 5px rgba(0, 0, 0, 0.5);
+    animation: statBuffGlow 1.8s infinite alternate ease-in-out;
+}
+
+.stat-mod-debuff {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%);
+    border: 1px solid #fecaca;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.75), 0 2px 5px rgba(0, 0, 0, 0.5);
+    animation: statDebuffGlow 1.8s infinite alternate ease-in-out;
+}
+
+.stat-mod-icon {
+    font-size: 7.5rem;
+    line-height: 1;
+}
+
+@keyframes statBuffGlow {
+    from {
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.1);
+    }
+}
+
+@keyframes statDebuffGlow {
+    from {
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 14px rgba(239, 68, 68, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.1);
+    }
+}
+
+/* In-Hand Stat Modifier Preview (Muted / Washed-Out Style) */
+#player-hand .stat-mod-badge.stat-mod-preview {
+    opacity: 0.82;
+    transform: translate(-50%, 50%) scale(0.92);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    animation: none !important;
+}
+
+#player-hand .stat-mod-badge.stat-mod-preview.stat-mod-buff {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.5) 0%, rgba(5, 150, 105, 0.5) 100%);
+    border: 1px solid rgba(167, 243, 208, 0.5);
+    color: #d1fae5;
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.25);
+}
+
+#player-hand .stat-mod-badge.stat-mod-preview.stat-mod-debuff {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.5) 0%, rgba(185, 28, 28, 0.5) 100%);
+    border: 1px solid rgba(254, 202, 202, 0.5);
+    color: #fee2e2;
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.25);
+}
+
+#player-hand > .card:hover .stat-mod-badge.stat-mod-preview {
+    opacity: 1;
+    transform: translate(-50%, 50%) scale(1);
+}
+
+.target-owner-tag {
+    position: absolute;
+    bottom: 4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 800;
+    letter-spacing: 0.8rem;
+    padding: 1rem 5rem;
+    border-radius: 3rem;
+    white-space: nowrap;
+}
+
+.target-owner-tag.tag-opponent {
+    background: rgba(239, 68, 68, 0.85);
+    color: #ffffff;
+    border: 1px solid #fecaca;
+}
+
+.target-owner-tag.tag-player {
+    background: rgba(16, 185, 129, 0.85);
+    color: #ffffff;
+    border: 1px solid #a7f3d0;
+}
