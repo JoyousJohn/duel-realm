@@ -3,151 +3,179 @@ var turn;
 var turnCount = 0;
 
 var phases = [
+    { 'phaseNum': 0, 'phaseName': 'Draw Phase' },
+    { 'phaseNum': 1, 'phaseName': 'Standby Phase' },
+    { 'phaseNum': 2, 'phaseName': 'Main Phase 1' },
+    { 'phaseNum': 3, 'phaseName': 'Battle Phase' },
+    { 'phaseNum': 4, 'phaseName': 'Main Phase 2' },
+    { 'phaseNum': 5, 'phaseName': 'End Phase' },
+    { 'phaseNum': 6, 'phaseName': 'Game Start' }
+];
 
-    { 
-        'phaseNum': 0,
-        'phaseName': 'Draw Phase'
-    },
-
-    { 
-        'phaseNum': 1,
-        'phaseName': 'Standby Phase'
-    },
-
-    { 
-        'phaseNum': 2,
-        'phaseName': 'Main Phase 1'
-    },
-
-    { 
-        'phaseNum': 3,
-        'phaseName': 'Battle Phase'
-    },
-
-    { 
-        'phaseNum': 4,
-        'phaseName': 'Main Phase 2'
-    },
-
-    { 
-        'phaseNum': 5,
-        'phaseName': 'End Phase'
-    },
-
-    {
-        'phaseNum': 6,
-        'phaseName': 'Game Start'
-    }
-
-]
-
-function startGame() {
+async function startGame() {
     prepareGame();
 
-    setPhase(6)
+    setPhase(6);
 
-    getCards('player', 5)
-    getCards('computer', 5)
+    await getCards('player', 5);
+    await getCards('computer', 5);
     
     turn = Math.round(Math.random()); // 0: player, 1: computer
-    p = getPhaseFormat()
-    turn ? console.log(p + " Computer goes first") : console.log(p + " Player goes first")
     turn ? computerTurn() : playerTurn();
-
 }
 
-function playerTurn() {
+async function playerTurn() {
 
-    showPopup("YOUR TURN")
+    showPopup("YOUR TURN");
 
     updateTurn(0); // Set phase to player
+    GameState.turn.active = 'player';
+    GameState.turn.count = turnCount;
+    GameState.turn.normalSummonUsed = false;
 
-    setPhase(0) // Draw
+    // Reset attack flags for player monsters
+    var playerMonsters = GameState.getMonstersOnField('player');
+    playerMonsters.forEach(function(m) { m.card.hasAttacked = false; });
 
-    getCards('player', 1)
+    // 1. Draw Phase
+    setPhase(0); // DP
+    await getCards('player', 1);
+    await sleep(getAnimDuration(250));
 
-    setPhase(1) // Standby
+    // 2. Standby Phase
+    setPhase(1); // SP
+    checkStandbyTraps('computer');
+    await sleep(getAnimDuration(200));
 
-    setPhase(2) // Main Phase 1
+    // 3. Main Phase 1
+    setPhase(2); // M1
 
     if (activeCard !== null) {
-        showAvailableZones()
+        showAvailableZones();
     }
-    
 }
 
 async function computerTurn() {
 
-    showPopup("COMPUTER'S TURN")
+    showPopup("COMPUTER'S TURN");
 
     updateTurn(1); // Set phase to computer
+    GameState.turn.active = 'computer';
+    GameState.turn.count = turnCount;
+    GameState.turn.normalSummonUsed = false;
 
-    setPhase(0) // Draw 
+    // Reset attack flags for computer monsters
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    computerMonsters.forEach(function(m) { m.card.hasAttacked = false; });
 
-    getCards('computer', 1)
-    await sleep(1000)
+    setPhase(0); // Draw 
+    await getCards('computer', 1);
+    await sleep(getAnimDuration(350));
 
     setPhase(1); // Standby
+    checkStandbyTraps('player');
+    await sleep(getAnimDuration(150));
 
-    setPhase(2) // Main Phase 1
+    setPhase(2); // Main Phase 1
 
-    var currentHand = [...computer['hand']['monsters']]
-    for (var m in currentHand) {
-
-        if (!getNumOfFreeZones('computer')) {
-            if (printMoves) print("Computer has no free zones left, stopping summons")
-            break;
-        }
-
-        var monsterName = currentHand[m];
-        summonMonster('computer', monsterName)
-        //removeMonsterFromHand('computer', monsterName)
-        await sleep(500);
+    // 1. AI evaluates existing field monsters to flip/change position
+    if (typeof AIEvaluatePositionChanges === 'function') {
+        await AIEvaluatePositionChanges();
     }
 
-    setPhase(3) // Battle Phase
+    // 2. Play draw acceleration (Pot of Greed) FIRST to maximize options
+    if (typeof AIPlayDrawCards === 'function') {
+        await AIPlayDrawCards();
+    }
 
-    setPhase(4) // Main Phase 2
+    // 3. AI Normal Summons 1 monster per turn with full hand visibility
+    if (typeof AISummonMonsterRoutine === 'function') {
+        await AISummonMonsterRoutine();
+    }
 
-    setPhase(5) // End Phase
-    await sleep(1000)
+    // 4. Computer plays spells and sets traps dynamically
+    await AIPlaySpellTrapCards();
 
-    console.log(getPhaseFormat() + " Computer ends their turn")
+    setPhase(3); // Battle Phase
+    await AIPerformBattlePhase();
+    await sleep(getAnimDuration(500));
 
-    playerTurn();
+    setPhase(4); // Main Phase 2
+    if (typeof AIEvaluatePositionChanges === 'function') {
+        await AIEvaluatePositionChanges();
+    }
+    if (typeof AISummonMonsterRoutine === 'function') {
+        await AISummonMonsterRoutine();
+    }
+    await AIPlaySpellTrapCards();
 
+    setPhase(5); // End Phase
+    await handleEndPhaseEffects('computer');
+    await sleep(getAnimDuration(600));
+
+    // Only continue if game is still active
+    if (GameState.player.lp > 0 && GameState.computer.lp > 0) {
+        playerTurn();
+    }
 }
 
 function updateTurn(newTurn) { 
-    turn = newTurn
-    turn ? print("Turn set to 1 (computer's)") : print("Turn set to 0 (player's)")
-    turn ? $('#turn-info').text("computer's turn") : $('#turn-info').text("Your turn") 
+    turn = newTurn;
     turnCount++;
-    $('#turn-count').text('turnCount: ' + turnCount);
+    $('#turn-num-display').text('TURN ' + turnCount);
+
+    if (turn === 0) {
+        $('#turn-info').text("YOUR TURN");
+        $('#hud-turn-badge').removeClass('is-computer-turn').addClass('is-player-turn');
+        $('#duel-turn-indicator').removeClass('indicator-computer').addClass('indicator-player');
+        $('#end-turn-btn').prop('disabled', false).css('opacity', '1');
+        $('#end-turn-btn-label').text('END TURN');
+    } else {
+        $('#turn-info').text("OPPONENT TURN");
+        $('#hud-turn-badge').removeClass('is-player-turn').addClass('is-computer-turn');
+        $('#duel-turn-indicator').removeClass('indicator-player').addClass('indicator-computer');
+        $('#end-turn-btn').prop('disabled', true).css('opacity', '0.5');
+        $('#end-turn-btn-label').text('OPPONENT TURN');
+    }
+
+    if (typeof updateResourceCounters === 'function') updateResourceCounters();
 } 
 
 function updatePhaseInfo() {
-    $('#game-phase').text(phases[phase].phaseName.toUpperCase())
+    if (phases[phase]) {
+        $('#game-phase').text(phases[phase].phaseName.toUpperCase());
+        $('#phase-tracker .phase-step').removeClass('active');
+        $('#phase-tracker .phase-step[data-phase="' + phase + '"]').addClass('active');
+        if (typeof updateActionableCards === 'function') updateActionableCards();
+    }
 }
 
 function getPhaseFormat() {
-    return "[" + phases[phase]['phaseName'] + "]"
+    return phases[phase] ? "[" + phases[phase]['phaseName'] + "]" : "[Phase]";
 }
 
-function requestEndTurn() {
+async function requestEndTurn() {
     if (turn === 0) {
 
-        if (printMoves) print(getPhaseFormat() + " Player ends their turn")
-
-        if (activeCard) { // If active card is currently selected
-            $('.active-card').removeClass('active-card')
-            clearAvailableZones(); // Remove borders of zones that were available
+        if (activeCard) {
+            $('.active-card').removeClass('active-card');
+            clearAvailableZones();
+            activeCard = null;
         }
+
+        $('.card-actionable').removeClass('card-actionable');
+        hideSummonOptionsIfVisible();
+        hidePositionChangeOptionsIfVisible();
+        hideAtkMenuIfVisible();
+
+        // 6. End Phase
+        setPhase(5); // EP
+        await handleEndPhaseEffects('player');
+        await sleep(350);
 
         computerTurn();
 
-    } else { alert('not your turn') }
-
+    } else { alert('not your turn'); }
 }
 
 function prepareGame() {
@@ -155,23 +183,33 @@ function prepareGame() {
     $('#summon-options').hide();
     $('#change-position-options').hide();
     $('#attack-menu').hide();
+    $('#system-menu-modal').hide();
+    $('#graveyard-modal').hide();
     $('#viewport').show();
+
+    GameState.reset();
+    GameState.status = 'PLAYING';
+
     player = { 
         'hand': { 'monsters': [], 'spells': [], 'traps': []},
         'field': { 'monsters': [], 'spells': [], 'traps': []},
         'graveyard': { 'monsters': [], 'spells': [], 'traps': []}
-    }
+    };
     computer = { 
         'hand': { 'monsters': [], 'spells': [], 'traps': []},
         'field': { 'monsters': [], 'spells': [], 'traps': []},
         'graveyard': { 'monsters': [], 'spells': [], 'traps': []}
-    }
-    buildPlayerDeck()
-    //$('#player-lp').css('left', $('#info-panel').outerWidth(true) + 'px') // true to include margin and padding in calculation
+    };
+
+    updateLPDisplay();
+    buildPlayerDeck();
+    if (typeof updateResourceCounters === 'function') updateResourceCounters();
+    if (typeof BattleFX !== 'undefined') BattleFX.updateDeckVisuals();
 }
 
 function setPhase(newPhase) {
     phase = newPhase;
+    GameState.turn.phase = newPhase;
     updatePhaseInfo();
 }
 
@@ -183,7 +221,9 @@ function showPopup(text) {
 
 function endGame() {
     $('#viewport').hide();
+    if (typeof randomizeTitleScreenCards === 'function') randomizeTitleScreenCards();
     $('#homescreen').show(); 
+    $('#duel-outcome-modal').hide();
     $('#feed').text('');
     clearHand('player');
     clearHand('computer');
@@ -192,39 +232,85 @@ function endGame() {
     turnCount = 0;
 
     if (activeCard) {
-        clearAvailableZones(); // Remove borders of available zones if active card was currently selected
+        clearAvailableZones();
         activeCard = null;
     }
 
-    resetAllSquares()   
+    GameState.reset();
+    resetAllSquares();   
 }
 
 function addToFeed(gameMove) {
-    //$('#feed').text(gameMove + '\n\n' + $('#feed').text())
-    $('#feed').append(gameMove)
+    if (!gameMove) return;
+
+    var text = String(gameMove)
+        .replace(/\[COMPUTER\]\s*/gi, 'Computer ')
+        .replace(/\[PLAYER\]\s*/gi, 'Player ')
+        .replace(/\bcomputer's\b/gi, 'Computer\'s')
+        .replace(/\bplayer's\b/gi, 'Player\'s')
+        .replace(/\bcomputer\b/gi, 'Computer')
+        .replace(/\bplayer\b/gi, 'Player')
+        .trim();
+
+    // Auto-detect and bold/color all card names registered in the game
+    if (typeof cards !== 'undefined') {
+        var cardNames = Object.values(cards)
+            .map(function(c) { return c.name; })
+            .filter(function(n) { return Boolean(n); })
+            .sort(function(a, b) { return b.length - a.length; });
+
+        cardNames.forEach(function(cName) {
+            var escaped = cName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Match plain card name or existing <em>Card Name</em>
+            var emRegex = new RegExp('<em>' + escaped + '</em>', 'gi');
+            text = text.replace(emRegex, '§CN§' + cName + '§/CN§');
+
+            var plainRegex = new RegExp('\\b' + escaped + '\\b', 'gi');
+            text = text.replace(plainRegex, '§CN§' + cName + '§/CN§');
+        });
+    }
+
+    // Replace duelist names with styled actor badges
+    text = text
+        .replace(/\bComputer('s)?\b/g, '<span class="feed-actor feed-computer">Computer$1</span>')
+        .replace(/\bPlayer('s)?\b/g, '<span class="feed-actor feed-player">Player$1</span>');
+
+    // Convert markers to gold card name highlights
+    text = text
+        .replace(/§CN§/g, '<strong class="feed-card-name">')
+        .replace(/§\/CN§/g, '</strong>');
+
+    var logItem = $('<div class="feed-log-item">' + text + '</div>');
+    $('#feed').append(logItem);
+
+    var feedElem = document.getElementById('feed');
+    if (feedElem) feedElem.scrollTop = feedElem.scrollHeight;
 }
 
 // Clear & reset all fields
 function resetAllSquares(squareElm) {
 
     $('.card-zone-square').each(function() {
-
-        $(this).find('div.card-zone').off(".flip"); // Removes flip click listener. Not having this means the card will flip (new transformY is added when summon option menu opens) when selecting a zone to summon a card after first placemenet. Took wayyyy too long to figure this out.
-
-        $(this).attr('data-card-type', "")
+        $(this).find('div.card-zone').off(".flip");
+        $(this).attr('data-card-type', "");
         $(this).attr('data-card-name', "");
+        $(this).attr('data-card-position', "");
+        $(this).attr('data-turn-moved', "");
+        $(this).attr('data-turn-posChanged', "");
 
-        $(this).find('div.card-zone').removeData("flip-model") // Unitialize .flip
-
-        $(this).find('div.card-zone').removeData('transform') // Removes rotate 90deg and perspective 200px from transform data. Not sure why the perspective is this amount.
-        $(this).find('div.card-zone').removeAttr('style') // Remove rotate 90deg, perspective 200px, and position relative from visible css attributes
+        $(this).find('div.card-zone').removeData("flip-model");
+        $(this).find('div.card-zone').removeData('transform');
+        $(this).find('div.card-zone').removeAttr('style');
         
-        //$(this).removeAttr('style') // remove pos: relative added by .flip. Not doing this moves card to 0, 0 of viewport on moveCard
-        $(this).find('img').removeAttr('src')
-        $(this).find('img').removeAttr('style') // Remove backface-visibility from front > img. Not sure if this really affects anything.
+        $(this).find('img').removeAttr('src').hide();
+        $(this).find('img').removeAttr('style');
         
-        $(this).find('.front, .back').removeAttr('style') // Remove many props added by .flip
-        $(this).find('.front, .back').removeData('transform') // Removes rotateY. Not sure if actually required. Should really just delete all elms and make sure ones on new game lol
-    })
+        $(this).find('.front, .back').removeAttr('style');
+        $(this).find('.front, .back').removeData('transform');
+    });
 
+    $('.swords-turn-counter-badge').remove();
+    $('.borrowed-monster-badge').remove();
+    $('.stat-mod-badge').remove();
+    $('.def-locked-badge').remove();
 }
