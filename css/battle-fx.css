@@ -1,0 +1,584 @@
+/* ==========================================================================
+   AAA Combat & Battle VFX Styling (Duel Realm: Tactics)
+   ========================================================================== */
+
+/* 1. Screen Shake Kinematics */
+.screen-shake-light {
+    animation: screenShakeLight 0.28s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+}
+
+.screen-shake-heavy {
+    animation: screenShakeHeavy 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+}
+
+@keyframes screenShakeLight {
+    0%, 100% { transform: perspective(1400px) rotateX(16deg) translate3d(0, 0, 0); }
+    20% { transform: perspective(1400px) rotateX(16deg) translate3d(-3px, 2px, 0); }
+    40% { transform: perspective(1400px) rotateX(16deg) translate3d(3px, -2px, 0); }
+    60% { transform: perspective(1400px) rotateX(16deg) translate3d(-2px, 1px, 0); }
+    80% { transform: perspective(1400px) rotateX(16deg) translate3d(2px, -1px, 0); }
+}
+
+@keyframes screenShakeHeavy {
+    0%, 100% { transform: perspective(1400px) rotateX(16deg) translate3d(0, 0, 0); }
+    15% { transform: perspective(1400px) rotateX(16deg) translate3d(-6px, 5px, 0); }
+    30% { transform: perspective(1400px) rotateX(16deg) translate3d(6px, -4px, 0); }
+    45% { transform: perspective(1400px) rotateX(16deg) translate3d(-4px, 3px, 0); }
+    60% { transform: perspective(1400px) rotateX(16deg) translate3d(4px, -2px, 0); }
+    75% { transform: perspective(1400px) rotateX(16deg) translate3d(-2px, 1px, 0); }
+}
+
+/* 2. Attacking Card Aura & Lunge FX */
+.card-attacking-aura {
+    box-shadow: 0 0 24px 8px rgba(239, 68, 68, 0.95), 0 0 12px 4px rgba(245, 158, 11, 0.8), inset 0 0 10px rgba(254, 240, 138, 0.6) !important;
+    border-color: #fef08a !important;
+    z-index: 100 !important;
+    animation: attackAuraPulse 0.4s infinite alternate ease-in-out !important;
+}
+
+@keyframes attackAuraPulse {
+    from {
+        box-shadow: 0 0 18px 6px rgba(239, 68, 68, 0.8), 0 0 10px 3px rgba(245, 158, 11, 0.6);
+        filter: brightness(1.1);
+    }
+    to {
+        box-shadow: 0 0 28px 10px rgba(239, 68, 68, 1), 0 0 16px 6px rgba(254, 240, 138, 0.9);
+        filter: brightness(1.3);
+    }
+}
+
+/* 3. Targetable Opponent Card Highlights (Around card image) */
+.attack-targetable-zone {
+    cursor: crosshair !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.attack-targetable-zone.is-blocked {
+    cursor: not-allowed !important;
+}
+
+.attack-targetable-zone .card-zone.main-zone {
+    border: 2px solid #ef4444 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 0 20px 6px rgba(239, 68, 68, 0.95), 0 0 10px 2px rgba(254, 240, 138, 0.7), inset 0 0 12px rgba(239, 68, 68, 0.5) !important;
+    animation: targetCardPulse 0.7s infinite alternate ease-in-out !important;
+    position: relative;
+    z-index: 50 !important;
+}
+
+.attack-targetable-zone .card-zone.main-zone::after {
+    content: 'TARGET';
+    position: absolute;
+    top: -24rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Cinzel', serif;
+    font-size: 9rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    color: #ffffff;
+    background: #ef4444;
+    padding: 2rem 8rem;
+    border-radius: 4rem;
+    box-shadow: 0 0 10px #ef4444;
+    white-space: nowrap;
+    z-index: 60;
+    pointer-events: none;
+}
+
+/* Gray styling when attack is prevented by Swords of Revealing Light */
+.attack-targetable-zone.is-blocked .card-zone.main-zone {
+    border: 2px solid #9ca3af !important;
+    box-shadow: 0 0 16px 4px rgba(156, 163, 175, 0.6), inset 0 0 10px rgba(107, 114, 128, 0.4) !important;
+    animation: targetCardPulseBlocked 1.2s infinite alternate ease-in-out !important;
+}
+
+.attack-targetable-zone.is-blocked .card-zone.main-zone::after {
+    content: "CAN'T ATTACK";
+    background: #374151;
+    border: 1px solid #9ca3af;
+    color: #e5e7eb;
+    box-shadow: 0 0 10px rgba(156, 163, 175, 0.5);
+}
+
+@keyframes targetCardPulse {
+    from {
+        box-shadow: 0 0 14px 4px rgba(239, 68, 68, 0.75), 0 0 6px 1px rgba(254, 240, 138, 0.5);
+        filter: brightness(1.05);
+    }
+    to {
+        box-shadow: 0 0 26px 8px rgba(239, 68, 68, 1), 0 0 14px 4px rgba(254, 240, 138, 0.9);
+        filter: brightness(1.25);
+    }
+}
+
+@keyframes targetCardPulseBlocked {
+    from {
+        box-shadow: 0 0 10px 3px rgba(156, 163, 175, 0.45);
+        filter: grayscale(0.4) brightness(0.9);
+    }
+    to {
+        box-shadow: 0 0 18px 5px rgba(156, 163, 175, 0.75);
+        filter: grayscale(0.2) brightness(1.05);
+    }
+}
+
+/* Targetable Opponent LP for Direct Attack */
+.targetable-lp {
+    cursor: crosshair !important;
+    border-color: #ff2a2a !important;
+    box-shadow: 0 0 24px 8px rgba(239, 68, 68, 1) !important;
+    animation: lpTargetPulse 0.6s infinite alternate ease-in-out !important;
+}
+
+.targetable-lp.is-blocked {
+    cursor: not-allowed !important;
+    border-color: #9ca3af !important;
+    box-shadow: 0 0 16px 4px rgba(156, 163, 175, 0.6) !important;
+    animation: none !important;
+}
+
+@keyframes lpTargetPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); filter: brightness(1.3); }
+}
+
+/* 4. Impact Shockwaves & Spark Bursts */
+.impact-fx-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    overflow: visible;
+}
+
+.impact-shockwave-burst {
+    position: absolute;
+    width: 140rem;
+    height: 140rem;
+    margin-left: -70rem;
+    margin-top: -70rem;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1000;
+    border: 3rem solid #fef08a;
+    box-shadow: 0 0 30rem #ef4444, inset 0 0 20rem #f59e0b;
+    animation: impactShockwaveAnim 0.45s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes impactShockwaveAnim {
+    0% {
+        opacity: 1;
+        transform: scale(0.1) rotate(0deg);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scale(1.2) rotate(45deg);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(2.2) rotate(90deg);
+    }
+}
+
+.impact-slash-spark {
+    position: absolute;
+    width: 160rem;
+    height: 6rem;
+    margin-left: -80rem;
+    margin-top: -3rem;
+    background: linear-gradient(90deg, transparent 0%, #ffffff 50%, transparent 100%);
+    box-shadow: 0 0 16rem 4rem #ef4444;
+    border-radius: 4rem;
+    pointer-events: none;
+    z-index: 1001;
+    animation: impactSlashAnim 0.35s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+
+@keyframes impactSlashAnim {
+    0% {
+        opacity: 1;
+        transform: scaleX(0.2) rotate(-35deg);
+    }
+    60% {
+        opacity: 1;
+        transform: scaleX(1.4) rotate(-35deg);
+    }
+    100% {
+        opacity: 0;
+        transform: scaleX(1.8) rotate(-35deg);
+    }
+}
+
+/* 5. Floating Combat Damage Numbers */
+.floating-damage-number {
+    position: absolute;
+    font-family: 'Cinzel', serif;
+    font-size: 26rem;
+    font-weight: 900;
+    letter-spacing: 2rem;
+    color: #ff3838;
+    text-shadow: 0 0 12rem rgba(255, 56, 56, 0.9), 0 4rem 10rem rgba(0, 0, 0, 0.9), 0 0 24rem #f59e0b;
+    pointer-events: none;
+    z-index: 1050;
+    user-select: none;
+    white-space: nowrap;
+    animation: floatingDamagePop 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.floating-damage-number.direct-hit {
+    font-size: 32rem;
+    color: #ff1e1e;
+    text-shadow: 0 0 18rem #ff1e1e, 0 4rem 12rem rgba(0, 0, 0, 0.95), 0 0 32rem #facc15;
+}
+
+.floating-damage-number.def-blocked {
+    font-size: 22rem;
+    color: #38bdf8;
+    text-shadow: 0 0 14rem #38bdf8, 0 4rem 10rem rgba(0, 0, 0, 0.9);
+}
+
+@keyframes floatingDamagePop {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 10rem, 0) scale(0.6);
+    }
+    20% {
+        opacity: 1;
+        transform: translate3d(0, -18rem, 0) scale(1.25);
+    }
+    50% {
+        opacity: 1;
+        transform: translate3d(0, -32rem, 0) scale(1.05);
+    }
+    100% {
+        opacity: 0;
+        transform: translate3d(0, -54rem, 0) scale(0.9);
+    }
+}
+
+/* 6. Monster Destruction / Shatter Disintegration FX */
+.monster-shattered {
+    animation: monsterShatterAnim 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+    pointer-events: none;
+}
+
+@keyframes monsterShatterAnim {
+    0% {
+        filter: brightness(2) contrast(1.5);
+        transform: scale(1);
+        opacity: 1;
+    }
+    30% {
+        filter: brightness(3) saturate(0) drop-shadow(0 0 16px #ef4444);
+        transform: scale(1.1) rotate(4deg);
+        opacity: 0.9;
+    }
+    60% {
+        filter: brightness(0.2) drop-shadow(0 0 24px #000);
+        transform: scale(0.8) rotate(-6deg);
+        opacity: 0.5;
+    }
+    100% {
+        filter: brightness(0);
+        transform: scale(0) translateY(30px);
+        opacity: 0;
+    }
+}
+
+/* 7. LP Glow Damage Flash */
+.lp-damage-flash {
+    animation: lpDamageFlashAnim 0.5s ease-out !important;
+}
+
+@keyframes lpDamageFlashAnim {
+    0% {
+        background: #ef4444 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 30px 10px #ef4444 !important;
+        transform: scale(1.2) !important;
+    }
+    100% {
+        transform: scale(1) !important;
+    }
+}
+
+/* ==========================================================================
+   8. Dynamic 3D Deck Stack & Draw Flight Kinematics
+   ========================================================================== */
+
+.deck-stack-container {
+    position: relative !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: default;
+}
+
+.deck-stack-layer {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    background-image: url('../cards/card_back_2.png');
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.deck-layer-1 {
+    transform: translate3d(-1.5px, -2.5px, 0);
+    box-shadow: -1px 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+.deck-layer-2 {
+    transform: translate3d(-3px, -5px, 0);
+    box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.6);
+    z-index: 2;
+}
+
+.deck-layer-3 {
+    transform: translate3d(-4.5px, -7.5px, 0);
+    box-shadow: -3px 4px 8px rgba(0, 0, 0, 0.7);
+    z-index: 3;
+}
+
+.deck-stack-top {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    background-image: url('../cards/card_back_2.png');
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate3d(-6px, -10px, 0);
+    transition: all 0.22s ease;
+    z-index: 4;
+}
+
+.deck-stack-container:hover .deck-stack-top {
+    transform: translate3d(-6px, -13px, 0);
+    box-shadow: 0 0 16px rgba(212, 175, 55, 0.6), 0 8px 18px rgba(0, 0, 0, 0.8);
+    border-color: #fef08a;
+}
+
+.deck-count-badge {
+    position: absolute;
+    bottom: 6rem;
+    font-family: 'Cinzel', serif;
+    font-size: 10rem;
+    font-weight: 900;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.84);
+    border: 1px solid #d4af37;
+    padding: 2rem 7rem;
+    border-radius: 4rem;
+    letter-spacing: 1rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    pointer-events: none;
+}
+
+/* Card Draw & Summon Flight Clone */
+.card-draw-flight {
+    position: fixed !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    perspective: 1000px;
+    transform-style: preserve-3d;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.75) !important;
+    border-radius: 0;
+}
+
+.card-draw-flight .card-relative {
+    height: 100%;
+    transform-style: preserve-3d;
+    border-radius: 0;
+}
+
+.card-draw-flight .card-front img {
+    border-radius: 0;
+}
+
+/* ==========================================================================
+   9. Realistic Dynamic 3D Graveyard Stack
+   ========================================================================== */
+
+.gy-stack-container {
+    position: relative !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    overflow: visible !important;
+}
+
+.gy-empty-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #8b949e;
+    background: rgba(22, 27, 34, 0.55);
+    border: 1px dashed rgba(240, 246, 252, 0.2);
+    border-radius: 6px;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+}
+
+.gy-stack-container:hover .gy-empty-placeholder {
+    border-color: rgba(201, 168, 77, 0.5);
+    color: #c9a84d;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 168, 77, 0.3);
+}
+
+.gy-stack-layers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.gy-stack-layer {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    background-color: #0d1117;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)), url('../cards/card_back_2.png');
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.gy-layer-1 {
+    transform: translate3d(1.5px, -2.5px, 0);
+    box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+.gy-layer-2 {
+    transform: translate3d(3px, -5px, 0);
+    box-shadow: 2px 3px 6px rgba(0, 0, 0, 0.6);
+    z-index: 2;
+}
+
+.gy-layer-3 {
+    transform: translate3d(4.5px, -7.5px, 0);
+    box-shadow: 3px 4px 8px rgba(0, 0, 0, 0.7);
+    z-index: 3;
+}
+
+.gy-stack-top {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    overflow: hidden;
+    background: #0d1117;
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+    transform: translate3d(6px, -10px, 0);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gy-top-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: brightness(0.92) contrast(1.05);
+}
+
+.gy-stack-container:hover .gy-stack-top {
+    transform: translate3d(6px, -14px, 0);
+    box-shadow: 0 0 18px rgba(212, 175, 55, 0.6), 0 8px 18px rgba(0, 0, 0, 0.85);
+    border-color: #fef08a;
+}
+
+.gy-count-badge {
+    position: absolute;
+    bottom: 6rem;
+    font-family: 'Cinzel', serif;
+    font-size: 10rem;
+    font-weight: 900;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.88);
+    border: 1px solid #d4af37;
+    padding: 2rem 7rem;
+    border-radius: 4rem;
+    letter-spacing: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+    z-index: 5;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   10. Translucent Center Deck & Graveyard Stack Counters
+   ========================================================================== */
+
+.deck-center-counter {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Cinzel', serif;
+    font-size: 18rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(13, 17, 23, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(212, 175, 55, 0.55);
+    padding: 3rem 12rem;
+    border-radius: 20rem;
+    box-shadow: 0 4px 16rem rgba(0, 0, 0, 0.8), inset 0 0 10rem rgba(212, 175, 55, 0.25), 0 0 12rem rgba(212, 175, 55, 0.35);
+    pointer-events: none;
+    z-index: 15;
+    white-space: nowrap;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+}
+
+.deck-center-counter.gy-center-counter {
+    border-color: rgba(168, 85, 247, 0.6);
+    color: rgba(243, 232, 255, 0.95);
+    box-shadow: 0 4px 16rem rgba(0, 0, 0, 0.8), inset 0 0 10rem rgba(168, 85, 247, 0.3), 0 0 12rem rgba(168, 85, 247, 0.4);
+}
+
+.deck-center-counter.gy-empty-counter {
+    font-size: 15rem;
+    padding: 2rem 10rem;
+    margin-top: 14rem;
+}
+
+.deck-stack-container:hover .deck-center-counter,
+.gy-stack-container:hover .deck-center-counter {
+    color: #ffffff;
+    border-color: #fef08a;
+    background: rgba(13, 17, 23, 0.85);
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow: 0 6px 20rem rgba(0, 0, 0, 0.9), 0 0 16rem rgba(212, 175, 55, 0.6);
+}
+
+.gy-stack-container:hover .deck-center-counter.gy-center-counter {
+    border-color: #c084fc;
+    box-shadow: 0 6px 20rem rgba(0, 0, 0, 0.9), 0 0 16rem rgba(168, 85, 247, 0.7);
+}
+
