@@ -2,6 +2,15 @@
 <html style="font-size: 6.25%">
 <head>
     <title>Duel Realm: Tactics</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#090c10">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Duel Realm">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/selection.css">
     <link rel="stylesheet" href="css/game.css">
@@ -953,6 +962,50 @@
         </div>
 
     </div>  
+
+    <!-- Landscape rotation prompt for installed (standalone) apps on mobile -->
+    <div id="rotate-overlay">
+        <div class="rotate-icon">&#x27F3;</div>
+        <h2>Rotate Your Device</h2>
+        <p>Duel Realm plays best in landscape. Please rotate your device to continue.</p>
+    </div>
+
+    <script>
+        // Register the service worker for offline PWA support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('sw.js').catch(function(err) {
+                    console.warn('Service worker registration failed:', err);
+                });
+            });
+        }
+
+        // Enforce landscape: show a rotate prompt when in portrait on a touch device
+        // (applies in standalone mode AND in the mobile browser, not on desktop)
+        (function enforceLandscape() {
+            var overlay = document.getElementById('rotate-overlay');
+            if (!overlay) return;
+
+            var isStandalone = (window.matchMedia('(display-mode: standalone)').matches) ||
+                (window.navigator.standalone === true);
+            var isTouchCoarse = window.matchMedia('(pointer: coarse)').matches;
+
+            function updateRotateOverlay() {
+                var isPortrait = window.innerHeight > window.innerWidth;
+                if (isPortrait && (isStandalone || isTouchCoarse)) {
+                    overlay.style.display = 'flex';
+                } else {
+                    overlay.style.display = 'none';
+                }
+            }
+
+            updateRotateOverlay();
+            window.addEventListener('resize', updateRotateOverlay);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(updateRotateOverlay, 200);
+            });
+        })();
+    </script>
 
 </body>
 

@@ -979,3 +979,54 @@ img {
 .outcome-btn:active {
     transform: translateY(0) scale(0.97);
 }
+
+/* ---------------------------------------------------------------
+   Landscape rotation prompt (standalone PWA in portrait)
+   --------------------------------------------------------------- */
+#rotate-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    background: #090c10;
+    color: #e2e8f0;
+    text-align: center;
+    padding: 2rem;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.rotate-icon {
+    font-size: 4rem;
+    line-height: 1;
+    animation: rotate-prompt-spin 2.4s ease-in-out infinite;
+    filter: drop-shadow(0 0 12px rgba(212, 175, 55, 0.6));
+}
+
+#rotate-overlay h2 {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin: 0;
+    color: #f5d778;
+    text-transform: uppercase;
+}
+
+#rotate-overlay p {
+    max-width: 24rem;
+    margin: 0;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+@keyframes rotate-prompt-spin {
+    0%, 40%   { transform: rotate(0deg); }
+    50%, 90%  { transform: rotate(-90deg); }
+    100%      { transform: rotate(0deg); }
+}
