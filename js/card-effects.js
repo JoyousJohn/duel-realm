@@ -7,12 +7,14 @@
 // Field Spell Stat Modifiers
 // ---------------------------------------------------------------------------
 
-// Return total ATK/DEF modifier for a monster card definition based on
-// active field spells on BOTH sides.
-function getFieldModifier(monsterDef) {
-    if (!monsterDef || monsterDef.type !== 'monsters') return 0;
+// Return { atk, def } stat modifiers for a monster card definition based on
+// active field spells on BOTH sides. Separate ATK and DEF to support
+// asymmetric field spells (e.g. Mystic Plasma Zone: +500 ATK / -400 DEF).
+function getFieldMods(monsterDef) {
+    if (!monsterDef || monsterDef.type !== 'monsters') return { atk: 0, def: 0 };
 
-    var total = 0;
+    var atkMod = 0;
+    var defMod = 0;
     var bothSides = ['player', 'computer'];
 
     for (var s = 0; s < bothSides.length; s++) {
@@ -23,40 +25,68 @@ function getFieldModifier(monsterDef) {
         var fieldId = fieldInst.cardId;
         if (fieldId === 'yami') {
             if (monsterDef.monsterType === 'Fiend' || monsterDef.monsterType === 'Spellcaster') {
-                total += 300;
+                atkMod += 300; defMod += 300;
             } else if (monsterDef.monsterType === 'Fairy') {
-                total -= 200;
+                atkMod -= 200; defMod -= 200;
             }
         } else if (fieldId === 'wasteland') {
             if (monsterDef.monsterType === 'Dinosaur' || monsterDef.monsterType === 'Zombie' || monsterDef.monsterType === 'Rock') {
-                total += 200;
+                atkMod += 200; defMod += 200;
             }
         } else if (fieldId === 'mountain') {
             if (monsterDef.monsterType === 'Dragon' || monsterDef.monsterType === 'Winged Beast' || monsterDef.monsterType === 'Thunder') {
-                total += 200;
+                atkMod += 200; defMod += 200;
             }
         } else if (fieldId === 'sogen') {
             if (monsterDef.monsterType === 'Warrior' || monsterDef.monsterType === 'Beast-Warrior') {
-                total += 200;
+                atkMod += 200; defMod += 200;
+            }
+        } else if (fieldId === 'forest') {
+            if (monsterDef.monsterType === 'Insect' || monsterDef.monsterType === 'Beast' || monsterDef.monsterType === 'Plant' || monsterDef.monsterType === 'Beast-Warrior') {
+                atkMod += 200; defMod += 200;
+            }
+        } else if (fieldId === 'umi') {
+            if (monsterDef.monsterType === 'Fish' || monsterDef.monsterType === 'Sea Serpent' || monsterDef.monsterType === 'Thunder' || monsterDef.monsterType === 'Aqua') {
+                atkMod += 200; defMod += 200;
+            } else if (monsterDef.monsterType === 'Machine' || monsterDef.monsterType === 'Pyro') {
+                atkMod -= 200; defMod -= 200;
+            }
+        } else if (fieldId === 'mystic-plasma-zone') {
+            if (monsterDef.attribute === 'DARK') {
+                atkMod += 500; defMod -= 400;
+            }
+        } else if (fieldId === 'luminous-spark') {
+            if (monsterDef.attribute === 'LIGHT') {
+                atkMod += 500; defMod -= 400;
+            }
+        } else if (fieldId === 'gaia-power') {
+            if (monsterDef.attribute === 'EARTH') {
+                atkMod += 500; defMod -= 400;
             }
         }
     }
 
-    return total;
+    return { atk: atkMod, def: defMod };
 }
 
-// Effective ATK of a monster CardInstance (base + field modifier, min 0)
+// Legacy helper — returns combined ATK+DEF modifier for backward compatibility
+function getFieldModifier(monsterDef) {
+    var mods = getFieldMods(monsterDef);
+    return mods.atk;
+}
+
+// Effective ATK of a monster CardInstance (base + field ATK modifier, min 0)
 function getMonsterAtk(instance) {
     var def = cards[instance.cardId];
     if (!def || def.type !== 'monsters') return 0;
-    return Math.max(0, (def.atk || 0) + getFieldModifier(def));
+    return Math.max(0, (def.atk || 0) + getFieldMods(def).atk);
 }
 
-// Effective DEF of a monster CardInstance (base + field modifier, min 0)
+// Effective DEF of a monster CardInstance (base + field DEF modifier, min 0)
 function getMonsterDef(instance) {
     var def = cards[instance.cardId];
     if (!def || def.type !== 'monsters') return 0;
-    return Math.max(0, (def.def || 0) + getFieldModifier(def));
+    return Math.max(0, (def.def || 0) + getFieldMods(def).def);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +136,20 @@ async function activateCard(who, instance, zoneNum) {
             await getCards(who, 2);
             await destroySpellTrap(who, zoneNum, false);
             break;
+
+        case 'ookazi': {
+            addToFeed('<em>' + def.name + '</em> activated! ' + formatWho(opp) + ' takes <strong>800</strong> points of direct damage!\n');
+            damageLP(opp, 800);
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'hinotama': {
+            addToFeed('<em>' + def.name + '</em> activated! ' + formatWho(opp) + ' takes <strong>500</strong> points of direct damage!\n');
+            damageLP(opp, 500);
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
 
         case 'remove-trap': {
             addToFeed(def.name + ' activated.\n');
@@ -199,6 +243,78 @@ async function activateCard(who, instance, zoneNum) {
             break;
         }
 
+        case 'fissure': {
+            var faceUpOpp = GameState.getMonstersOnField(opp).filter(function(m) {
+                return m.card && !m.card.faceDown;
+            });
+            if (faceUpOpp.length === 0) {
+                addToFeed(def.name + ' fizzles — no face-up opponent monsters.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+            // Find the lowest effective ATK monster
+            faceUpOpp.sort(function(a, b) {
+                return getMonsterAtk(a.card) - getMonsterAtk(b.card);
+            });
+            var target = faceUpOpp[0];
+            var targetDef = cards[target.card.cardId];
+            addToFeed(def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterAtk(target.card) + ' ATK) is destroyed!\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+            await destroyMonster(opp, target.zone);
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'tribute-to-the-doomed': {
+            // Needs a card in hand to discard (besides itself on the field)
+            var handCards = GameState[who].hand.filter(function(c) { return c.uid !== instance.uid; });
+            var allFieldMonsters = [
+                ...GameState.getMonstersOnField('player'),
+                ...GameState.getMonstersOnField('computer')
+            ];
+            if (handCards.length === 0) {
+                addToFeed(def.name + ' fizzles — no cards in hand to discard.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+            if (allFieldMonsters.length === 0) {
+                addToFeed(def.name + ' fizzles — no monsters on the field to destroy.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+            if (who === 'player') {
+                openTributeToTheDoomedDiscard('player', zoneNum);
+            } else {
+                // AI: discard lowest ATK monster (or first non-monster) and destroy highest ATK opponent monster
+                handCards.sort(function(a, b) {
+                    var dA = cards[a.cardId]; var dB = cards[b.cardId];
+                    var atkA = (dA && dA.type === 'monsters') ? (dA.atk || 0) : -1;
+                    var atkB = (dB && dB.type === 'monsters') ? (dB.atk || 0) : -1;
+                    return atkA - atkB;
+                });
+                var discardInst = handCards[0];
+                var discardDef = cards[discardInst.cardId];
+                // Remove from hand
+                var handIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
+                if (handIdx !== -1) GameState.computer.hand.splice(handIdx, 1);
+                addToFeed('<em>' + def.name + '</em>: AI discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
+                updateHandDisplay('computer');
+
+                // Target highest ATK opponent monster
+                var oppField = GameState.getMonstersOnField('player');
+                oppField.sort(function(a, b) { return getMonsterAtk(b.card) - getMonsterAtk(a.card); });
+                var aiTarget = oppField[0] || allFieldMonsters[0];
+                var aiTargetWho = oppField.length > 0 ? 'player' : allFieldMonsters[0].who;
+                var aiTargetDef = cards[aiTarget.card.cardId];
+                addToFeed('<em>' + def.name + '</em>: <strong>' + (aiTargetDef ? aiTargetDef.name : 'monster') + '</strong> is destroyed!\n');
+                if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+                await destroyMonster(aiTargetWho, aiTarget.zone);
+                await destroySpellTrap(who, zoneNum, false);
+            }
+            break;
+        }
+
+
         case 'change-of-heart': {
             var oppMonsters = GameState.getMonstersOnField(opp);
             if (oppMonsters.length === 0) {
@@ -231,6 +347,11 @@ async function activateCard(who, instance, zoneNum) {
         case 'wasteland':
         case 'mountain':
         case 'sogen':
+        case 'forest':
+        case 'umi':
+        case 'mystic-plasma-zone':
+        case 'luminous-spark':
+        case 'gaia-power':
             // Continuous field spells: already placed in field zone; just ensure active state
             instance.position = 'active';
             instance.turnCounter = null;
@@ -447,6 +568,143 @@ function findSpellZoneByCard(who, cardId) {
 }
 
 // ---------------------------------------------------------------------------
+// Tribute to the Doomed — Two-Step Player Modal
+// ---------------------------------------------------------------------------
+
+var tttdSourceZone = null;
+var tttdDiscardedCardId = null;
+
+function openTributeToTheDoomedDiscard(who, sourceZoneNum) {
+    tttdSourceZone = sourceZoneNum;
+    tttdDiscardedCardId = null;
+
+    var grid = $('#tttd-discard-grid');
+    grid.empty();
+
+    // Show all hand cards except the TTTD card itself (which is on the field)
+    var handCards = GameState.player.hand;
+
+    handCards.forEach(function(inst) {
+        var cardDef = cards[inst.cardId];
+        if (!cardDef) return;
+
+        var isMonster = cardDef.type === 'monsters';
+        var statsHtml = isMonster
+            ? '<span class="rebirth-tile-stats">ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0) + '</span>'
+            : '<span class="rebirth-tile-stats" style="color: #86efac;">[' + (cardDef.subType || 'SPELL').toUpperCase() + ']</span>';
+
+        var tile = $('<div class="rebirth-card-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                statsHtml +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            tttdDiscardCardSelected(inst.uid);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#tttd-discard-modal').fadeIn(150);
+}
+
+function tttdDiscardCardSelected(uid) {
+    $('#tttd-discard-modal').fadeOut(120);
+
+    // Remove the card from hand
+    var idx = GameState.player.hand.findIndex(function(c) { return c.uid === uid; });
+    if (idx !== -1) {
+        var discarded = GameState.player.hand.splice(idx, 1)[0];
+        tttdDiscardedCardId = discarded.cardId;
+        var discardDef = cards[tttdDiscardedCardId];
+        addToFeed('<em>Tribute to the Doomed</em>: You discard <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
+        updateHandDisplay('player');
+    }
+
+    // Now open Step 2 — pick a monster to destroy
+    openTributeToTheDoomedTarget();
+}
+
+function openTributeToTheDoomedTarget() {
+    var grid = $('#tttd-target-grid');
+    grid.empty();
+
+    var allMonsters = [
+        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
+        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
+    ];
+
+    allMonsters.forEach(function(entry) {
+        var cardDef = cards[entry.card.cardId];
+        if (!cardDef) return;
+        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
+        var isOpp = entry.side === 'computer';
+        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
+        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+
+        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
+        var displayName = isFaceDown ? '???' : cardDef.name;
+        var statsHtml = isFaceDown
+            ? '<span class="rebirth-tile-stats">Face-Down</span>'
+            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                statsHtml +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', (function(side, zone) {
+            return function() {
+                applyTributeToTheDoomedTarget(side, zone);
+            };
+        })(entry.side, entry.zone));
+
+        grid.append(tile);
+    });
+
+    $('#tttd-target-modal').fadeIn(150);
+}
+
+async function applyTributeToTheDoomedTarget(targetWho, targetZone) {
+    $('#tttd-target-modal').fadeOut(120);
+
+    var targetInst = GameState[targetWho].field.monsters[targetZone];
+    var targetDef = targetInst ? cards[targetInst.cardId] : null;
+    addToFeed('<em>Tribute to the Doomed</em>: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> is destroyed!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+    await destroyMonster(targetWho, targetZone);
+
+    var sourceZone = tttdSourceZone;
+    tttdSourceZone = null;
+    tttdDiscardedCardId = null;
+    if (sourceZone !== null) {
+        await destroySpellTrap('player', sourceZone, false);
+    }
+}
+
+function cancelTributeToTheDoomed() {
+    $('#tttd-discard-modal').fadeOut(120);
+    $('#tttd-target-modal').fadeOut(120);
+    if (tttdSourceZone !== null) {
+        destroySpellTrap('player', tttdSourceZone, false);
+        addToFeed('Tribute to the Doomed was cancelled.\n');
+        tttdSourceZone = null;
+        tttdDiscardedCardId = null;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Trap Auto-Trigger Engine
 // ---------------------------------------------------------------------------
 
@@ -650,6 +908,7 @@ async function applyChangeOfHeart(controllerWho, targetOppZone) {
     // Flag original owner and original zone so it can return to the exact same spot at End Phase
     monsterInst.originalOwner = opp;
     monsterInst.originalZone = targetOppZone;
+    monsterInst.isBorrowed = true;
     monsterInst.hasAttacked = false; // Reset attack state so new controller can attack
 
     var oppSquare = getSquareElm(opp, targetOppZone);
@@ -668,6 +927,8 @@ async function applyChangeOfHeart(controllerWho, targetOppZone) {
         oppSquare.attr('data-card-name', '');
         oppSquare.attr('data-card-position', '');
         oppSquare.find('img').removeAttr('src').hide();
+        oppSquare.find('.card-zone').off('.flip');
+        oppSquare.find('.card-zone').removeData('flip-model');
         oppSquare.find('.card-zone').removeAttr('style');
     }
 
@@ -763,7 +1024,7 @@ async function handleEndPhaseEffects(who) {
     for (var m = 0; m < monsters.length; m++) {
         var mInst = monsters[m].card;
         var currentZone = monsters[m].zone;
-        if (mInst.originalOwner && mInst.originalOwner !== who) {
+        if (mInst.isBorrowed && mInst.originalOwner && mInst.originalOwner !== who) {
             var origOwner = mInst.originalOwner;
             var origZone = mInst.originalZone;
 
@@ -785,6 +1046,7 @@ async function handleEndPhaseEffects(who) {
             delete GameState[who].field.monsters[currentZone];
             delete mInst.originalOwner;
             delete mInst.originalZone;
+            delete mInst.isBorrowed;
 
             var mDef = cards[mInst.cardId];
 
@@ -800,6 +1062,8 @@ async function handleEndPhaseEffects(who) {
                     curSq.attr('data-card-name', '');
                     curSq.attr('data-card-position', '');
                     curSq.find('img').removeAttr('src').hide();
+                    curSq.find('.card-zone').off('.flip');
+                    curSq.find('.card-zone').removeData('flip-model');
                     curSq.find('.card-zone').removeAttr('style');
                 }
 
@@ -852,6 +1116,8 @@ async function handleEndPhaseEffects(who) {
                 curSq.attr('data-card-name', '');
                 curSq.attr('data-card-position', '');
                 curSq.find('img').removeAttr('src').hide();
+                curSq.find('.card-zone').off('.flip');
+                curSq.find('.card-zone').removeData('flip-model');
                 curSq.find('.card-zone').removeAttr('style');
                 GameState[origOwner].graveyard.push(mInst);
                 addToFeed('No free zones on ' + origOwner + '\'s field; <em>' + (mDef ? mDef.name : 'Monster') + '</em> is sent to the graveyard.\n\n');
@@ -913,28 +1179,41 @@ function updateStatModBadges() {
 
             if (monsterInst && !isFaceDown) {
                 var def = cards[monsterInst.cardId];
-                var mod = getFieldModifier(def);
+                var mods = getFieldMods(def);
+                var atkMod = mods.atk;
+                var defMod = mods.def;
 
-                if (mod !== 0) {
-                    var isPos = mod > 0;
-                    var sign = isPos ? '+' : '';
-                    var icon = isPos ? '▲' : '▼';
-                    var label = sign + mod;
-                    var modClass = isPos ? 'stat-mod-buff' : 'stat-mod-debuff';
+                existingBadge.remove();
 
-                    if (!existingBadge.length) {
-                        existingBadge = $('<div class="stat-mod-badge ' + modClass + '">' +
-                            '<span class="stat-mod-icon">' + icon + '</span>' +
-                            '<span class="stat-mod-label">' + label + '</span>' +
+                if (atkMod !== 0 || defMod !== 0) {
+                    if (atkMod === defMod) {
+                        // Symmetric: single combined badge
+                        var isPos = atkMod > 0;
+                        var badgeClass = 'stat-mod-badge ' + (isPos ? 'stat-mod-buff' : 'stat-mod-debuff');
+                        var badge = $('<div class="' + badgeClass + '">' +
+                            '<span class="stat-mod-icon">' + (isPos ? '▲' : '▼') + '</span>' +
+                            '<span class="stat-mod-label">' + (isPos ? '+' : '') + atkMod + '</span>' +
                         '</div>');
-                        square.append(existingBadge);
+                        square.append(badge);
                     } else {
-                        existingBadge.removeClass('stat-mod-buff stat-mod-debuff').addClass(modClass);
-                        existingBadge.find('.stat-mod-icon').text(icon);
-                        existingBadge.find('.stat-mod-label').text(label);
+                        // Asymmetric: show ATK and DEF separately
+                        if (atkMod !== 0) {
+                            var atkIsPos = atkMod > 0;
+                            var atkBadge = $('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + '">' +
+                                '<span class="stat-mod-icon">' + (atkIsPos ? '▲' : '▼') + '</span>' +
+                                '<span class="stat-mod-label">ATK ' + (atkIsPos ? '+' : '') + atkMod + '</span>' +
+                            '</div>');
+                            square.append(atkBadge);
+                        }
+                        if (defMod !== 0) {
+                            var defIsPos = defMod > 0;
+                            var defBadge = $('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + '">' +
+                                '<span class="stat-mod-icon">' + (defIsPos ? '▲' : '▼') + '</span>' +
+                                '<span class="stat-mod-label">DEF ' + (defIsPos ? '+' : '') + defMod + '</span>' +
+                            '</div>');
+                            square.append(defBadge);
+                        }
                     }
-                } else if (existingBadge.length) {
-                    existingBadge.remove();
                 }
             } else if (existingBadge.length) {
                 existingBadge.remove();

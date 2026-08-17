@@ -277,6 +277,83 @@ async function AIPlayDrawCards() {
     }
 }
 
+// Play Ookazi — prioritize as a finisher when player LP <= 800, otherwise play freely
+async function AIPlayOokazi() {
+    var ookaziInst = GameState.computer.hand.find(function(c) { return c.cardId === 'ookazi'; });
+    if (!ookaziInst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+
+    var playerLP = GameState.player.lifePoints;
+    // Always play if it wins the game; otherwise play freely on AI turn
+    if (playerLP <= 800 || true) {
+        var zoneNum = getFirstFreeZone('computer');
+        if (zoneNum === undefined) return;
+        var def = cards['ookazi'];
+        await playNonMonsterCard('computer', getHandCardElmByUid('computer', ookaziInst.uid), getSquareElm('computer', zoneNum), def, 'slot');
+        updateResourceCounters();
+        await sleep(getAnimDuration(400));
+    }
+}
+
+// Play Hinotama — same eager strategy as Ookazi (500 direct damage)
+async function AIPlayHinotama() {
+    var inst = GameState.computer.hand.find(function(c) { return c.cardId === 'hinotama'; });
+    if (!inst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+
+    var zoneNum = getFirstFreeZone('computer');
+    if (zoneNum === undefined) return;
+    var def = cards['hinotama'];
+    await playNonMonsterCard('computer', getHandCardElmByUid('computer', inst.uid), getSquareElm('computer', zoneNum), def, 'slot');
+    updateResourceCounters();
+    await sleep(getAnimDuration(400));
+}
+
+// Play Fissure — destroy the player's lowest ATK face-up monster before attacking
+async function AIPlayFissure() {
+    var inst = GameState.computer.hand.find(function(c) { return c.cardId === 'fissure'; });
+    if (!inst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+
+    // Only play if player has at least one face-up monster
+    var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
+        return m.card && !m.card.faceDown;
+    });
+    if (playerFaceUp.length === 0) return;
+
+    var zoneNum = getFirstFreeZone('computer');
+    if (zoneNum === undefined) return;
+    var def = cards['fissure'];
+    await playNonMonsterCard('computer', getHandCardElmByUid('computer', inst.uid), getSquareElm('computer', zoneNum), def, 'slot');
+    updateResourceCounters();
+    await sleep(getAnimDuration(400));
+}
+
+// Play Tribute to the Doomed — only if AI has >1 card in hand and player has a monster on field
+async function AIPlayTributeToTheDoomed() {
+    var inst = GameState.computer.hand.find(function(c) { return c.cardId === 'tribute-to-the-doomed'; });
+    if (!inst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+
+    // Needs at least 1 other card in hand to discard
+    var otherCards = GameState.computer.hand.filter(function(c) { return c.uid !== inst.uid; });
+    if (otherCards.length === 0) return;
+
+    // Only play if there's a monster on the field worth destroying
+    var allMonsters = [
+        ...GameState.getMonstersOnField('player'),
+        ...GameState.getMonstersOnField('computer')
+    ];
+    if (allMonsters.length === 0) return;
+
+    var zoneNum = getFirstFreeZone('computer');
+    if (zoneNum === undefined) return;
+    var def = cards['tribute-to-the-doomed'];
+    await playNonMonsterCard('computer', getHandCardElmByUid('computer', inst.uid), getSquareElm('computer', zoneNum), def, 'slot');
+    updateResourceCounters();
+    await sleep(getAnimDuration(400));
+}
+
 // Step 2: AI Normal Summons the best monster currently in hand
 async function AISummonMonsterRoutine() {
     if (GameState.turn.normalSummonUsed || getNumOfFreeZones('computer') <= 0) return;

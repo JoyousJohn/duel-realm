@@ -1,0 +1,12 @@
+# Agent & IDE Configurations
+.agentrules
+.commandcode/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Dependencies (if added in the future)
+node_modules/
+dist/
+build/

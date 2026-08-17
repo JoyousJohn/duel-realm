@@ -466,6 +466,50 @@
             </div>
         </div>
 
+        <!-- Tribute to the Doomed - Step 1: Discard a card from hand -->
+        <div id="tttd-discard-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelTributeToTheDoomed()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4);">
+                        <span class="action-pulse-dot" style="background: #8b5cf6; box-shadow: 0 0 8px #8b5cf6;"></span>
+                        <span class="action-header-category" style="color: #a78bfa;">TRIBUTE TO THE DOOMED — STEP 1 OF 2</span>
+                    </div>
+                    <h3 class="action-modal-card-name">TRIBUTE TO THE DOOMED</h3>
+                    <div class="action-modal-card-stats">DISCARD 1 CARD FROM YOUR HAND</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="tttd-discard-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelTributeToTheDoomed()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tribute to the Doomed - Step 2: Pick a monster to destroy -->
+        <div id="tttd-target-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelTributeToTheDoomed()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4);">
+                        <span class="action-pulse-dot" style="background: #8b5cf6; box-shadow: 0 0 8px #8b5cf6;"></span>
+                        <span class="action-header-category" style="color: #a78bfa;">TRIBUTE TO THE DOOMED — STEP 2 OF 2</span>
+                    </div>
+                    <h3 class="action-modal-card-name">TRIBUTE TO THE DOOMED</h3>
+                    <div class="action-modal-card-stats">SELECT 1 MONSTER ON THE FIELD TO DESTROY</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="tttd-target-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelTributeToTheDoomed()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
         <!-- Cinematic Duel Outcome Screen (Victory / Defeat) -->
         <div id="duel-outcome-modal" class="tactical-action-modal duel-outcome-modal" style="display: none;">
             <div class="action-modal-backdrop outcome-backdrop"></div>

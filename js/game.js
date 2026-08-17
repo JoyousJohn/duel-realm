@@ -87,6 +87,31 @@ function updateResourceCounters() {
     if (typeof updateStatModBadges === 'function') updateStatModBadges();
 }
 
+// Inflict direct damage on who's Life Points
+function damageLP(who, amount) {
+    if (amount <= 0) return;
+    GameState[who].lp = Math.max(0, GameState[who].lp - amount);
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.spawnFloatingDamage(who === 'computer' ? $('#opponent-lp') : $('#player-lp'), amount, 'direct');
+        BattleFX.animateLPCount(who, GameState[who].lp);
+    }
+    EventBus.emit('LP_CHANGED', { who: who, lp: GameState[who].lp, damage: amount });
+    updateResourceCounters();
+}
+
+// Remove hand card DOM elements that are no longer in GameState
+function updateHandDisplay(who) {
+    var hand = GameState[who].hand;
+    getHand(who).find('div.card').each(function() {
+        var uid = $(this).attr('data-uid');
+        var stillExists = hand.some(function(c) { return c.uid === uid; });
+        if (!stillExists) {
+            animateHandReorder(getHand(who), this, getAnimDuration(380));
+        }
+    });
+    if (typeof updateResourceCounters === 'function') updateResourceCounters();
+}
+
 /**
  * Scan player's field monsters and hand cards to apply ambient glow to actionable cards (Pattern 1)
  */
@@ -1217,6 +1242,7 @@ async function destroyMonster(who, zoneNum) {
 
     cardInst.hasAttacked = false;
     cardInst.faceDown = false;
+    cardInst.isBorrowed = false;
     var ownerWho = cardInst.originalOwner || who;
     GameState[ownerWho].graveyard.push(cardInst);
     delete GameState[who].field.monsters[zoneNum];
@@ -1242,8 +1268,12 @@ async function destroyMonster(who, zoneNum) {
         var zone = square.find('div.card-zone');
         await new Promise(function(resolve) {
             zone.fadeOut(400, function() {
+                zone.off('.flip');
+                zone.removeData('flip-model');
                 zone.removeAttr('style');
                 zone.find('img').removeAttr('src');
+                zone.find('.front, .back').removeAttr('style');
+                zone.find('.front, .back').removeData('transform');
                 zone.css('opacity', 0).show().fadeTo(300, 1);
                 resolve();
             });
@@ -1285,6 +1315,8 @@ async function destroySpellTrap(who, zoneNum, isFieldZone) {
         square.attr('data-card-position', '');
         square.attr('data-turn-moved', '');
 
+        zone.off('.flip');
+        zone.removeData('flip-model');
         zone.removeAttr('style');
         zone.removeData('transform');
         zone.find('img').removeAttr('src').hide();

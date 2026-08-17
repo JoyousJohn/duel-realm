@@ -93,7 +93,25 @@ async function computerTurn() {
         await AISummonMonsterRoutine();
     }
 
-    // 4. Computer plays spells and sets traps dynamically
+    // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game
+    if (typeof AIPlayOokazi === 'function') {
+        await AIPlayOokazi();
+    }
+    if (typeof AIPlayHinotama === 'function') {
+        await AIPlayHinotama();
+    }
+
+    // 4b. Play Fissure to clear blockers before the battle phase
+    if (typeof AIPlayFissure === 'function') {
+        await AIPlayFissure();
+    }
+
+    // 4c. Play Tribute to the Doomed to remove a key monster (costs a hand card)
+    if (typeof AIPlayTributeToTheDoomed === 'function') {
+        await AIPlayTributeToTheDoomed();
+    }
+
+    // 5. Computer plays spells and sets traps dynamically
     await AIPlaySpellTrapCards();
 
     setPhase(3); // Battle Phase

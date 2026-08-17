@@ -401,6 +401,51 @@ var cards = {
         'desc': 'Increase the ATK and DEF of all Warrior and Beast-Warrior-Type monsters by 200 points.'
     },
 
+    'forest': {
+        'id': 'forest',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'forest.png',
+        'name': 'Forest',
+        'desc': 'Increase the ATK and DEF of all Insect, Beast, Plant, and Beast-Warrior-Type monsters by 200 points.'
+    },
+
+    'mystic-plasma-zone': {
+        'id': 'mystic-plasma-zone',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'mystic_plasma_zone.png',
+        'name': 'Mystic Plasma Zone',
+        'desc': 'Increase the ATK of all DARK monsters by 500. Decrease the DEF of all DARK monsters by 400.'
+    },
+
+    'luminous-spark': {
+        'id': 'luminous-spark',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'luminous_spark.png',
+        'name': 'Luminous Spark',
+        'desc': 'Increase the ATK of all LIGHT monsters by 500. Decrease the DEF of all LIGHT monsters by 400.'
+    },
+
+    'gaia-power': {
+        'id': 'gaia-power',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'gaia_power.png',
+        'name': 'Gaia Power',
+        'desc': 'Increase the ATK of all EARTH monsters by 500. Decrease the DEF of all EARTH monsters by 400.'
+    },
+
+    'umi': {
+        'id': 'umi',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'umi.png',
+        'name': 'Umi',
+        'desc': 'Increase the ATK and DEF of all Fish, Sea Serpent, Thunder, and Aqua monsters by 200 points. Decrease the ATK and DEF of all Machine and Pyro monsters by 200 points.'
+    },
+
     'swords-of-revealing-light': {
         'id': 'swords-of-revealing-light',
         'type': 'spells',
@@ -417,6 +462,42 @@ var cards = {
         'file': 'remove_trap.png',
         'name': 'Remove Trap',
         'desc': 'Destroy 1 face-up Trap Card on the field.'
+    },
+
+    'ookazi': {
+        'id': 'ookazi',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'ookazi.png',
+        'name': 'Ookazi',
+        'desc': 'Inflict 800 points of direct damage to your opponent\'s Life Points.'
+    },
+
+    'hinotama': {
+        'id': 'hinotama',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'hinotama.png',
+        'name': 'Hinotama',
+        'desc': 'Inflict 500 points of direct damage to your opponent\'s Life Points.'
+    },
+
+    'fissure': {
+        'id': 'fissure',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'fissure.png',
+        'name': 'Fissure',
+        'desc': 'Destroy the 1 face-up monster on your opponent\'s side of the field that has the lowest ATK.'
+    },
+
+    'tribute-to-the-doomed': {
+        'id': 'tribute-to-the-doomed',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'tribute_to_the_doomed.png',
+        'name': 'Tribute to the Doomed',
+        'desc': 'Discard 1 card from your hand. Destroy 1 monster on the field.'
     },
     
     'pot-of-greed': {

@@ -156,6 +156,12 @@ function isCardCurrentlyPlayable(cardDef) {
         return oppMonsters.length > 0;
     }
 
+    if (cardDef.id === 'fissure') {
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
+        var faceUpOpp = oppMonsters.filter(function(m) { return m.card && !m.card.faceDown; });
+        return faceUpOpp.length > 0;
+    }
+
     if (cardDef.id === 'remove-trap') {
         var hasFaceUpTrap = (typeof findFaceUpTrap === 'function') && (findFaceUpTrap('computer') !== null || findFaceUpTrap('player') !== null);
         return hasFaceUpTrap;
@@ -209,6 +215,10 @@ function getCardUnplayableReason(cardDef) {
 
     if (cardDef.id === 'raigeki') {
         return 'Opponent controls no monsters to destroy.';
+    }
+
+    if (cardDef.id === 'fissure') {
+        return 'Opponent controls no face-up monsters to destroy.';
     }
 
     if (cardDef.id === 'remove-trap') {

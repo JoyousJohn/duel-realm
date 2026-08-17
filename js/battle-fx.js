@@ -233,9 +233,12 @@ var BattleFX = {
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
+                zone.off('.flip');
+                zone.removeData('flip-model');
                 zone.removeAttr('style');
                 zone.find('img').removeAttr('src').hide();
                 zone.find('.front, .back').removeAttr('style');
+                zone.find('.front, .back').removeData('transform');
                 zone.removeData('transform');
                 
                 // Smoothly fade in the empty dashed placeholder border
@@ -402,9 +405,12 @@ var BattleFX = {
             $(squareElm).attr('data-turn-posChanged', '');
             $(squareElm).find('.swords-turn-counter-badge').remove();
 
+            zone.off('.flip');
+            zone.removeData('flip-model');
             zone.removeAttr('style');
             zone.find('img').removeAttr('src').hide();
             zone.find('.front, .back').removeAttr('style');
+            zone.find('.front, .back').removeData('transform');
             zone.removeData('transform');
             zone.css('opacity', 0).show().fadeTo(getAnimDuration(420), 1);
 
@@ -463,9 +469,12 @@ var BattleFX = {
             $(fromSquare).find('.borrowed-monster-badge').remove();
             $(fromSquare).find('.stat-mod-badge').remove();
 
+            fromZone.off('.flip');
+            fromZone.removeData('flip-model');
             fromZone.removeAttr('style');
             fromZone.find('img').removeAttr('src').hide();
             fromZone.find('.front, .back').removeAttr('style');
+            fromZone.find('.front, .back').removeData('transform');
             fromZone.removeData('transform');
             fromZone.css('opacity', 0).show().fadeTo(getAnimDuration(300), 1);
 

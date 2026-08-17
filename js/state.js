@@ -43,7 +43,7 @@ var GameState = {
         normalSummonUsed: false
     },
     player: {
-        lp: 5000,
+        lp: 8000,
         deck: [],
         hand: [], // Array of CardInstance
         field: {
@@ -54,7 +54,7 @@ var GameState = {
         graveyard: []
     },
     computer: {
-        lp: 5000,
+        lp: 8000,
         deck: [],
         hand: [], // Array of CardInstance
         field: {
@@ -80,14 +80,14 @@ var GameState = {
             normalSummonUsed: false
         };
         this.player = {
-            lp: 5000,
+            lp: 8000,
             deck: [],
             hand: [],
             field: { monsters: {}, spells: {}, fieldZone: null },
             graveyard: []
         };
         this.computer = {
-            lp: 5000,
+            lp: 8000,
             deck: [],
             hand: [],
             field: { monsters: {}, spells: {}, fieldZone: null },
