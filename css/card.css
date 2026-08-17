@@ -1,72 +1,123 @@
-/* General */
+/* Card & Zone Component Styles */
 
-#computer-graveyard-zone, #player-graveyard-zone, #computer-deck-zone, #player-deck-zone, .field-zone {
-    background-color: pink;
-    font-size: 16rem; /* temp */
+#computer-graveyard-zone,
+#player-graveyard-zone,
+#computer-deck-zone,
+#player-deck-zone,
+.field-zone {
+    background: rgba(22, 27, 34, 0.55);
+    border: 1px dashed rgba(240, 246, 252, 0.2);
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #8b949e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
 }
 
-/* jquery.flip */
-
-.front > img {
-    width: 100%; /* Keep the image within the card */
+#computer-graveyard-zone:hover,
+#player-graveyard-zone:hover,
+#computer-deck-zone:hover,
+#player-deck-zone:hover,
+.field-zone:hover {
+    border-color: rgba(201, 168, 77, 0.4);
+    color: #c9a84d;
 }
 
-.back {
-    background-image: url('../cards/card back 2.png');
-    background-size: cover;
+/* Card Flipping & Face Presentation */
+img:not([src]), 
+img[src=""],
+img[src="null"],
+img[src="#"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
 }
 
-/* moveCard stuff */
+.front, .back, .card-front, .card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    backface-visibility: hidden;
+    overflow: hidden;
+}
 
-.card { /* Have card being placed be over card-zone */
+.front, .card-front {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+}
+
+.front > img, .card-front > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+    display: block;
+}
+
+.back, .card-back {
+    background-image: url('../cards/card_back_2.png');
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 0;
+}
+
+/* Empty zone appearance */
+.card-zone-square[data-card-name=""] .front,
+.card-zone-square[data-card-name=""] .back,
+.card-zone-square:not([data-card-name]) .front,
+.card-zone-square:not([data-card-name]) .back {
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+/* Card Animation Containers */
+.card {
     z-index: 1;
     position: relative;
-    overflow-y: hidden;
+    overflow: visible;
+    transition: transform 0.2s ease;
+    border-radius: 0;
 }
 
 .card-relative {
-    height: var(--card-height)
+    height: var(--card-height);
+    border-radius: 0;
 }
 
-.card-front, .card-back {
-    position: absolute;
-    border: 2px solid green;
-    backface-visibility: hidden;
-}
-
-.card-back {
-    width: 100%;
-    height: 100%;
-    background-image: url('../cards/card back 2.png');
-    background-size: cover;
-}
-
-/* In-hand */
-#player-hand .card-back { /* Rotate the back of cards in-hand to be on the back side of card front image */
+/* In-Hand Orientations */
+#player-hand .card-back {
     transform: rotateY(180deg);
 }
 
-#computer-hand .card-front { /* Rotate the front of cards in-hand to be on the back side of card front image */
+#computer-hand .card-front {
     transform: rotateY(180deg);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-/* Perspective-only */
+/* 3D Hand Perspective */
 #computer-hand > .card {
-    transform: rotateX(-50deg);
+    transform: rotateX(-35deg);
+    filter: brightness(0.9);
 }
 
 #player-hand > .card {
     transform: rotateX(0deg);
+    cursor: pointer;
+}
+
+#player-hand > .card:hover {
+    transform: translateY(-16px) scale(1.08);
+    z-index: 10 !important;
 }

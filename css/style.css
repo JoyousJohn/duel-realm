@@ -1,100 +1,981 @@
 :root {
-    --card-width: 100px;
+    --card-width: clamp(74px, 6.2vw, 94px);
     --card-height: calc(var(--card-width) * 1.45);
-    --card-aspect-ratio: calc(var(--card-height) / var(--card-width))
+    --card-aspect-ratio: calc(var(--card-height) / var(--card-width));
 }
 
-/* * {
+* {
     box-sizing: border-box;
-}*/
+    -webkit-tap-highlight-color: transparent;
+}
+
+img {
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
 
 #viewport {
     display: flex;
+    width: 100vw;
+    max-width: 100vw;
     height: 100vh;
-    overflow-y: hidden;
+    overflow: hidden;
+    background: #090c10;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-#summon-options, #change-position-options, #attack-menu {
-    display: flex; 
-    flex-direction: column;
-    position: fixed; 
-    z-index: 1;
+#mat-wrapper {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #151b26 0%, #0d1117 65%, #05070a 100%);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #mat {
-    width: 85%;
-    height: 100%; /* To fill relative parent */
+    width: 95%;
+    max-width: 1040px;
+    height: 92%;
+    max-height: 94vh;
     display: flex;
     flex-direction: column;
-    justify-content: space-evenly;
-    transform: perspective(1500px) rotateX(15deg) scaleY(1);
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    transform: perspective(1400px) rotateX(14deg);
     transform-origin: center center;
-    margin: 0 100px; /* Keep overflow from perspective within bounds */
+    position: relative;
+    box-sizing: border-box;
 }
 
+#computer-field, #player-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
 
 #field-grid-wrapper {
     display: flex;
     justify-content: center;
+    margin: 4px 0;
+    width: 100%;
 }
 
 .field-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 10px;
+    justify-items: center;
+    align-items: center;
 }
 
 .card-zone-square {
     width: var(--card-height);
-    background-color: cyan;
-    display: flex;
-    justify-content: center;
-}
-
-.card-zone  { /*.card-zone > img */
-    width: var(--card-width);
     height: var(--card-height);
-    /*border: 2px solid red;*/
+    background: rgba(18, 22, 29, 0.6);
+    border: 1px solid rgba(240, 246, 252, 0.08);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
     position: relative;
 }
 
-.field-zone { background-color: yellow; }
-.main-zone { background-color: lime; ;}
+.card-zone {
+    width: var(--card-width);
+    height: var(--card-height);
+    position: relative;
+    border-radius: 4px;
+}
+
+.main-zone {
+    background: rgba(22, 27, 34, 0.4);
+    border: 1px dashed rgba(201, 168, 77, 0.25);
+    border-radius: 4px;
+    transition: border-color 0.45s ease, background 0.45s ease;
+}
+
+/* Clear dashed placeholder border when a card occupies the slot */
+.card-zone-square[data-card-name]:not([data-card-name=""]) .main-zone {
+    border-color: transparent !important;
+    background: transparent !important;
+}
+
+.field-zone {
+    background: rgba(22, 27, 34, 0.5);
+    border-radius: 4px;
+}
 
 #row-wrapper {
-    /*display: flex;*/
     display: grid;
-    grid-template-columns: auto minmax(0, auto) auto;
-    justify-content: space-between;
-    /*justify-content: center;*/
+    grid-template-columns: var(--card-height) 1fr var(--card-height);
+    gap: 16px;
+    align-items: center;
+    justify-items: center;
+    padding: 0 6px;
+    width: 100%;
+    max-width: calc((var(--card-height) + 10px) * 7);
 }
 
 #player-hand, #computer-hand {
     display: flex;
     justify-content: center;
-    /*width: 80%;*/
+    align-items: center;
+    min-height: calc(var(--card-height) + 14px);
+    width: 100%;
 }
 
 #player-hand > div, #computer-hand > div {
     width: var(--card-width);
-    /*margin: auto 15px;*/
-    flex: 1 0 0;
-    overflow-x: hidden;
+    flex: 0 1 auto;
+    margin: 0 -14px; /* Overlap hand cards naturally */
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#player-hand > div:last-child, #computer-hand > div:last-child {
-    flex: 0 0 auto;
+#player-hand > div:hover {
+    margin: 0 6px;
+    z-index: 10;
 }
 
 .card-img {
+    width: 100%;
+    height: 100%;
     max-width: var(--card-width);
+    border-radius: 0;
+    display: block;
 }
 
+/* Active Card Aura */
 .active-card {
-    box-shadow: 0 0 10px 5px #00f; 
-    z-index: 2 !important; /* other cards in hand overlap shadow otherwise */
+    box-shadow: 0 0 16px 4px rgba(212, 175, 55, 0.9), inset 0 0 8px rgba(212, 175, 55, 0.5) !important;
+    border-color: #d4af37 !important;
+    z-index: 20 !important;
+    animation: activePulse 1.5s infinite alternate ease-in-out;
 }
 
-button {
-    font: 32rem Arial;
+@keyframes activePulse {
+    0% {
+        box-shadow: 0 0 12px 3px rgba(212, 175, 55, 0.7);
+    }
+    100% {
+        box-shadow: 0 0 20px 6px rgba(212, 175, 55, 1);
+    }
+}
+
+/* Actionable Ready Monster Ambient Aura (Master Duel Pattern 1) */
+.card-actionable .front,
+.card-actionable .back,
+.card-actionable .card-front,
+.card-actionable .card-back,
+#player-hand > .card.card-actionable .card-front {
+    border-color: rgba(56, 189, 248, 0.85) !important;
+    box-shadow: 0 0 10px 2px rgba(56, 189, 248, 0.5), inset 0 0 6px rgba(56, 189, 248, 0.25) !important;
+    animation: actionableBreathing 2.2s infinite alternate ease-in-out;
+    cursor: pointer;
+}
+
+.card-actionable:hover .front,
+.card-actionable:hover .back,
+.card-actionable:hover .card-front,
+.card-actionable:hover .card-back,
+#player-hand > .card.card-actionable:hover .card-front {
+    box-shadow: 0 0 16px 4px rgba(56, 189, 248, 0.8), inset 0 0 8px rgba(56, 189, 248, 0.4) !important;
+    border-color: #38bdf8 !important;
+}
+
+@keyframes actionableBreathing {
+    0% {
+        box-shadow: 0 0 8px 1px rgba(56, 189, 248, 0.35), inset 0 0 4px rgba(56, 189, 248, 0.15);
+        border-color: rgba(56, 189, 248, 0.55);
+    }
+    100% {
+        box-shadow: 0 0 15px 3.5px rgba(56, 189, 248, 0.75), inset 0 0 8px rgba(56, 189, 248, 0.35);
+        border-color: rgba(56, 189, 248, 0.95);
+    }
+}
+
+/* ==========================================================================
+   AAA Tactical Action Modals (Summon Stance & Position Shift HUD)
+   ========================================================================== */
+
+.tactical-action-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: actionModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes actionModalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.action-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(13, 17, 23, 0.78) 0%, rgba(5, 8, 14, 0.9) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+}
+
+.action-modal-panel {
+    position: relative;
+    z-index: 10;
+    width: 480rem;
+    max-width: 92vw;
+    background: linear-gradient(160deg, rgba(22, 28, 42, 0.97) 0%, rgba(13, 17, 26, 0.99) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    border-radius: 14rem;
+    padding: 24rem 24rem 20rem 24rem;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(212, 175, 55, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 16rem;
+    animation: actionPanelPop 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    user-select: none;
+}
+
+@keyframes actionPanelPop {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(12rem);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.action-panel-top-glow {
+    position: absolute;
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 2rem;
+    background: linear-gradient(90deg, transparent 0%, #d4af37 50%, transparent 100%);
+    box-shadow: 0 0 12px #d4af37;
+}
+
+.action-modal-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4rem;
+    padding-bottom: 8rem;
+    border-bottom: 1px solid rgba(240, 246, 252, 0.08);
+}
+
+.action-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6rem;
+    padding: 3rem 10rem;
+    background: rgba(212, 175, 55, 0.12);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 20rem;
+}
+
+.action-pulse-dot {
+    width: 6rem;
+    height: 6rem;
+    border-radius: 50%;
+    background: #d4af37;
+    box-shadow: 0 0 8px #d4af37;
+    animation: badgeDotPulse 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes badgeDotPulse {
+    from { opacity: 0.5; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1.15); }
+}
+
+.action-header-category {
+    font-family: 'Inter', sans-serif;
+    font-size: 10rem;
+    font-weight: 700;
+    letter-spacing: 2rem;
+    color: #e6c86e;
+    text-transform: uppercase;
+}
+
+.action-modal-card-name {
+    margin: 4rem 0 0 0;
+    font-family: 'Cinzel', serif;
+    font-size: 20rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 16px rgba(212, 175, 55, 0.4);
+    text-transform: uppercase;
+}
+
+.action-modal-card-stats {
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 600;
+    letter-spacing: 0.8rem;
+    color: #8b949e;
+}
+
+/* Stance Options Grid */
+.action-options-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10rem;
+}
+
+.tactical-action-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14rem;
+    padding: 12rem 16rem;
+    border-radius: 8rem;
+    cursor: pointer;
+    background: rgba(22, 27, 34, 0.85);
+    border: 1px solid rgba(240, 246, 252, 0.12);
+    text-align: left;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.tactical-action-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+    pointer-events: none;
+}
+
+/* Individual Stance Themes */
+.stance-attack {
+    border-color: rgba(239, 68, 68, 0.3);
+}
+.stance-attack::before {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.18) 0%, rgba(245, 158, 11, 0.08) 100%);
+}
+.stance-attack .stance-icon-container {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+.stance-attack .stance-badge {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.stance-attack:hover {
+    border-color: #ef4444;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3), inset 0 0 12px rgba(239, 68, 68, 0.15);
+    transform: translateY(-2rem);
+}
+.stance-attack:hover::before { opacity: 1; }
+.stance-attack:hover .stance-icon-container {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+}
+
+.stance-defense-up {
+    border-color: rgba(14, 165, 233, 0.3);
+}
+.stance-defense-up::before {
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.18) 0%, rgba(59, 130, 246, 0.08) 100%);
+}
+.stance-defense-up .stance-icon-container {
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(14, 165, 233, 0.4);
+    color: #38bdf8;
+}
+.stance-defense-up .stance-badge {
+    background: rgba(14, 165, 233, 0.2);
+    color: #7dd3fc;
+    border: 1px solid rgba(14, 165, 233, 0.4);
+}
+.stance-defense-up:hover {
+    border-color: #0ea5e9;
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.3), inset 0 0 12px rgba(14, 165, 233, 0.15);
+    transform: translateY(-2rem);
+}
+.stance-defense-up:hover::before { opacity: 1; }
+.stance-defense-up:hover .stance-icon-container {
+    background: rgba(14, 165, 233, 0.3);
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.6);
+}
+
+.stance-defense-down {
+    border-color: rgba(168, 85, 247, 0.3);
+}
+.stance-defense-down::before {
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.18) 0%, rgba(139, 92, 246, 0.08) 100%);
+}
+.stance-defense-down .stance-icon-container {
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #c084fc;
+}
+.stance-defense-down .stance-badge {
+    background: rgba(168, 85, 247, 0.2);
+    color: #d8b4fe;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+}
+.stance-defense-down:hover {
+    border-color: #a855f7;
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.3), inset 0 0 12px rgba(168, 85, 247, 0.15);
+    transform: translateY(-2rem);
+}
+.stance-defense-down:hover::before { opacity: 1; }
+.stance-defense-down:hover .stance-icon-container {
+    background: rgba(168, 85, 247, 0.3);
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+}
+
+.stance-icon-container {
+    width: 40rem;
+    height: 40rem;
+    min-width: 40rem;
+    border-radius: 8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.22s ease;
+}
+
+.stance-svg-icon {
+    width: 22rem;
+    height: 22rem;
+}
+
+.stance-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+.stance-badge {
+    align-self: flex-start;
+    font-family: 'Inter', sans-serif;
+    font-size: 9rem;
+    font-weight: 800;
+    letter-spacing: 1.2rem;
+    padding: 2rem 6rem;
+    border-radius: 4rem;
+    text-transform: uppercase;
+}
+
+.stance-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 14rem;
+    font-weight: 700;
+    letter-spacing: 0.5rem;
+    color: #ffffff;
+    text-transform: uppercase;
+}
+
+.stance-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 400;
+    color: #8b949e;
+    line-height: 1.3;
+}
+
+.stance-chevron {
+    color: #484f58;
+    transition: all 0.22s ease;
+}
+
+.tactical-action-btn:hover .stance-chevron {
+    color: #ffffff;
+    transform: translateX(4rem);
+}
+
+.action-modal-footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 4rem;
+}
+
+.action-cancel-btn {
+    background: transparent;
+    border: 1px solid rgba(240, 246, 252, 0.15);
+    border-radius: 6rem;
+    padding: 8rem 20rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 700;
+    letter-spacing: 1.5rem;
+    color: #8b949e;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.action-cancel-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #f87171;
+}
+
+/* System Settings Section */
+.system-settings-section {
+    margin-top: 14rem;
+    padding-top: 14rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.system-setting-row {
+    background: rgba(11, 14, 20, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10rem;
+    padding: 12rem 14rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12rem;
+}
+
+.sys-setting-info {
+    text-align: left;
+}
+
+.sys-setting-title {
+    font-family: 'Cinzel', serif;
+    font-size: 12rem;
+    font-weight: 800;
+    letter-spacing: 1rem;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 6rem;
+    margin-bottom: 3rem;
+}
+
+.sys-setting-title svg {
+    color: #f59e0b;
+}
+
+.sys-setting-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 10rem;
+    color: #8b949e;
+}
+
+.speed-selector-group {
+    display: inline-flex;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8rem;
+    padding: 3rem;
+    gap: 3rem;
+}
+
+.speed-btn {
+    background: transparent;
+    border: none;
+    border-radius: 5rem;
+    padding: 5rem 10rem;
+    font-family: 'Cinzel', serif;
+    font-size: 11rem;
+    font-weight: 800;
+    color: #8b949e;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    user-select: none;
+}
+
+.speed-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.speed-btn.active {
+    background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+    color: #0b0e14;
+    font-weight: 900;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+/* ==========================================================================
+   Combat & Action Context Bar (Pattern A - Master Duel Standard)
+   ========================================================================== */
+
+.card-context-bar {
+    position: fixed;
+    z-index: 150;
+    display: inline-flex;
+    align-items: center;
+    gap: 8rem;
+    padding: 6rem 10rem;
+    background: rgba(13, 17, 23, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1.5px solid rgba(212, 175, 55, 0.6);
+    border-radius: 30rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), 0 0 16px rgba(212, 175, 55, 0.35);
+    animation: contextBarPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.card-context-bar::after {
+    content: '';
+    position: absolute;
+    bottom: -7rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7rem solid transparent;
+    border-right: 7rem solid transparent;
+    border-top: 7rem solid rgba(212, 175, 55, 0.8);
+}
+
+@keyframes contextBarPop {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.context-action-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 11rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    text-transform: uppercase;
+    padding: 6rem 14rem;
+    border-radius: 20rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6rem;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.context-action-btn.btn-attack {
+    background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
+    color: #ffffff;
+    border-color: #fca5a5;
+    box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+}
+
+.context-action-btn.btn-attack:hover {
+    background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.7), 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+.context-action-btn.btn-defense {
+    background: linear-gradient(180deg, #3b82f6 0%, #1e40af 100%);
+    color: #ffffff;
+    border-color: #93c5fd;
+    box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+}
+
+.context-action-btn.btn-defense:hover {
+    background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.7), 0 0 12px rgba(59, 130, 246, 0.5);
+}
+
+.context-action-btn.btn-to-attack {
+    background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+    color: #0b0e14;
+    border-color: #fef08a;
+    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
+}
+
+.context-action-btn.btn-to-attack:hover {
+    background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.7), 0 0 12px rgba(254, 240, 138, 0.6);
+}
+
+.context-action-btn:active {
+    transform: scale(0.95);
+}
+
+.context-action-btn:disabled,
+.context-action-btn.is-locked {
+    background: linear-gradient(180deg, rgba(55, 65, 81, 0.85) 0%, rgba(17, 24, 39, 0.95) 100%) !important;
+    color: #fbbf24 !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    cursor: not-allowed !important;
+    opacity: 0.9 !important;
+    transform: none !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2) !important;
+    pointer-events: none !important;
+    font-size: 9.5rem !important;
+    letter-spacing: 0.8rem !important;
+}
+
+/* ==========================================================================
+   Combat Trigger HUD (Attack Menu)
+   ========================================================================== */
+
+#attack-menu {
+    position: fixed;
+    z-index: 120;
+    animation: attackMenuPulse 1.5s infinite alternate ease-in-out;
+}
+
+.request-attack-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 13rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    text-transform: uppercase;
+    padding: 10rem 18rem;
+    border-radius: 6rem;
+    cursor: pointer;
+    background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+    color: #0b0e14;
+    border: 1px solid #fef08a;
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5), 0 0 12px rgba(254, 240, 138, 0.4);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.request-attack-btn:hover {
+    background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+    transform: scale(1.06);
+    box-shadow: 0 8px 26px rgba(245, 158, 11, 0.7), 0 0 18px rgba(254, 240, 138, 0.6);
+}
+
+.request-attack-btn:active {
+    transform: scale(0.98);
+}
+
+/* ==========================================================================
+   Cinematic Duel Outcome Screen (Victory / Defeat)
+   ========================================================================== */
+
+.duel-outcome-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.outcome-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(11, 14, 20, 0.88) 0%, rgba(4, 6, 9, 0.96) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.outcome-modal-panel {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.98) 100%);
+    border: 2px solid rgba(212, 175, 55, 0.7);
+    border-radius: 16rem;
+    padding: 36rem 48rem;
+    max-width: 520rem;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(212, 175, 55, 0.25);
+    animation: outcomeModalPop 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.outcome-modal-panel.is-defeat {
+    border-color: rgba(239, 68, 68, 0.7);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(239, 68, 68, 0.25);
+}
+
+.outcome-banner-glow {
+    position: absolute;
+    top: -60rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280rem;
+    height: 120rem;
+    background: radial-gradient(circle, rgba(212, 175, 55, 0.35) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.outcome-modal-panel.is-defeat .outcome-banner-glow {
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, transparent 70%);
+}
+
+@keyframes outcomeModalPop {
+    0% {
+        opacity: 0;
+        transform: scale(0.85) translateY(20rem);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.outcome-icon-wrapper {
+    margin-bottom: 12rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 4px 12px rgba(212, 175, 55, 0.4));
+}
+
+.outcome-modal-panel.is-defeat .outcome-icon-wrapper {
+    filter: drop-shadow(0 4px 12px rgba(239, 68, 68, 0.4));
+}
+
+.outcome-title {
+    font-family: 'Cinzel', serif;
+    font-size: 38rem;
+    font-weight: 900;
+    letter-spacing: 4rem;
+    margin: 0 0 6rem 0;
+    background: linear-gradient(180deg, #fff3b0 0%, #ffd700 50%, #d4af37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 20px rgba(212, 175, 55, 0.5);
+}
+
+.outcome-modal-panel.is-defeat .outcome-title {
+    background: linear-gradient(180deg, #fecaca 0%, #ef4444 50%, #b91c1c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 20px rgba(239, 68, 68, 0.5);
+}
+
+.outcome-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 11rem;
+    font-weight: 600;
+    letter-spacing: 2rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin: 0 0 28rem 0;
+}
+
+.outcome-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12rem;
+    margin-bottom: 32rem;
+}
+
+.outcome-stat-card {
+    background: rgba(11, 14, 20, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8rem;
+    padding: 12rem 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4rem;
+}
+
+.outcome-stat-label {
+    font-size: 9rem;
+    font-weight: 700;
+    letter-spacing: 1rem;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.outcome-stat-val {
+    font-family: 'Cinzel', serif;
+    font-size: 15rem;
+    font-weight: 900;
+    color: #e2e8f0;
+}
+
+.outcome-stat-val.val-player-lp {
+    color: #4ade80;
+}
+
+.outcome-stat-val.val-enemy-lp {
+    color: #f87171;
+}
+
+.outcome-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16rem;
+}
+
+.outcome-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 12rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    text-transform: uppercase;
+    padding: 12rem 24rem;
+    border-radius: 8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+}
+
+.outcome-btn-primary {
+    background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+    color: #0b0e14;
+    border: 1px solid #fef08a;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+}
+
+.outcome-btn-primary:hover {
+    background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+    transform: translateY(-2rem) scale(1.03);
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.6);
+}
+
+.outcome-btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.outcome-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2rem);
+}
+
+.outcome-btn:active {
+    transform: translateY(0) scale(0.97);
 }

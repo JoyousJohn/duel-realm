@@ -1,24 +1,33 @@
 <!DOCTYPE html>
 <html style="font-size: 6.25%">
 <head>
-    <title>Yu-Gi-Oh! Ripoff</title>
+    <title>Duel Realm: Tactics</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/selection.css">
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/card.css">
     <link rel="stylesheet" href="css/board.css">
     <link rel="stylesheet" href="css/info.css">
+    <link rel="stylesheet" href="css/homescreen.css">
+    <link rel="stylesheet" href="css/battle-fx.css">
+    <link rel="stylesheet" href="css/card-effects.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.transit/0.9.12/jquery.transit.min.js"></script>
-    <script src="https://cdn.rawgit.com/nnattawat/flip/master/dist/jquery.flip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jQuery-Flip/1.1.2/jquery.flip.min.js"></script>
     <script src="js/cards.js"></script> 
+    <script src="js/state.js"></script> 
     <script src="js/ai.js"></script> 
+    <script src="js/battle-fx.js"></script> 
     <script defer src="js/deck.js"></script> 
-    <script defer src="js/game.js"></script> 
-    <script defer src="js/phases.js"></script> 
     <script defer src="js/getters.js"></script> 
     <script defer src="js/setters.js"></script> 
+    <script defer src="js/game.js"></script> 
+    <script defer src="js/phases.js"></script> 
     <script defer src="js/preview.js"></script> 
+    <script defer src="js/card-effects.js"></script> 
     <link href="https://fonts.cdnfonts.com/css/a-space-demo" rel="stylesheet">
 </head>
 
@@ -26,37 +35,61 @@
 
     <div id="homescreen">
 
-        <h1 style="font: 64rem Arial;">yugi-2</h1>
+        <div class="homescreen-bg-cards">
+            <img class="homescreen-bg-card" src="cards/dark_magician.png" alt="">
+            <img class="homescreen-bg-card" src="cards/blue_eyes_white_dragon.png" alt="">
+            <img class="homescreen-bg-card" src="cards/red_eyes_black_dragon.png" alt="">
+        </div>
 
-        <button onclick="startGame();">START GAME</button>
-        <button onclick="buildDecks();">DECK BUILDER</button>
+        <div class="homescreen-content">
+            <div class="homescreen-logo-wrapper">
+                <p class="homescreen-subtitle">Tactical Card Game</p>
+                <h1 class="homescreen-title">DUEL REALM</h1>
+                <p class="homescreen-tagline">Tactics &bull; Classic TCG Duel Arena</p>
+            </div>
 
-        <!--<script>
-            if (localStorage.getItem('deck') === null) $('#homescreen').append('<p>Your deck is empty, using default deck!')
-        </script>-->
+            <div class="homescreen-menu">
+                <button class="homescreen-btn homescreen-btn-primary" onclick="startGame();">START DUEL</button>
+                <button class="homescreen-btn homescreen-btn-secondary" onclick="buildDecks();">DECK BUILDER</button>
+            </div>
+        </div>
+
+        <div class="homescreen-footer">
+            <span>READY FOR BATTLE &bull; V2.0</span>
+        </div>
 
     </div>
 
     <div id="deck-builder" style="display: none;">
 
         <div id="deck-builder-info">
+            <div class="deck-builder-header-left">
+                <h2 class="deck-builder-title">Deck Builder</h2>
+                <p id="card-count" card-Count="0">Deck size: 0/60</p>
+            </div>
 
-            <button onclick="doneSelecting();">DONE</button>
-            <button onclick="clearDeck();">RESET DECK</button>
-            <p id="card-count"></p>
-
+            <div class="deck-builder-actions">
+                <button class="deck-builder-btn deck-builder-btn-secondary" onclick="clearDeck();">RESET DECK</button>
+                <button class="deck-builder-btn deck-builder-btn-primary" onclick="doneSelecting();">SAVE & EXIT</button>
+            </div>
         </div>
     
-        <div style="display: grid; grid-template-columns: 1fr 1fr; height: 100vh;">
-        
-            <div id="player-deck">
-
+        <div class="deck-builder-main">
+            <div class="deck-column-wrapper">
+                <div class="deck-column-header">
+                    <h3>Active Deck</h3>
+                    <span>Click card to remove</span>
+                </div>
+                <div id="player-deck"></div>
             </div>
 
-            <div id="deck-selector">
-    
+            <div class="deck-column-wrapper">
+                <div class="deck-column-header">
+                    <h3>Card Vault</h3>
+                    <span>Click card to add</span>
+                </div>
+                <div id="deck-selector"></div>
             </div>
-        
         </div>
     
     </div>
@@ -67,52 +100,575 @@
 
         <div id="turn-popup" style="display: none;"><span></span></div>
 
-        <div id="summon-options">
-        
-            <button class="summon-option" onclick="summonOptionSelected('attack')">Face-up attack</button>
-            <button class="summon-option" onclick="summonOptionSelected('defense-up')">Face-up defense</button>
-            <button class="summon-option" onclick="summonOptionSelected('defense-down')">Face-down defense</button>
-        
+        <!-- AAA Tactical Summon Stance HUD -->
+        <div id="summon-options" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelSummonAction()"></div>
+            <div class="action-modal-panel">
+                <div class="action-panel-top-glow"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge">
+                        <span class="action-pulse-dot"></span>
+                        <span class="action-header-category">SUMMON PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name" id="summon-card-title">SUMMON MONSTER</h3>
+                    <div class="action-modal-card-stats" id="summon-card-stats">SELECT BATTLE STANCE</div>
+                    <div id="summon-jar-warning-banner" class="summon-jar-alert" style="display: none;">
+                        <span class="summon-jar-alert-icon">🔒</span>
+                        <span class="summon-jar-alert-text"><strong>DRAGON CAPTURE JAR ACTIVE:</strong> Dragons summoned in Attack Position will be forced into Defense Position.</span>
+                    </div>
+                </div>
+
+                <div class="action-options-grid">
+                    <button class="tactical-action-btn stance-attack" onclick="summonOptionSelected('attack')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polygon>
+                                <line x1="13" y1="19" x2="19" y2="13"></line>
+                                <line x1="16" y1="16" x2="20" y2="20"></line>
+                                <line x1="19" y1="21" x2="21" y2="19"></line>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">ATK MODE</div>
+                            <div class="stance-title">Face-Up Attack</div>
+                            <div class="stance-desc" id="stance-attack-desc">Summon upright to declare attacks and inflict battle damage</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+
+                    <button class="tactical-action-btn stance-defense-up" onclick="summonOptionSelected('defense-up')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">DEF MODE</div>
+                            <div class="stance-title">Face-Up Defense</div>
+                            <div class="stance-desc">Rotate horizontally face-up to protect LP with DEF points</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+
+                    <button class="tactical-action-btn stance-defense-down" onclick="summonOptionSelected('defense-down')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">SET / CONCEAL</div>
+                            <div class="stance-title">Face-Down Defense</div>
+                            <div class="stance-desc">Conceal monster face-down in defense to ambush opponent</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelSummonAction()">
+                        <span>&times; CANCEL ACTION</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div id="change-position-options">
-            <button class="position-option attack" onclick="changePositionSelected('attack')">Face-up attack</button>
-            <button class="position-option defense-up" onclick="changePositionSelected('defense-up')">Face-up defense</button>
-            <button class="position-option defense-down" onclick="changePositionSelected('defense-down')">Face-down defense</button>
+        <!-- AAA Tactical Position Shift HUD -->
+        <div id="change-position-options" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelPositionChangeAction()"></div>
+            <div class="action-modal-panel">
+                <div class="action-panel-top-glow"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge">
+                        <span class="action-pulse-dot"></span>
+                        <span class="action-header-category">TACTICAL SHIFT</span>
+                    </div>
+                    <h3 class="action-modal-card-name" id="position-card-title">CHANGE POSITION</h3>
+                    <div class="action-modal-card-stats" id="position-card-stats">SELECT NEW STANCE</div>
+                </div>
+
+                <div class="action-options-grid">
+                    <button class="tactical-action-btn stance-attack position-option attack" onclick="changePositionSelected('attack')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polygon>
+                                <line x1="13" y1="19" x2="19" y2="13"></line>
+                                <line x1="16" y1="16" x2="20" y2="20"></line>
+                                <line x1="19" y1="21" x2="21" y2="19"></line>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">ENGAGE ATK</div>
+                            <div class="stance-title">Face-Up Attack</div>
+                            <div class="stance-desc">Switch monster to Attack Position</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+
+                    <button class="tactical-action-btn stance-defense-up position-option defense-up" onclick="changePositionSelected('defense-up')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">FORTIFY DEF</div>
+                            <div class="stance-title">Face-Up Defense</div>
+                            <div class="stance-desc">Switch monster to Face-Up Defense</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+
+                    <button class="tactical-action-btn stance-defense-down position-option defense-down" onclick="changePositionSelected('defense-down')">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <line x1="3" y1="9" x2="21" y2="9"></line>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge">CONCEAL</div>
+                            <div class="stance-title">Face-Down Defense</div>
+                            <div class="stance-desc">Conceal monster into Face-Down Defense</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelPositionChangeAction()">
+                        <span>&times; CLOSE</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div id="attack-menu">
-            <button class="request-attack-btn" onclick="requestAttack()">ATTACK</button>
+        <!-- AAA Tactical System / Pause Menu Modal -->
+        <div id="system-menu-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="closeSystemMenu()"></div>
+            <div class="action-modal-panel system-modal-panel">
+                <div class="action-panel-top-glow"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge">
+                        <span class="action-pulse-dot"></span>
+                        <span class="action-header-category">SYSTEM PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name">DUEL COMMAND MENU</h3>
+                    <div class="action-modal-card-stats">TACTICAL CONTROLS & OPTIONS</div>
+                </div>
+
+                <div class="system-menu-options">
+                    <button class="system-action-btn resume-action-btn" onclick="closeSystemMenu()">
+                        <div class="sys-btn-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </div>
+                        <div class="sys-btn-info">
+                            <div class="sys-btn-title">RESUME DUEL</div>
+                            <div class="sys-btn-desc">Return to the active battle arena</div>
+                        </div>
+                    </button>
+
+                    <button class="system-action-btn restart-action-btn" onclick="restartDuel()">
+                        <div class="sys-btn-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        </div>
+                        <div class="sys-btn-info">
+                            <div class="sys-btn-title">RESTART DUEL</div>
+                            <div class="sys-btn-desc">Reset game state and begin a new match</div>
+                        </div>
+                    </button>
+
+                    <button class="system-action-btn forfeit-action-btn" onclick="concedeDuel()">
+                        <div class="sys-btn-icon">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                        </div>
+                        <div class="sys-btn-info">
+                            <div class="sys-btn-title">CONCEDE / FORFEIT DUEL</div>
+                            <div class="sys-btn-desc">Surrender the current duel and return to title screen</div>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Game Settings Configuration -->
+                <div class="system-settings-section">
+                    <div class="system-setting-row">
+                        <div class="sys-setting-info">
+                            <div class="sys-setting-title">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                </svg>
+                                <span>ANIMATION SPEED</span>
+                            </div>
+                            <div class="sys-setting-desc">Flight, combat attacks, position turns & graveyard velocity</div>
+                        </div>
+                        <div class="speed-selector-group">
+                            <button class="speed-btn" data-speed="1" onclick="setAnimationSpeed(1)">1.0x</button>
+                            <button class="speed-btn" data-speed="1.5" onclick="setAnimationSpeed(1.5)">1.5x</button>
+                            <button class="speed-btn" data-speed="2" onclick="setAnimationSpeed(2)">2.0x</button>
+                            <button class="speed-btn" data-speed="3" onclick="setAnimationSpeed(3)">3.0x</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="closeSystemMenu()">
+                        <span>&times; CLOSE MENU</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div id="info-panel">
+        <!-- AAA Graveyard Vault Inspector Modal -->
+        <div id="graveyard-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="closeGraveyardModal()"></div>
+            <div class="action-modal-panel graveyard-modal-panel">
+                <div class="action-panel-top-glow"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge">
+                        <span class="action-pulse-dot"></span>
+                        <span class="action-header-category" id="gy-modal-category">GRAVEYARD ARCHIVE</span>
+                    </div>
+                    <h3 class="action-modal-card-name" id="gy-modal-title">GRAVEYARD VAULT</h3>
+                    <div class="action-modal-card-stats" id="gy-modal-count">0 CARDS IN GRAVEYARD</div>
+                </div>
 
-            <div id="info-stats">
+                <div class="gy-cards-scroll-container">
+                    <div id="gy-cards-grid" class="gy-cards-grid">
+                        <!-- Populated dynamically with cards -->
+                    </div>
+                    <div id="gy-empty-state" class="gy-empty-state" style="display: none;">
+                        <svg class="gy-empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                        </svg>
+                        <p class="gy-empty-title">GRAVEYARD IS EMPTY</p>
+                        <span class="gy-empty-hint">Destroyed monsters and consumed spells/traps will be archived here.</span>
+                    </div>
+                </div>
 
-                <p id="game-phase"></p>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="closeGraveyardModal()">
+                        <span>&times; CLOSE VAULT</span>
+                    </button>
+                </div>
+            </div>
+        </div>
 
-                <p id="turn-info"></p>
+        <!-- Monster Reborn Target Selection Modal -->
+        <div id="rebirth-target-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelRebirthTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge">
+                        <span class="action-pulse-dot"></span>
+                        <span class="action-header-category">SPECIAL SUMMON PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name">MONSTER REBORN</h3>
+                    <div class="action-modal-card-stats">SELECT A MONSTER FROM EITHER GRAVEYARD</div>
+                </div>
 
-                <p id="turn-count"></p>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="rebirth-cards-grid" class="rebirth-cards-grid">
+                        <!-- Populated dynamically with graveyard monster tiles -->
+                    </div>
+                    <div id="rebirth-empty-state" class="rebirth-empty-state" style="display: none;">
+                        <p class="rebirth-empty-title">NO MONSTERS IN GRAVEYARD</p>
+                        <span class="rebirth-empty-hint">The spell fizzles without a valid target.</span>
+                    </div>
+                </div>
 
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelRebirthTarget()">
+                        <span>&times; CANCEL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change of Heart Target Selection Modal -->
+        <div id="change-of-heart-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelChangeOfHeartTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4);">
+                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
+                        <span class="action-header-category" style="color: #f472b6;">CONTROL PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name">CHANGE OF HEART</h3>
+                    <div class="action-modal-card-stats">SELECT AN OPPONENT'S MONSTER TO CONTROL UNTIL END PHASE</div>
+                </div>
+
+                <div class="rebirth-cards-scroll-container">
+                    <div id="change-of-heart-grid" class="rebirth-cards-grid">
+                        <!-- Populated dynamically with opponent field monster tiles -->
+                    </div>
+                    <div id="change-of-heart-empty-state" class="rebirth-empty-state" style="display: none;">
+                        <p class="rebirth-empty-title">NO OPPONENT MONSTERS ON FIELD</p>
+                        <span class="rebirth-empty-hint">The spell fizzles without a valid target.</span>
+                    </div>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelChangeOfHeartTarget()">
+                        <span>&times; CANCEL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remove Trap Target Selection Modal -->
+        <div id="remove-trap-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelRemoveTrapTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4);">
+                        <span class="action-pulse-dot" style="background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                        <span class="action-header-category" style="color: #34d399;">TRAP DESTRUCTION</span>
+                    </div>
+                    <h3 class="action-modal-card-name">REMOVE TRAP</h3>
+                    <div class="action-modal-card-stats">SELECT 1 FACE-UP TRAP CARD ON THE FIELD TO DESTROY</div>
+                </div>
+
+                <div class="rebirth-cards-scroll-container">
+                    <div id="remove-trap-grid" class="rebirth-cards-grid">
+                        <!-- Populated dynamically with face-up trap card tiles -->
+                    </div>
+                    <div id="remove-trap-empty-state" class="rebirth-empty-state" style="display: none;">
+                        <p class="rebirth-empty-title">NO FACE-UP TRAPS ON FIELD</p>
+                        <span class="rebirth-empty-hint">The spell fizzles without a valid target.</span>
+                    </div>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelRemoveTrapTarget()">
+                        <span>&times; CANCEL</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cinematic Duel Outcome Screen (Victory / Defeat) -->
+        <div id="duel-outcome-modal" class="tactical-action-modal duel-outcome-modal" style="display: none;">
+            <div class="action-modal-backdrop outcome-backdrop"></div>
+            <div class="action-modal-panel outcome-modal-panel">
+                <div class="outcome-banner-glow" id="outcome-banner-glow"></div>
+                <div class="outcome-icon-wrapper" id="outcome-icon-wrapper">
+                    <svg id="outcome-icon-victory" class="outcome-emblem" viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="#ffd700" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <svg id="outcome-icon-defeat" class="outcome-emblem" viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="#ff4757" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                </div>
+                
+                <h1 class="outcome-title" id="outcome-main-title">VICTORY</h1>
+                <p class="outcome-subtitle" id="outcome-sub-title">OPPONENT'S LIFE POINTS REDUCED TO 0</p>
+
+                <div class="outcome-stats-grid">
+                    <div class="outcome-stat-card">
+                        <span class="outcome-stat-label">TURNS</span>
+                        <span class="outcome-stat-val" id="outcome-stat-turns">1</span>
+                    </div>
+                    <div class="outcome-stat-card">
+                        <span class="outcome-stat-label">YOUR LP</span>
+                        <span class="outcome-stat-val val-player-lp" id="outcome-stat-player-lp">5000</span>
+                    </div>
+                    <div class="outcome-stat-card">
+                        <span class="outcome-stat-label">ENEMY LP</span>
+                        <span class="outcome-stat-val val-enemy-lp" id="outcome-stat-enemy-lp">0</span>
+                    </div>
+                    <div class="outcome-stat-card">
+                        <span class="outcome-stat-label">ENEMY LOST</span>
+                        <span class="outcome-stat-val" id="outcome-stat-enemy-gy">0 CARDS</span>
+                    </div>
+                </div>
+
+                <div class="outcome-actions-row">
+                    <button class="outcome-btn outcome-btn-primary" onclick="restartDuelFromOutcome()">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                        <span>PLAY AGAIN</span>
+                    </button>
+                    <button class="outcome-btn outcome-btn-secondary" onclick="returnToTitleFromOutcome()">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        <span>TITLE SCREEN</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Card Context Action Bar (Pattern A) -->
+        <div id="card-context-actions" class="card-context-bar" style="display: none;">
+            <button class="context-action-btn btn-defense" id="ctx-btn-defense" onclick="changePositionSelected('defense-up')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>TO DEFENSE</span>
+            </button>
+            <button class="context-action-btn btn-to-attack" id="ctx-btn-to-attack" onclick="changePositionSelected('attack')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polygon>
+                    <line x1="13" y1="19" x2="19" y2="13"></line>
+                </svg>
+                <span>TO ATTACK</span>
+            </button>
+        </div>
+
+        <!-- AAA Tactical Command & Inspector Sidebar -->
+        <aside id="info-panel" class="tactical-sidebar">
+
+            <!-- Sidebar Top Header with System Button -->
+            <div class="sidebar-header">
+                <div class="sidebar-turn-badge is-player-turn" id="hud-turn-badge">
+                    <span id="turn-num-display">TURN 1</span>
+                    <span class="turn-dot-sep">●</span>
+                    <span id="turn-info">YOUR TURN</span>
+                </div>
+                <button class="sidebar-system-btn" onclick="openSystemMenu()" title="System Menu / Concede">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
             </div>
 
-            <div id="preview-card">
+            <!-- Duel Turn & Phase Master Module -->
+            <div id="info-stats" class="hud-module phase-module">
+                <div class="phase-display-container">
+                    <div class="phase-display-label">CURRENT PHASE</div>
+                    <h4 id="game-phase" class="phase-name-text">MAIN PHASE 1</h4>
+                </div>
 
-                <img id="preview-card-img">
-                <h5 id="preview-card-stats"></h5>
-
+                <!-- Interactive Phase Progress Steps -->
+                <div class="phase-tracker-bar" id="phase-tracker">
+                    <div class="phase-step" data-phase="0" title="Draw Phase">DP</div>
+                    <div class="phase-step" data-phase="1" title="Standby Phase">SP</div>
+                    <div class="phase-step active" data-phase="2" title="Main Phase 1">M1</div>
+                    <div class="phase-step" data-phase="3" title="Battle Phase">BP</div>
+                    <div class="phase-step" data-phase="4" title="Main Phase 2">M2</div>
+                    <div class="phase-step" data-phase="5" title="End Phase">EP</div>
+                </div>
             </div>
 
-            <div id="btn-panel">
-                <!-- <button onclick="getCards('player', 1);">Add to hand</button><br> -->
-                <button onclick="requestEndTurn();">End turn</button><br>
-                <button onclick="endGame();">END GAME</button>
+            <!-- Holo-Scanner Card Inspector Module -->
+            <div id="preview-card" class="hud-module scanner-module">
+                <!-- Idle Standby State (shown when no card is hovered) -->
+                <div id="scanner-idle" class="scanner-idle-view">
+                    <div class="scanner-reticle-animation">
+                        <div class="reticle-radar-sweep"></div>
+                        <svg class="reticle-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="9"></circle>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <line x1="12" y1="1" x2="12" y2="5"></line>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="1" y1="12" x2="5" y2="12"></line>
+                            <line x1="19" y1="12" x2="23" y2="12"></line>
+                        </svg>
+                    </div>
+                    <p class="scanner-idle-title">TACTICAL SCANNER</p>
+                    <span class="scanner-idle-hint">Hover over any card in hand or on the duel arena to inspect combat parameters</span>
+                </div>
+
+                <!-- Active Inspect State (shown when hovering a card) -->
+                <div id="scanner-active" class="scanner-active-view" style="display: none;">
+                    <div class="preview-media-container">
+                        <div class="preview-img-frame">
+                            <img id="preview-card-img" alt="Card Preview">
+                            <div class="preview-holo-shimmer"></div>
+                        </div>
+                        <div class="preview-primary-meta">
+                            <div class="preview-badge-row">
+                                <span id="preview-card-badge" class="preview-type-badge badge-monster">MONSTER</span>
+                                <span id="preview-card-attr" class="preview-attr-badge">DARK</span>
+                                <span id="preview-card-monster-type" class="preview-monster-type-badge">SPELLCASTER</span>
+                            </div>
+                            <h4 id="preview-card-name" class="preview-card-title">Dark Magician</h4>
+                            <div id="preview-card-level-row" class="preview-level-stars">★★★★★★★ (LVL 7)</div>
+                            <div id="preview-card-types" class="preview-type-tag">[Spellcaster]</div>
+                        </div>
+                    </div>
+
+                    <!-- Combat Gauges (ATK / DEF for monsters) -->
+                    <div id="preview-combat-stats" class="preview-combat-grid">
+                        <div class="combat-stat-gauge atk-gauge">
+                            <div class="combat-gauge-header">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polygon><line x1="13" y1="19" x2="19" y2="13"></line></svg>
+                                <span>ATK</span>
+                            </div>
+                            <div class="combat-gauge-value-wrap">
+                                <span class="combat-gauge-value" id="preview-atk-val">2500</span>
+                                <span class="hud-stat-mod-pill" id="preview-atk-mod" style="display: none;">+300</span>
+                            </div>
+                        </div>
+                        <div class="combat-stat-gauge def-gauge">
+                            <div class="combat-gauge-header">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                <span>DEF</span>
+                            </div>
+                            <div class="combat-gauge-value-wrap">
+                                <span class="combat-gauge-value" id="preview-def-val">2100</span>
+                                <span class="hud-stat-mod-pill" id="preview-def-mod" style="display: none;">+300</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lore & Ability Description -->
+                    <div class="preview-desc-container">
+                        <div class="preview-desc-title">CARD DETAILS & EFFECT</div>
+                        <p id="preview-card-desc" class="preview-desc-text">The ultimate wizard in terms of attack and defense.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tactical Command Actions (Clean Single Action Button) -->
+            <div id="btn-panel" class="hud-module command-module">
+                <button id="end-turn-btn" class="command-btn primary-command" onclick="requestEndTurn();">
+                    <span class="btn-icon">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                    </span>
+                    <span class="btn-label" id="end-turn-btn-label">END TURN</span>
+                </button>
             </div>  
 
-            <p id="feed" style="white-space: pre-wrap;"></p>
+            <!-- Live Combat & Action Feed -->
+            <div class="hud-module log-module">
+                <div class="log-module-header">
+                    <div class="log-header-left">
+                        <span class="log-live-dot"></span>
+                        <span class="log-title">DUEL LOG</span>
+                    </div>
+                    <span class="log-badge">LIVE</span>
+                </div>
+                <div id="feed" class="combat-feed-stream"></div>
+            </div>
 
-        </div>
+        </aside>
 
         <div id="mat-wrapper" style="position: relative;"> <!-- So player-lp can be attatched to bottom left -->
 
@@ -121,17 +677,35 @@
             <div id="mat">
 
                 <!-- COMPUTER -->
-                <div id="computer-field" style="display: auto">
+                <div id="computer-field">
 
                     <div id="row-wrapper">
 
-                        <div id="computer-deck-zone" class="card-zone">DECK</div>
-
-                        <div id="computer-hand">
-
+                        <div id="computer-deck-zone" class="card-zone deck-stack-container">
+                            <div class="deck-stack-layer deck-layer-3"></div>
+                            <div class="deck-stack-layer deck-layer-2"></div>
+                            <div class="deck-stack-layer deck-layer-1"></div>
+                            <div class="deck-stack-top">
+                                <div class="deck-center-counter" id="computer-deck-overhead-count">35</div>
+                            </div>
                         </div>
 
-                        <div id="computer-graveyard-zone" class="card-zone">GRAVEYARD</div>
+                        <div id="computer-hand"></div>
+
+                        <div id="computer-graveyard-zone" class="card-zone gy-stack-container clickable-graveyard" onclick="openGraveyardModal('computer')" title="Inspect Opponent Graveyard">
+                            <div class="gy-empty-placeholder">
+                                <span>GRAVEYARD</span>
+                            </div>
+                            <div class="gy-stack-layers" style="display: none;">
+                                <div class="gy-stack-layer gy-layer-3"></div>
+                                <div class="gy-stack-layer gy-layer-2"></div>
+                                <div class="gy-stack-layer gy-layer-1"></div>
+                                <div class="gy-stack-top">
+                                    <img class="gy-top-card-img" src="" alt="Graveyard Top Card">
+                                    <div class="deck-center-counter gy-center-counter" id="computer-gy-overhead-count">0</div>
+                                </div>
+                            </div>
+                        </div>
                         
                     </div> 
 
@@ -139,9 +713,18 @@
 
                         <div class="field-grid">
                             
-                            <div class="card-zone field-zone">FIELD ZONE</div>
+                            <div class="card-zone-square field-zone-square" data-zone-kind="field" data-card-type data-card-name>
+                                <div class="card-zone main-zone field-zone-slot">
+                                    <div class="front">
+                                        <img>
+                                    </div>
+                                    <div class="back">
+                                    </div>
+                                </div>
+                                <div class="field-zone-label">FIELD</div>
+                            </div>
 
-                            <div class="card-zone-square" data-zone="1" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="1" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -151,7 +734,7 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="2" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="2" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -161,7 +744,7 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="3" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="3" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -171,7 +754,7 @@
                                 </div>
                             </div>
                             
-                            <div class="card-zone-square" data-zone="4" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="4" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -181,7 +764,7 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="5" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="5" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -191,7 +774,7 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="6" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="6" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -214,39 +797,18 @@
 
                         <div class="field-grid player-field-grid">
 
-                            <div class="card-zone field-zone">FIELD ZONE</div>      
-                            
-                            <div class="card-zone-square" data-zone="1" data-card-type data-card-name>
-                                <div class="card-zone main-zone">
+                            <div class="card-zone-square field-zone-square" data-zone-kind="field" data-card-type data-card-name>
+                                <div class="card-zone main-zone field-zone-slot">
                                     <div class="front">
                                         <img>
                                     </div>
                                     <div class="back">
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="card-zone-square" data-zone="2" data-card-type data-card-name>
-                                <div class="card-zone main-zone">
-                                    <div class="front">
-                                        <img>
-                                    </div>
-                                    <div class="back">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="card-zone-square" data-zone="3" data-card-type data-card-name>
-                                <div class="card-zone main-zone">
-                                    <div class="front">
-                                        <img>
-                                    </div>
-                                    <div class="back">
-                                    </div>
-                                </div>
+                                <div class="field-zone-label">FIELD</div>
                             </div>
                             
-                            <div class="card-zone-square" data-zone="4" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="1" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -256,7 +818,7 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="5" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="2" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -266,7 +828,37 @@
                                 </div>
                             </div>
 
-                            <div class="card-zone-square" data-zone="6" data-card-type data-card-name>
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="3" data-card-type data-card-name>
+                                <div class="card-zone main-zone">
+                                    <div class="front">
+                                        <img>
+                                    </div>
+                                    <div class="back">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="4" data-card-type data-card-name>
+                                <div class="card-zone main-zone">
+                                    <div class="front">
+                                        <img>
+                                    </div>
+                                    <div class="back">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="5" data-card-type data-card-name>
+                                <div class="card-zone main-zone">
+                                    <div class="front">
+                                        <img>
+                                    </div>
+                                    <div class="back">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card-zone-square" data-zone-kind="slot" data-zone="6" data-card-type data-card-name>
                                 <div class="card-zone main-zone">
                                     <div class="front">
                                         <img>
@@ -278,17 +870,35 @@
                             
                         </div>
 
-                    </div>
+                    </div> 
 
                     <div id="row-wrapper">
 
-                        <div id="player-deck-zone" class="card-zone">DECK</div>
-
-                        <div id="player-hand">
-
+                        <div id="player-deck-zone" class="card-zone deck-stack-container">
+                            <div class="deck-stack-layer deck-layer-3"></div>
+                            <div class="deck-stack-layer deck-layer-2"></div>
+                            <div class="deck-stack-layer deck-layer-1"></div>
+                            <div class="deck-stack-top">
+                                <div class="deck-center-counter" id="player-deck-overhead-count">35</div>
+                            </div>
                         </div>
 
-                        <div id="player-graveyard-zone" class="card-zone">GRAVEYARD</div>
+                        <div id="player-hand"></div>
+
+                        <div id="player-graveyard-zone" class="card-zone gy-stack-container clickable-graveyard" onclick="openGraveyardModal('player')" title="Inspect Player Graveyard">
+                            <div class="gy-empty-placeholder">
+                                <span>GRAVEYARD</span>
+                            </div>
+                            <div class="gy-stack-layers" style="display: none;">
+                                <div class="gy-stack-layer gy-layer-3"></div>
+                                <div class="gy-stack-layer gy-layer-2"></div>
+                                <div class="gy-stack-layer gy-layer-1"></div>
+                                <div class="gy-stack-top">
+                                    <img class="gy-top-card-img" src="" alt="Graveyard Top Card">
+                                    <div class="deck-center-counter gy-center-counter" id="player-gy-overhead-count">0</div>
+                                </div>
+                            </div>
+                        </div>
                         
                     </div>    
 

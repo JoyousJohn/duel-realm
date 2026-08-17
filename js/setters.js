@@ -1,41 +1,83 @@
-// Populates deck variable from localStorage
+// Populates deck variable from localStorage and shuffles it
 function buildPlayerDeck() {
 
-    if (localStorage.getItem('deck') === null) {
-        deck = Object.keys(cards)
-        //console.log(deck)
-        return;
-    }
+    var rawDeck = localStorage.getItem('deck');
+    var buildingDeckList = [];
 
-    var buildingDeckList = []
+    if (rawDeck === null) {
+        buildingDeckList = Object.keys(cards);
+    } else {
+        var localDeck = JSON.parse(rawDeck) || {};
+        var cardList = Object.keys(localDeck);
 
-    localDeck = JSON.parse(localStorage.getItem('deck'))
-    cardList = Object.keys(localDeck)
-
-    for (var c in cardList) {
-
-        var quantOfThisCard = localDeck[cardList[c]]
-        
-        for (var i = 0; i < quantOfThisCard; i++) {
-            buildingDeckList.push(cardList[c]) // cardList[c]: card name
+        for (var c in cardList) {
+            var cardId = cardList[c];
+            if (!cards[cardId]) continue;
+            var quantOfThisCard = parseInt(localDeck[cardId]) || 0;
+            
+            for (var i = 0; i < quantOfThisCard; i++) {
+                buildingDeckList.push(cardId);
+            }
         }
-
     }
 
-    deck = buildingDeckList
-    //console.log(buildingDeckList)
+    if (buildingDeckList.length === 0) {
+        buildingDeckList = Object.keys(cards);
+    }
+
+    // Shuffle and assign player deck stack
+    deck = shuffleArray(buildingDeckList);
+    if (GameState && GameState.player) {
+        GameState.player.deck = [...deck];
+    }
+
+    // Build and shuffle AI computer deck (35 cards)
+    var allCardIds = Object.keys(cards);
+    var computerDeckList = [];
+    for (var k = 0; k < 35; k++) {
+        computerDeckList.push(random(allCardIds));
+    }
+    if (GameState && GameState.computer) {
+        GameState.computer.deck = shuffleArray(computerDeckList);
+    }
+}
+
+// Remove card string from who.hand.<type> array
+function removeCardFromHandVar(who, cardId, type) {
+    if (window[who] && window[who]['hand'] && window[who]['hand'][type]) {
+        window[who]['hand'][type] = remove(window[who]['hand'][type], cardId);
+    }
 }
 
 // Remove monster string from who.monsters array
 function removeMonsterFromHandVar(who, monsterName) {
-    if (printMoves) print("Removing " + monsterName + " from " + who + "'s hand")
-    window[who]['hand']['monsters'] = remove(window[who]['hand']['monsters'], monsterName)
-    //getHand(who).find('div[data-card-name="' + monsterName + '"]').fadeOut();
+    removeCardFromHandVar(who, monsterName, 'monsters');
+}
+
+// Remove spell string from who.spells array
+function removeSpellFromHandVar(who, spellName) {
+    removeCardFromHandVar(who, spellName, 'spells');
+}
+
+// Remove trap string from who.traps array
+function removeTrapFromHandVar(who, trapName) {
+    removeCardFromHandVar(who, trapName, 'traps');
 }
 
 function updateCardImage(squareElm) {
-    const cardName = $(squareElm).attr('data-card-name')
-    $(squareElm).find('img').attr('src', 'cards/' + cards[cardName]['file'])
+    const cardName = $(squareElm).attr('data-card-name');
+    const target = $(squareElm);
+    if (cardName && cards[cardName]) {
+        var imgSrc = 'cards/' + cards[cardName]['file'];
+        target.find('img').attr('src', imgSrc).css({
+            'display': 'block',
+            'visibility': 'visible',
+            'opacity': '1'
+        }).show();
+        target.find('.front').css('display', 'flex');
+    } else {
+        target.find('img').removeAttr('src').hide();
+    }
 }
 
 function clearHand(who) {
@@ -43,18 +85,137 @@ function clearHand(who) {
 }
 
 function clearAvailableZones() {
-    const availableSquares = getAvailableSquaresElms()
+    $('#player-field .card-zone-square').removeClass('available-zone spell-available-zone field-available-zone');
+    $('#player-field .card-zone-square .card-zone.main-zone').removeClass('available-zone spell-available-zone field-available-zone');
+    $('.field-zone-square').removeClass('available-zone spell-available-zone field-available-zone');
+    $('.field-zone-square .card-zone.main-zone').removeClass('available-zone spell-available-zone field-available-zone');
+}
+
+// Highlight available zones where monster cards can be placed on player field
+function showAvailableZones() {
+    const availableSquares = getAvailableSquaresElms('player');
     for (const square of availableSquares) {
-        square.find('div.card-zone.main-zone').removeClass('available-zone')
+        square.find('div.card-zone.main-zone').addClass('available-zone');
+    }   
+}
+
+// Highlight the correct target zones depending on the selected hand card
+function showAvailableZonesForCard(cardDef) {
+    if (!cardDef) return;
+
+    if (cardDef.type === 'monsters') {
+        showAvailableZones();
+        return;
+    }
+
+    if (cardDef.type === 'spells' && cardDef.subType === 'field') {
+        var fieldZone = getFieldZoneElm('player');
+        if (isSquareEmpty(fieldZone)) {
+            fieldZone.find('div.card-zone.main-zone').addClass('field-available-zone');
+        }
+        return;
+    }
+
+    // Normal spells + all traps can go into any available slot on the row
+    var freeSquares = getAvailableSquaresElms('player');
+    for (var i = 0; i < freeSquares.length; i++) {
+        freeSquares[i].find('div.card-zone.main-zone').addClass('spell-available-zone');
     }
 }
 
-// Highlight available zones where cards can be placed on player field
-function showAvailableZones() {
-    const availableSquares = getAvailableSquaresElms()
-    for (const square of availableSquares) {
-        square.find('div.card-zone.main-zone').addClass('available-zone')
-    }   
+// (boolean) True if the player's hand card can currently be played somewhere
+function isCardCurrentlyPlayable(cardDef) {
+    if (!cardDef) return false;
+
+    var freeSlots = getNumOfFreeZones('player');
+    var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+
+    if (cardDef.type === 'monsters') {
+        return freeSlots > 0 && !normalSummonUsed;
+    }
+    if (cardDef.type === 'spells' && cardDef.subType === 'field') {
+        return isSquareEmpty(getFieldZoneElm('player'));
+    }
+
+    if (freeSlots <= 0) return false;
+
+    // Tactical spell checks
+    if (cardDef.id === 'change-of-heart') {
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
+        // Need at least 1 opponent monster and at least 2 free zones (1 for spell + 1 for monster)
+        return oppMonsters.length > 0 && freeSlots >= 2;
+    }
+
+    if (cardDef.id === 'monster-reborn') {
+        var gyMonsters = (typeof getGraveyardMonsters === 'function') ? getGraveyardMonsters() : [];
+        return gyMonsters.length > 0 && freeSlots >= 2;
+    }
+
+    if (cardDef.id === 'raigeki') {
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
+        return oppMonsters.length > 0;
+    }
+
+    if (cardDef.id === 'remove-trap') {
+        var hasFaceUpTrap = (typeof findFaceUpTrap === 'function') && (findFaceUpTrap('computer') !== null || findFaceUpTrap('player') !== null);
+        return hasFaceUpTrap;
+    }
+
+    return true;
+}
+
+// Get descriptive reason why card cannot be played
+function getCardUnplayableReason(cardDef) {
+    if (!cardDef) return 'Invalid card.';
+    var freeSlots = getNumOfFreeZones('player');
+    var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+
+    if (cardDef.type === 'monsters') {
+        if (normalSummonUsed) {
+            return 'You have already used your Normal Summon / Set for this turn.';
+        }
+        if (freeSlots <= 0) {
+            return 'There are no free slots on your field.';
+        }
+    }
+
+    if (cardDef.type === 'spells' && cardDef.subType === 'field') {
+        return 'The field spell zone is already occupied.';
+    }
+
+    if (freeSlots <= 0) {
+        return 'There are no free slots on your field.';
+    }
+
+    if (cardDef.id === 'change-of-heart') {
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
+        if (oppMonsters.length === 0) {
+            return 'Opponent controls no monsters to take.';
+        }
+        if (freeSlots < 2) {
+            return 'You need space on your field to hold the opponent monster.';
+        }
+    }
+
+    if (cardDef.id === 'monster-reborn') {
+        var gyMonsters = (typeof getGraveyardMonsters === 'function') ? getGraveyardMonsters() : [];
+        if (gyMonsters.length === 0) {
+            return 'There are no monsters in either graveyard.';
+        }
+        if (freeSlots < 2) {
+            return 'You need an open monster slot to summon the revived monster.';
+        }
+    }
+
+    if (cardDef.id === 'raigeki') {
+        return 'Opponent controls no monsters to destroy.';
+    }
+
+    if (cardDef.id === 'remove-trap') {
+        return 'There are no face-up Trap cards on the field to destroy.';
+    }
+
+    return 'Card cannot be activated right now.';
 }
 
 function hideSummonOptionsIfVisible() {
@@ -67,15 +228,15 @@ function hidePositionChangeOptionsIfVisible() {
 }
 
 function hideAtkMenuIfVisible() {
-    if (isAtkMenuVisible()) $('#attack-menu').hide();
+    $('#attack-menu, #card-context-actions').hide();
+    if (typeof BattleFX !== 'undefined') BattleFX.cancelTargetSelection();
 }
 
 // Show any change position options that were hidden when showing valid position changes
 function showAllPositionChanges() {
-    $('#change-position-options button').each(function() {
-        console.log($(this))
+    $('#change-position-options .tactical-action-btn').each(function() {
         if ($(this).is(':hidden')) $(this).show(); 
-    })
+    });
 }
 
 // Remove CSS from active caard
@@ -113,7 +274,18 @@ async function updateFlipSpeed(flipElm, newSpeed) {
 
 
 function random(list) {
-    return list[Math.floor(Math.random()*list.length)]
+    return list[Math.floor(Math.random()*list.length)];
+}
+
+function shuffleArray(array) {
+    var arr = array.slice();
+    for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+    return arr;
 }
 
 function sleep(ms) {
@@ -128,5 +300,3 @@ function remove(arr, value) {
     }
     return arr;
 }
-
-function print(message) { console.log(message) }

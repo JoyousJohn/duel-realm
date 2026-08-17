@@ -1,5 +1,17 @@
+/* Board & Zone Styles */
+
 .available-zone {
-    border: 2px solid gold;
-    box-shadow: 0 0 10px 5px gold;
-    background-color: yellow;
+    border: 2px solid #d4af37 !important;
+    box-shadow: 0 0 16px rgba(212, 175, 55, 0.65), inset 0 0 10px rgba(212, 175, 55, 0.35) !important;
+    background-color: rgba(212, 175, 55, 0.15) !important;
+    animation: pulseAvailable 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseAvailable {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(212, 175, 55, 0.5), inset 0 0 8px rgba(212, 175, 55, 0.25);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(212, 175, 55, 0.85), inset 0 0 14px rgba(212, 175, 55, 0.45);
+    }
 }

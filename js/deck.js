@@ -1,33 +1,91 @@
-function addToDeck(newCard, manuallyAdded) { // newCard: jQuery div card elm to add manuallyAdded: true when new card manually clicked
+function createDeckCardElement(cardId, quant, isVault) {
+    var cardDef = cards[cardId];
+    if (!cardDef) return null;
 
-    id = $(newCard).attr('id');
+    var badgeText = isVault ? 'x' + quant + ' avail' : 'x' + quant;
+    var $card = $('<div>', {
+        id: cardId,
+        class: 'deck-card-item',
+        'data-card-id': cardId,
+        quant: quant
+    });
 
-    // If card already in deck add 1 to the quantity
-    if ($('#player-deck > div#' + id).length) {
+    var $img = $('<img>', {
+        class: 'deck-card-img',
+        src: 'cards/' + cardDef.file,
+        alt: cardDef.name
+    });
 
-        var targetCard = $('#player-deck > div#' + id)
-        console.log(targetCard)
-        var newCount = parseInt(targetCard.attr('quant')) + 1
+    var $badge = $('<p>', {
+        class: 'deck-card-badge',
+        text: badgeText
+    });
 
-        console.log("quant: " + targetCard.attr('quant'))
-        console.log("new count: " + newCount)
+    $card.append($img).append($badge);
+    return $card;
+}
 
-        $(targetCard).attr('quant', newCount)
-        $(targetCard).find('p').text('x' + newCount)
+function addToDeck(cardId) {
+    var currentSize = getBuildingDeckSize();
+    if (currentSize >= 60) return;
 
-        if (newCount === 3) $('#deck-selector > div#' + id).remove(); // Remove card from selection if now 3rd copy in deck
-    
-    // Else if new card add it to the deck
+    var $playerDeckCard = $('#player-deck > div#' + cardId);
+    var $vaultCard = $('#deck-selector > div#' + cardId);
+
+    // If card is already in player deck, increment
+    if ($playerDeckCard.length) {
+        var currentQuant = parseInt($playerDeckCard.attr('quant')) || 1;
+        var newQuant = currentQuant + 1;
+        $playerDeckCard.attr('quant', newQuant);
+        $playerDeckCard.find('.deck-card-badge').text('x' + newQuant);
     } else {
-        
-        $(newCard).attr('quant', 1); // To remove quant 3 from right side
-        if (manuallyAdded) $(newCard).append('<p>x1</p>') // If manually selected add quant
-
-        $('#player-deck').append(newCard);
+        var $newCard = createDeckCardElement(cardId, 1, false);
+        $('#player-deck').append($newCard);
     }
 
-    setBuildingDeckSize(getBuildingDeckSize() + 1) // Update deck size
-    
+    // Decrement available count in vault
+    if ($vaultCard.length) {
+        var availQuant = parseInt($vaultCard.attr('quant')) || 1;
+        var newAvail = availQuant - 1;
+        if (newAvail <= 0) {
+            $vaultCard.remove();
+        } else {
+            $vaultCard.attr('quant', newAvail);
+            $vaultCard.find('.deck-card-badge').text('x' + newAvail + ' avail');
+        }
+    }
+
+    setBuildingDeckSize(currentSize + 1);
+}
+
+function removeFromDeck(cardId) {
+    var $playerDeckCard = $('#player-deck > div#' + cardId);
+    if (!$playerDeckCard.length) return;
+
+    var currentQuant = parseInt($playerDeckCard.attr('quant')) || 1;
+    var currentSize = getBuildingDeckSize();
+
+    if (currentQuant <= 1) {
+        $playerDeckCard.remove();
+    } else {
+        var newQuant = currentQuant - 1;
+        $playerDeckCard.attr('quant', newQuant);
+        $playerDeckCard.find('.deck-card-badge').text('x' + newQuant);
+    }
+
+    // Return to vault
+    var $vaultCard = $('#deck-selector > div#' + cardId);
+    if ($vaultCard.length) {
+        var availQuant = parseInt($vaultCard.attr('quant')) || 0;
+        var newAvail = availQuant + 1;
+        $vaultCard.attr('quant', newAvail);
+        $vaultCard.find('.deck-card-badge').text('x' + newAvail + ' avail');
+    } else {
+        var $newVaultCard = createDeckCardElement(cardId, 1, true);
+        $('#deck-selector').append($newVaultCard);
+    }
+
+    setBuildingDeckSize(Math.max(0, currentSize - 1));
 }
 
 function buildDecks() {
@@ -35,98 +93,86 @@ function buildDecks() {
     $('#homescreen').hide(); 
     $('#deck-builder').show();
 
+    $('#player-deck').empty();
+    $('#deck-selector').empty();
+
     var totalCount = 0;
+    var cardList = JSON.parse(localStorage.getItem('deck')) || {};
 
-    cardList = JSON.parse(localStorage.getItem('deck'))
-
-    // Popular current deck list (left side)
+    // Populate active deck list (left side)
     for (const cardInDeck in cardList) {
+        if (!cards[cardInDeck]) continue;
+        var quant = parseInt(cardList[cardInDeck]) || 1;
+        totalCount += quant;
 
-        var quant = cardList[cardInDeck];
-        console.log(cardInDeck + ": " + quant)
-        totalCount += parseInt(quant);
-        var newCard = $('<div><img class="card-img deck-builder-card" src="cards/' + cards[cardInDeck].file + '"><p>x' + quant + '</p></div>');
-        $(newCard).prop('id', cardInDeck);
-        $(newCard).attr('quant', quant);
-        //addToDeck(newCard)
-        $('#player-deck').append(newCard);
-        
+        var $card = createDeckCardElement(cardInDeck, quant, false);
+        $('#player-deck').append($card);
     }
 
-    // Populate cards available to add list (right side)
-    for (const card in cards) { // cards = global object of all cards
-
+    // Populate available cards (right side vault)
+    for (const card in cards) {
         var quantAvailable = 3;
 
-        if (cardList && card in cardList) { // If cardList (the JSON deck in localStorage is set and card is in the current deck)
-            var numOfCardInDeck = cardList[card]; 
-            if (numOfCardInDeck) { 
-                quantAvailable -= numOfCardInDeck
-                if (quantAvailable === 0) continue // Skip card if none available
-            }
+        if (cardList && card in cardList) {
+            var numOfCardInDeck = parseInt(cardList[card]) || 0;
+            quantAvailable -= numOfCardInDeck;
+            if (quantAvailable <= 0) continue;
         }
 
-        var newCard = $('<div><img class="card-img deck-builder-card" src="cards/' + cards[card].file + '"></div>');
-        $(newCard).prop('id', card);
-        $(newCard).attr('quant', quantAvailable);
-        $(newCard).append('<p> x' + quantAvailable +' available</p>')
-        $('#deck-selector').append(newCard);
-
+        var $vaultCard = createDeckCardElement(card, quantAvailable, true);
+        $('#deck-selector').append($vaultCard);
     }
 
-    setBuildingDeckSize(totalCount) // Update top info label
+    setBuildingDeckSize(totalCount);
 }
 
-function clearDeck() { // Reset entire deckc
+function clearDeck() {
     localStorage.removeItem('deck');
     $('#player-deck').empty();
     $('#deck-selector').empty();
-    buildDecks(); // Refresh DOM
+    buildDecks();
 }
 
-function doneSelecting() { // Done selecting, save the deck
+function doneSelecting() {
+    if (typeof randomizeTitleScreenCards === 'function') randomizeTitleScreenCards();
     $('#homescreen').show(); 
     $('#deck-builder').hide();
     $('#deck-selector').empty();
 
-    // If deck builder is empty don't set localStorage deck
-    if (!getBuildingDeckSize()) return;
+    if (!getBuildingDeckSize()) {
+        localStorage.removeItem('deck');
+        $('#player-deck').empty();
+        return;
+    }
 
-    // Loop through each card to add to localStorage
-    var deckList = {}
-    $('#player-deck > div').each(function() { 
+    var deckList = {};
+    $('#player-deck > .deck-card-item').each(function() { 
         var quant = $(this).attr('quant');
         var cardId = $(this).attr('id');
         deckList[cardId] = quant;    
-        console.log("a" + deckList[cardId])  
     });
-    console.log(deckList)
-    localStorage.setItem('deck', JSON.stringify(deckList))
-    $('#player-deck').empty(); // Clear player's deck selection for the next time changing it
+
+    localStorage.setItem('deck', JSON.stringify(deckList));
+    $('#player-deck').empty();
 }
 
-$(document).on('click', '#deck-selector > div', function() { // When adding a card to deck
+// Click to ADD card from vault
+$(document).on('click', '#deck-selector > .deck-card-item', function() {
+    var cardId = $(this).attr('id');
+    addToDeck(cardId);
+});
 
-    if (getBuildingDeckSize() === 60) return // Do nothing if deck full
-    var clone = $(this).clone()
-    clone.find('p').remove() // Remove paragraph showing quant
-    addToDeck(clone, true) // manuallyAdded: true to update visual quantity label
+// Click to REMOVE card from active deck
+$(document).on('click', '#player-deck > .deck-card-item', function() {
+    var cardId = $(this).attr('id');
+    removeFromDeck(cardId);
+});
 
-    var newQuantAvailable = $(this).attr('quant') - 1;
-    if (newQuantAvailable === 0) { // If none available remove from right side list
-        $(this).remove();
-    } else {
-        $(this).find('p').text('x' + newQuantAvailable + ' available');
-        $(this).attr('quant', newQuantAvailable);
-    }
-
-})
-
-function getBuildingDeckSize() { // Return deck being edited
-    return parseInt($('#card-count').attr('card-Count'))
+function getBuildingDeckSize() {
+    return parseInt($('#card-count').attr('card-Count')) || 0;
 }
 
-function setBuildingDeckSize(newSize) { // Update deck size
+function setBuildingDeckSize(newSize) {
     $('#card-count').attr('card-Count', newSize);
-    $('#card-count').text('Deck size: ' + newSize + '/60')
+    $('#card-count').text('Deck size: ' + newSize + '/60');
 }
