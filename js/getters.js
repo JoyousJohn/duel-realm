@@ -114,3 +114,10 @@ function isSummonOptionsVisible() { return $('#summon-options').is(':visible') }
 function isPositionChangeOptionsVisible() { return $('#change-position-options').is(':visible') }
 
 function isAtkMenuVisible() { return $('#attack-menu, #card-context-actions').is(':visible'); }
+
+// (int) Return the number of tributes required to summon a monster by Level
+function getRequiredTributes(level) {
+    if (!level || level <= 4) return 0;
+    if (level <= 6) return 1;
+    return 2;
+}

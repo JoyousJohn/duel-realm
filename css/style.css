@@ -1197,3 +1197,92 @@ img {
     cursor: not-allowed;
     transform: none;
 }
+
+/* ==========================================================================
+   Tribute Summon Selection Styles
+   ========================================================================== */
+
+.tribute-count-pill {
+    font-family: 'Cinzel', serif;
+    font-size: 11rem;
+    font-weight: 900;
+    letter-spacing: 1.5rem;
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 4rem 12rem;
+    border-radius: 20rem;
+    display: inline-block;
+    margin-top: 6rem;
+}
+
+.tribute-modal-stance-actions {
+    display: flex;
+    gap: 12rem;
+    padding: 12rem 24rem 8rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.tribute-stance-btn {
+    flex: 1;
+    font-family: 'Cinzel', serif;
+    font-size: 12rem;
+    font-weight: 900;
+    letter-spacing: 1.2rem;
+    padding: 10rem 14rem;
+    border-radius: 8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid transparent;
+}
+
+.tribute-btn-attack {
+    background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
+    color: #ffffff;
+    border-color: #fca5a5;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+}
+
+.tribute-btn-attack:hover:not(:disabled) {
+    background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.55);
+}
+
+.tribute-btn-defense {
+    background: linear-gradient(180deg, #3b82f6 0%, #1e40af 100%);
+    color: #ffffff;
+    border-color: #93c5fd;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.tribute-btn-defense:hover:not(:disabled) {
+    background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.55);
+}
+
+.tribute-stance-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(0.8);
+    transform: none;
+    box-shadow: none;
+}
+
+.rebirth-card-tile.is-selected-tribute {
+    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.25) !important;
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.6) !important;
+    transform: translateY(-3px) scale(1.03);
+}
+
+.rebirth-card-tile.is-selected-tribute .target-owner-tag {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+}

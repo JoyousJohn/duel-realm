@@ -138,25 +138,9 @@
                             </svg>
                         </div>
                         <div class="stance-info">
-                            <div class="stance-badge">ATK MODE</div>
+                            <div class="stance-badge">NORMAL SUMMON</div>
                             <div class="stance-title">Face-Up Attack</div>
                             <div class="stance-desc" id="stance-attack-desc">Summon upright to declare attacks and inflict battle damage</div>
-                        </div>
-                        <div class="stance-chevron">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-                    </button>
-
-                    <button class="tactical-action-btn stance-defense-up" onclick="summonOptionSelected('defense-up')">
-                        <div class="stance-icon-container">
-                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            </svg>
-                        </div>
-                        <div class="stance-info">
-                            <div class="stance-badge">DEF MODE</div>
-                            <div class="stance-title">Face-Up Defense</div>
-                            <div class="stance-desc">Rotate horizontally face-up to protect LP with DEF points</div>
                         </div>
                         <div class="stance-chevron">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -172,7 +156,7 @@
                             </svg>
                         </div>
                         <div class="stance-info">
-                            <div class="stance-badge">SET / CONCEAL</div>
+                            <div class="stance-badge">SET MONSTER</div>
                             <div class="stance-title">Face-Down Defense</div>
                             <div class="stance-desc">Conceal monster face-down in defense to ambush opponent</div>
                         </div>
@@ -660,6 +644,42 @@
                 </div>
                 <div class="action-modal-footer">
                     <button class="action-cancel-btn" onclick="cancelHarpieLadyEffect()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tribute Summon Selection Modal -->
+        <div id="tribute-select-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelTributeSelectModal()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.45) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4);">
+                        <span class="action-pulse-dot" style="background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+                        <span class="action-header-category" style="color: #fca5a5;">TRIBUTE PROTOCOL</span>
+                    </div>
+                    <h3 class="action-modal-card-name" id="tribute-card-name">TRIBUTE SUMMON</h3>
+                    <div class="action-modal-card-stats" id="tribute-requirement-label">SELECT MONSTER(S) ON YOUR FIELD TO TRIBUTE</div>
+                    <div id="tribute-counter-badge" class="tribute-count-pill">TRIBUTES SELECTED: 0 / 1</div>
+                </div>
+
+                <div class="rebirth-cards-scroll-container">
+                    <div id="tribute-monsters-grid" class="rebirth-cards-grid"></div>
+                </div>
+
+                <div class="tribute-modal-stance-actions">
+                    <button class="tribute-stance-btn tribute-btn-attack" id="tribute-btn-attack" onclick="confirmTributeSummon('attack')" disabled>
+                        <span class="tribute-btn-icon">⚔</span>
+                        <span class="tribute-btn-text">TRIBUTE SUMMON (ATTACK)</span>
+                    </button>
+                    <button class="tribute-stance-btn tribute-btn-defense" id="tribute-btn-defense" onclick="confirmTributeSummon('defense-down')" disabled>
+                        <span class="tribute-btn-icon">🛡</span>
+                        <span class="tribute-btn-text">TRIBUTE SET (DEFENSE)</span>
+                    </button>
+                </div>
+
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelTributeSelectModal()"><span>&times; CANCEL</span></button>
                 </div>
             </div>
         </div>

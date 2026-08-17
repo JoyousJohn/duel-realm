@@ -791,6 +791,12 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
             playNonMonsterCard('player', activeCard, $(this), activeCardDef, zoneKind);
             return;
         } else if (activeCardDef && activeCardDef.type === 'monsters') {
+            var reqTributes = (typeof getRequiredTributes === 'function') ? getRequiredTributes(activeCardDef.level) : 0;
+            if (reqTributes > 0) {
+                openTributeSelectModal(activeCard, activeCardDef, $(this), reqTributes);
+                return;
+            }
+
             var summonOptions = $('#summon-options');
             $('#summon-card-title').text(activeCardDef.name || 'SUMMON MONSTER');
             $('#summon-card-stats').text('LVL ' + (activeCardDef.level || 1) + ' • ' + (activeCardDef.attribute || '') + ' • [' + (activeCardDef.monsterType || 'Monster') + '] • ATK ' + activeCardDef.atk + ' / DEF ' + activeCardDef.def);
@@ -951,6 +957,148 @@ async function summonOptionSelected(position) {
 
     removeMonsterFromHandVar('player', monsterName);
     await moveCard('player', sourceCard, targetSq, position);
+
+    GameState.turn.normalSummonUsed = true;
+    updateActionableCards();
+    updateResourceCounters();
+}
+
+// ==========================================================================
+// Tribute Summon System
+// ==========================================================================
+
+var pendingTributeSourceCard = null;
+var pendingTributeCardDef = null;
+var pendingTributeTargetSquare = null;
+var pendingTributeReqCount = 0;
+var selectedTributeZones = [];
+
+function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
+    pendingTributeSourceCard = sourceCard;
+    pendingTributeCardDef = cardDef;
+    pendingTributeTargetSquare = targetSquare;
+    pendingTributeReqCount = reqCount;
+    selectedTributeZones = [];
+
+    $('#tribute-card-name').text(cardDef.name || 'TRIBUTE SUMMON');
+    $('#tribute-requirement-label').text('SELECT ' + reqCount + ' MONSTER' + (reqCount > 1 ? 'S' : '') + ' ON YOUR FIELD TO TRIBUTE (LVL ' + (cardDef.level || 5) + ')');
+    updateTributeModalCounters();
+
+    var grid = $('#tribute-monsters-grid');
+    grid.empty();
+
+    var ownMonsters = GameState.getMonstersOnField('player');
+    if (ownMonsters.length === 0) {
+        addToFeed('You have no monsters on your field to tribute for <em>' + cardDef.name + '</em>.\n');
+        cancelTributeSelectModal();
+        return;
+    }
+
+    ownMonsters.forEach(function(entry) {
+        var mDef = cards[entry.card.cardId];
+        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
+        var displayName = isFaceDown ? (mDef ? mDef.name + ' (Face-Down)' : 'Face-Down Monster') : (mDef ? mDef.name : 'Monster');
+        var stats = isFaceDown 
+            ? 'DEF ' + getMonsterDef(entry.card) + ' (Set)' 
+            : 'ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card);
+        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + (mDef ? mDef.file : 'card_back.png');
+
+        var tile = $('<div class="rebirth-card-tile target-trap-tile" data-zone="' + entry.zone + '" style="cursor: pointer;">' +
+            '<div class="rebirth-card-preview-frame">' +
+                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                '<span class="target-owner-tag tag-player">ZONE #' + entry.zone + '</span>' +
+            '</div>' +
+            '<div class="rebirth-tile-meta">' +
+                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                '<span class="rebirth-tile-stats">' + stats + '</span>' +
+            '</div>' +
+        '</div>');
+
+        tile.on('click', function() {
+            toggleTributeCandidate(entry.zone, tile);
+        });
+
+        grid.append(tile);
+    });
+
+    $('#tribute-select-modal').fadeIn(150);
+}
+
+function toggleTributeCandidate(zoneNum, tileElm) {
+    var idx = selectedTributeZones.indexOf(zoneNum);
+    if (idx !== -1) {
+        selectedTributeZones.splice(idx, 1);
+        tileElm.removeClass('is-selected-tribute');
+    } else {
+        if (selectedTributeZones.length < pendingTributeReqCount) {
+            selectedTributeZones.push(zoneNum);
+            tileElm.addClass('is-selected-tribute');
+        } else if (pendingTributeReqCount === 1) {
+            // Auto swap if single tribute
+            selectedTributeZones = [zoneNum];
+            $('#tribute-monsters-grid .rebirth-card-tile').removeClass('is-selected-tribute');
+            tileElm.addClass('is-selected-tribute');
+        }
+    }
+    updateTributeModalCounters();
+}
+
+function updateTributeModalCounters() {
+    var count = selectedTributeZones.length;
+    var req = pendingTributeReqCount;
+    $('#tribute-counter-badge').text('TRIBUTES SELECTED: ' + count + ' / ' + req);
+
+    var isReady = (count === req);
+    $('#tribute-btn-attack').prop('disabled', !isReady);
+    $('#tribute-btn-defense').prop('disabled', !isReady);
+}
+
+function cancelTributeSelectModal() {
+    $('#tribute-select-modal').fadeOut(120);
+    pendingTributeSourceCard = null;
+    pendingTributeCardDef = null;
+    pendingTributeTargetSquare = null;
+    pendingTributeReqCount = 0;
+    selectedTributeZones = [];
+    resetActiveCardClass();
+    clearAvailableZones();
+}
+
+async function confirmTributeSummon(position) {
+    if (selectedTributeZones.length !== pendingTributeReqCount) return;
+
+    var sourceCard = pendingTributeSourceCard;
+    var targetSq = pendingTributeTargetSquare;
+    var cardDef = pendingTributeCardDef;
+    var tributeZones = [...selectedTributeZones];
+
+    $('#tribute-select-modal').fadeOut(120);
+
+    // Collect tribute monster names for narrative feed
+    var tributeNames = [];
+    for (var i = 0; i < tributeZones.length; i++) {
+        var z = tributeZones[i];
+        var mInst = GameState.player.field.monsters[z];
+        var mDef = mInst ? cards[mInst.cardId] : null;
+        tributeNames.push(mDef ? mDef.name : 'a monster');
+        await destroyMonster('player', z);
+    }
+
+    addToFeed('Player Tributes <strong>' + tributeNames.join(' and ') + '</strong> to Tribute Summon <em>' + cardDef.name + '</em>!\n\n');
+
+    resetActiveCardClass();
+    clearAvailableZones();
+
+    activeCard = null;
+    selectedSquare = null;
+
+    removeMonsterFromHandVar('player', cardDef.id);
+    await moveCard('player', sourceCard, targetSq, position);
+
+    // Consume Normal Summon for turn
+    GameState.turn.normalSummonUsed = true;
+    updateActionableCards();
+    updateResourceCounters();
 }
 
 // Remove a CardInstance from who's GameState.hand by uid

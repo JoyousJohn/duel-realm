@@ -8,12 +8,12 @@ function AICalcMonsterPosition(monsterName) {
 
     // Dragon Capture Jar: Dragons cannot enter Attack Position while jar is active
     if (isDragonLocked() && cardDef.monsterType === 'Dragon') {
-        return (def >= atk) ? 'defense-up' : 'defense-down';
+        return 'defense-down';
     }
 
     // Swords of Revealing Light: If AI attacks are locked, prefer defense
     if (isAttackBlocked('computer')) {
-        return (def >= atk) ? 'defense-up' : 'defense-down';
+        return 'defense-down';
     }
 
     // Evaluate opponent's on-field offensive threats
@@ -58,7 +58,7 @@ function AICalcMonsterPosition(monsterName) {
     }
 
     // Default: Set face-down in defense for defensive/ambush monsters (e.g. Mystical Elf, Wall of Illusion)
-    return (def >= 1500) ? 'defense-down' : 'defense-up';
+    return 'defense-down';
 }
 
 // AI changes a monster's battle position with smooth animation and DOM/GameState sync
@@ -455,21 +455,68 @@ async function AIPlayHarpieLady() {
     await sleep(getAnimDuration(500));
 }
 
-// Step 2: AI Normal Summons the best monster currently in hand
+// Step 2: AI Normal/Tribute Summons the best monster currently in hand
 async function AISummonMonsterRoutine() {
-    if (GameState.turn.normalSummonUsed || getNumOfFreeZones('computer') <= 0) return;
+    if (GameState.turn.normalSummonUsed) return;
 
     var currentHand = [...computer['hand']['monsters']];
     if (currentHand.length === 0) return;
 
-    currentHand.sort(function(a, b) {
-        var defA = cards[a];
-        var defB = cards[b];
-        return (defB ? defB.atk || 0 : 0) - (defA ? defA.atk || 0 : 0);
+    var fieldMonsters = GameState.getMonstersOnField('computer');
+    var freeZones = getNumOfFreeZones('computer');
+
+    // Find all summonable candidates based on tribute requirements
+    var summonable = [];
+
+    currentHand.forEach(function(mName) {
+        var mDef = cards[mName];
+        if (!mDef) return;
+        var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(mDef.level) : 0;
+        
+        if (req === 0 && freeZones > 0) {
+            summonable.push({ name: mName, def: mDef, reqTributes: 0, score: (mDef.atk || 0) });
+        } else if (req > 0 && fieldMonsters.length >= req) {
+            // Sort field monsters by ascending ATK to find the weakest tributes
+            var sortedField = fieldMonsters.slice().sort(function(a, b) {
+                return getMonsterAtk(a.card) - getMonsterAtk(b.card);
+            });
+            var tributes = sortedField.slice(0, req);
+            var lostAtk = tributes.reduce(function(acc, t) { return acc + getMonsterAtk(t.card); }, 0);
+            var gainAtk = (mDef.atk || 0);
+
+            // AI considers tribute worth it if new monster ATK exceeds the single strongest sacrificed monster or total gain is positive
+            if (gainAtk >= 2000 || gainAtk > (lostAtk * 0.8)) {
+                summonable.push({
+                    name: mName,
+                    def: mDef,
+                    reqTributes: req,
+                    tributes: tributes,
+                    score: gainAtk - (lostAtk * 0.5)
+                });
+            }
+        }
     });
 
-    var monsterName = currentHand[0];
-    await summonMonster('computer', monsterName);
+    if (summonable.length === 0) return;
+
+    // Pick highest score monster
+    summonable.sort(function(a, b) { return b.score - a.score; });
+    var chosen = summonable[0];
+
+    // If tribute required, send tributes to GY first
+    if (chosen.reqTributes > 0 && chosen.tributes) {
+        var tributeNames = [];
+        for (var t = 0; t < chosen.tributes.length; t++) {
+            var tributeItem = chosen.tributes[t];
+            var tDef = cards[tributeItem.card.cardId];
+            tributeNames.push(tDef ? tDef.name : 'a monster');
+            await destroyMonster('computer', tributeItem.zone);
+        }
+        addToFeed('Computer Tributes <strong>' + tributeNames.join(' and ') + '</strong> to Tribute Summon <em>' + chosen.def.name + '</em>!\n\n');
+        await sleep(getAnimDuration(350));
+    }
+
+    await summonMonster('computer', chosen.name);
     await sleep(getAnimDuration(300));
 }
 

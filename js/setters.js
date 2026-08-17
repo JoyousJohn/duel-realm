@@ -131,7 +131,13 @@ function isCardCurrentlyPlayable(cardDef) {
     var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
 
     if (cardDef.type === 'monsters') {
-        return freeSlots > 0 && !normalSummonUsed;
+        if (normalSummonUsed) return false;
+        var reqTributes = getRequiredTributes(cardDef.level);
+        var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
+        if (ownMonsters < reqTributes) return false;
+        if (reqTributes === 0 && freeSlots <= 0) return false;
+        if (reqTributes > 0 && (freeSlots + reqTributes) < 1) return false;
+        return true;
     }
     if (cardDef.type === 'spells' && cardDef.subType === 'field') {
         return isSquareEmpty(getFieldZoneElm('player'));
@@ -187,7 +193,16 @@ function getCardUnplayableReason(cardDef) {
         if (normalSummonUsed) {
             return 'You have already used your Normal Summon / Set for this turn.';
         }
-        if (freeSlots <= 0) {
+        var reqTributes = getRequiredTributes(cardDef.level);
+        var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
+        if (ownMonsters < reqTributes) {
+            if (reqTributes === 1) {
+                return 'Requires 1 Tribute (Level 5-6), but you control no monsters on your field.';
+            } else {
+                return 'Requires 2 Tributes (Level 7+), but you only control ' + ownMonsters + ' monster(s) on your field.';
+            }
+        }
+        if (freeSlots <= 0 && reqTributes === 0) {
             return 'There are no free slots on your field.';
         }
     }
