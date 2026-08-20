@@ -612,6 +612,54 @@ div.card-zone.field-available-zone {
     transform: translate(-50%, 50%) scale(1);
 }
 
+/* ==========================================================================
+   Field Spell Projected Stat Preview Badges (On-Mat Highlight)
+   ========================================================================== */
+
+.stat-mod-badge.stat-mod-field-preview {
+    border-style: dashed !important;
+    border-width: 1.5px !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: statFieldPreviewPulse 1.3s infinite alternate ease-in-out !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.7), 0 2px 6px rgba(0, 0, 0, 0.7) !important;
+    z-index: 80;
+}
+
+.stat-mod-badge.stat-mod-field-preview.stat-mod-buff {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.9) 0%, rgba(5, 150, 105, 0.9) 100%) !important;
+    border-color: #6ee7b7 !important;
+    color: #ecfdf5 !important;
+}
+
+.stat-mod-badge.stat-mod-field-preview.stat-mod-debuff {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%) !important;
+    border-color: #fca5a5 !important;
+    color: #fef2f2 !important;
+}
+
+@keyframes statFieldPreviewPulse {
+    from {
+        transform: translate(-50%, 50%) scale(0.94);
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+    to {
+        transform: translate(-50%, 50%) scale(1.06);
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.95), 0 0 10px rgba(254, 240, 138, 0.6);
+        filter: brightness(1.2);
+    }
+}
+
+.card-zone-square[data-card-position*="defense"] .stat-mod-badge.stat-mod-field-preview {
+    bottom: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, 50%);
+}
+
+.card-zone-square[data-card-position*="defense"] .stat-mod-badge.stat-mod-field-preview ~ .stat-mod-badge.stat-mod-field-preview {
+    bottom: calc(50% - (var(--card-width) / 2) + 20rem);
+    transform: translate(-50%, 50%);
+}
+
 .target-owner-tag {
     position: absolute;
     bottom: 4rem;
@@ -636,4 +684,92 @@ div.card-zone.field-available-zone {
     background: rgba(16, 185, 129, 0.85);
     color: #ffffff;
     border: 1px solid #a7f3d0;
+}
+
+/* ==========================================================================
+   Banished Graveyard Floating Pill Tab & Modal
+   ========================================================================== */
+
+.banished-graveyard-tab {
+    position: absolute;
+    top: -12rem;
+    right: -10rem;
+    z-index: 35;
+    display: inline-flex;
+    align-items: center;
+    gap: 4rem;
+    padding: 3rem 8rem;
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.95) 0%, rgba(59, 7, 100, 0.98) 100%);
+    border: 1.5px solid #c084fc;
+    border-radius: 20rem;
+    color: #f3e8ff;
+    font-family: 'Cinzel', serif;
+    font-size: 8.5rem;
+    font-weight: 800;
+    letter-spacing: 0.8rem;
+    cursor: pointer;
+    box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.8), 0 0 10rem rgba(192, 132, 252, 0.5);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: banishedTabPulse 2.5s infinite alternate ease-in-out;
+}
+
+.banished-graveyard-tab:hover {
+    transform: scale(1.1) translateY(-2rem);
+    background: linear-gradient(135deg, rgba(126, 34, 206, 1) 0%, rgba(88, 28, 135, 1) 100%);
+    border-color: #e9d5ff;
+    box-shadow: 0 6rem 18rem rgba(0, 0, 0, 0.9), 0 0 16rem rgba(192, 132, 252, 0.85);
+}
+
+@keyframes banishedTabPulse {
+    from {
+        box-shadow: 0 4rem 10rem rgba(0, 0, 0, 0.7), 0 0 6rem rgba(192, 132, 252, 0.35);
+    }
+    to {
+        box-shadow: 0 4rem 14rem rgba(0, 0, 0, 0.9), 0 0 14rem rgba(192, 132, 252, 0.75);
+    }
+}
+
+.banished-tab-icon {
+    font-size: 9rem;
+    line-height: 1;
+}
+
+.banished-tab-label {
+    font-size: 8rem;
+    font-weight: 900;
+}
+
+.banished-tab-count {
+    background: rgba(192, 132, 252, 0.35);
+    border: 1px solid rgba(233, 213, 255, 0.6);
+    border-radius: 10rem;
+    padding: 1rem 5rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+/* Banished Modal Theme */
+.banished-modal-panel {
+    border-color: rgba(192, 132, 252, 0.5) !important;
+    box-shadow: 0 20rem 60rem rgba(0, 0, 0, 0.95), 0 0 30rem rgba(168, 85, 247, 0.3) !important;
+}
+
+.banished-modal-panel .action-panel-top-glow {
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.55) 0%, transparent 70%) !important;
+}
+
+.banished-modal-panel .action-header-badge {
+    background: rgba(168, 85, 247, 0.18) !important;
+    border-color: rgba(192, 132, 252, 0.45) !important;
+}
+
+.banished-modal-panel .action-pulse-dot {
+    background: #c084fc !important;
+    box-shadow: 0 0 8rem #c084fc !important;
+}
+
+.banished-modal-panel .action-header-category {
+    color: #e9d5ff !important;
 }

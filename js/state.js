@@ -66,7 +66,8 @@ var GameState = {
             spells: {},
             fieldZone: null
         },
-        graveyard: []
+        graveyard: [],
+        banished: []
     },
     computer: {
         lp: 8000,
@@ -77,7 +78,8 @@ var GameState = {
             spells: {},
             fieldZone: null
         },
-        graveyard: []
+        graveyard: [],
+        banished: []
     },
     selected: {
         handCard: null,     // CardInstance or null
@@ -99,14 +101,16 @@ var GameState = {
             deck: [],
             hand: [],
             field: { monsters: {}, spells: {}, fieldZone: null },
-            graveyard: []
+            graveyard: [],
+            banished: []
         };
         this.computer = {
             lp: 8000,
             deck: [],
             hand: [],
             field: { monsters: {}, spells: {}, fieldZone: null },
-            graveyard: []
+            graveyard: [],
+            banished: []
         };
         this.selected = {
             handCard: null,

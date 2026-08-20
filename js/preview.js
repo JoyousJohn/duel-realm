@@ -74,6 +74,17 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         var effAtk = baseAtk;
         var effDef = baseDef;
 
+        var previewFieldSpellId = null;
+        if (typeof activeCard !== 'undefined' && activeCard && activeCard.length) {
+            var activeCardName = activeCard.attr('data-card-name');
+            var activeDef = (typeof cards !== 'undefined' && activeCardName) ? cards[activeCardName] : null;
+            if (activeDef && activeDef.type === 'spells' && activeDef.subType === 'field') {
+                previewFieldSpellId = activeCardName;
+            }
+        }
+
+        var isFieldPreview = (previewFieldSpellId !== null);
+
         var zoneNum = square.length ? parseInt(square.attr('data-zone')) : null;
         var monsterInst = null;
         if (zoneNum && typeof GameState !== 'undefined' && GameState) {
@@ -83,12 +94,21 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         }
 
         if (monsterInst && typeof getMonsterAtk === 'function') {
-            effAtk = getMonsterAtk(monsterInst);
-            effDef = getMonsterDef(monsterInst);
-            atkMod = effAtk - baseAtk;
-            defMod = effDef - baseDef;
+            if (isFieldPreview) {
+                var pMods = (typeof getFieldMods === 'function') ? getFieldMods(cardData, previewFieldSpellId) : { atk: 0, def: 0 };
+                var eqMods = (typeof getEquipMods === 'function') ? getEquipMods(monsterInst) : { atk: 0, def: 0 };
+                atkMod = pMods.atk + eqMods.atk;
+                defMod = pMods.def + eqMods.def;
+                effAtk = Math.max(0, baseAtk + atkMod);
+                effDef = Math.max(0, baseDef + defMod);
+            } else {
+                effAtk = getMonsterAtk(monsterInst);
+                effDef = getMonsterDef(monsterInst);
+                atkMod = effAtk - baseAtk;
+                defMod = effDef - baseDef;
+            }
         } else {
-            var mods = (typeof getFieldMods === 'function') ? getFieldMods(cardData) : { atk: 0, def: 0 };
+            var mods = (typeof getFieldMods === 'function') ? getFieldMods(cardData, previewFieldSpellId || undefined) : { atk: 0, def: 0 };
             atkMod = mods.atk;
             defMod = mods.def;
             effAtk = Math.max(0, baseAtk + atkMod);
@@ -107,11 +127,11 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
             if (atkMod !== 0) {
                 var atkIsPos = atkMod > 0;
                 var atkSign = atkIsPos ? '+' : '';
-                var atkModText = atkSign + atkMod;
-                var atkModClass = atkIsPos ? 'mod-buff' : 'mod-debuff';
+                var atkModText = atkSign + atkMod + (isFieldPreview ? ' ⚡' : '');
+                var atkModClass = (atkIsPos ? 'mod-buff' : 'mod-debuff') + (isFieldPreview ? ' is-field-preview' : '');
                 var atkValueClass = atkIsPos ? 'has-stat-buff' : 'has-stat-debuff';
                 atkValElem.text(effAtk).addClass(atkValueClass);
-                atkModElem.removeClass('mod-buff mod-debuff').addClass(atkModClass).text(atkModText).show();
+                atkModElem.removeClass('mod-buff mod-debuff is-field-preview').addClass(atkModClass).text(atkModText).show();
             } else {
                 atkValElem.text(effAtk);
                 atkModElem.hide();
@@ -120,11 +140,11 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
             if (defMod !== 0) {
                 var defIsPos = defMod > 0;
                 var defSign = defIsPos ? '+' : '';
-                var defModText = defSign + defMod;
-                var defModClass = defIsPos ? 'mod-buff' : 'mod-debuff';
+                var defModText = defSign + defMod + (isFieldPreview ? ' ⚡' : '');
+                var defModClass = (defIsPos ? 'mod-buff' : 'mod-debuff') + (isFieldPreview ? ' is-field-preview' : '');
                 var defValueClass = defIsPos ? 'has-stat-buff' : 'has-stat-debuff';
                 defValElem.text(effDef).addClass(defValueClass);
-                defModElem.removeClass('mod-buff mod-debuff').addClass(defModClass).text(defModText).show();
+                defModElem.removeClass('mod-buff mod-debuff is-field-preview').addClass(defModClass).text(defModText).show();
             } else {
                 defValElem.text(effDef);
                 defModElem.hide();

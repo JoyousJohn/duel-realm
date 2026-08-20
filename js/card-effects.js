@@ -173,9 +173,9 @@ $(document).ready(function() {
 // ---------------------------------------------------------------------------
 
 // Return { atk, def } stat modifiers for a monster card definition based on
-// active field spells on BOTH sides. Separate ATK and DEF to support
-// asymmetric field spells (e.g. Mystic Plasma Zone: +500 ATK / -400 DEF).
-function getFieldMods(monsterDef) {
+// active field spells on BOTH sides (or projected override for player field).
+// Separate ATK and DEF to support asymmetric field spells (e.g. Mystic Plasma Zone: +500 ATK / -400 DEF).
+function getFieldMods(monsterDef, overridePlayerFieldId) {
     if (!monsterDef || monsterDef.type !== 'monsters') return { atk: 0, def: 0 };
 
     var atkMod = 0;
@@ -184,10 +184,15 @@ function getFieldMods(monsterDef) {
 
     for (var s = 0; s < bothSides.length; s++) {
         var who = bothSides[s];
-        var fieldInst = GameState[who].field.fieldZone;
-        if (!fieldInst) continue;
+        var fieldId = null;
+        if (who === 'player' && overridePlayerFieldId !== undefined) {
+            fieldId = overridePlayerFieldId;
+        } else {
+            var fieldInst = (typeof GameState !== 'undefined' && GameState && GameState[who] && GameState[who].field) ? GameState[who].field.fieldZone : null;
+            if (fieldInst) fieldId = fieldInst.cardId;
+        }
+        if (!fieldId) continue;
 
-        var fieldId = fieldInst.cardId;
         if (fieldId === 'yami') {
             if (monsterDef.monsterType === 'Fiend' || monsterDef.monsterType === 'Spellcaster') {
                 atkMod += 300; defMod += 300;
@@ -1794,11 +1799,18 @@ function promptPlayerArcaneDisruptor(zoneNum, spellDef) {
     return new Promise(function(resolve) {
         arcaneDisruptorPromptResolver = resolve;
 
-        $('#ad-trigger-cause').text((spellDef ? spellDef.name.toUpperCase() : 'A SPELL CARD') + ' WAS ACTIVATED!');
+        var spellName = spellDef ? spellDef.name : 'Spell Card';
+        var spellEffect = (spellDef && spellDef.desc) ? spellDef.desc : 'No description available.';
+        var spellTypeLabel = (spellDef && spellDef.subType) ? spellDef.subType.toUpperCase() + ' SPELL' : 'SPELL CARD';
+
+        $('#ad-trigger-cause').text(spellName.toUpperCase() + ' WAS ACTIVATED!');
         $('#ad-prompt-description').html(
-            'Opponent activated <strong>' + (spellDef ? spellDef.name : 'a Spell Card') + '</strong>.<br>' +
+            'Opponent activated <strong>' + spellName + '</strong>.<br>' +
             'Activate your face-down <span style="color: #f472b6; font-weight: bold;">Arcane Disruptor</span> to negate it and remove it from play? (Requires 1 discard)'
         );
+
+        $('#ad-spell-header').text('ACTIVATED ' + spellTypeLabel + ': ' + spellName.toUpperCase());
+        $('#ad-spell-effect-text').text('"' + spellEffect + '"');
 
         $('#arcane-disruptor-prompt-modal').fadeIn(150);
     });
@@ -3114,9 +3126,12 @@ function updateSwordsVisualCounter(who, zoneNum, turnsLeft) {
     }
 }
 
-// Update or create visual ATK/DEF stat modifier badges (+/- diff) for all face-up monsters
-function updateStatModBadges() {
+// Update or create visual ATK/DEF stat modifier badges (+/- diff) for all face-up monsters.
+// Accepts optional previewFieldSpellId to render projected stat preview badges when a field spell is selected in hand.
+function updateStatModBadges(previewFieldSpellId) {
+    var isPreviewMode = (typeof previewFieldSpellId === 'string' && previewFieldSpellId.length > 0);
     var sides = ['player', 'computer'];
+
     sides.forEach(function(who) {
         for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
             var square = getSquareElm(who, zoneNum);
@@ -3129,7 +3144,7 @@ function updateStatModBadges() {
 
             if (monsterInst && !isFaceDown) {
                 var def = cards[monsterInst.cardId];
-                var mods = getFieldMods(def);
+                var mods = isPreviewMode ? getFieldMods(def, previewFieldSpellId) : getFieldMods(def);
                 var equipMods = getEquipMods(monsterInst);
                 var atkMod = mods.atk + equipMods.atk;
                 var defMod = mods.def + equipMods.def;
@@ -3137,12 +3152,15 @@ function updateStatModBadges() {
                 existingBadge.remove();
 
                 if (atkMod !== 0 || defMod !== 0) {
+                    var previewExtraClass = isPreviewMode ? ' stat-mod-field-preview' : '';
+
                     if (atkMod === defMod) {
                         // Symmetric: single combined badge
                         var isPos = atkMod > 0;
-                        var badgeClass = 'stat-mod-badge ' + (isPos ? 'stat-mod-buff' : 'stat-mod-debuff');
+                        var badgeClass = 'stat-mod-badge ' + (isPos ? 'stat-mod-buff' : 'stat-mod-debuff') + previewExtraClass;
+                        var icon = isPreviewMode ? '⚡' : (isPos ? '▲' : '▼');
                         var badge = $('<div class="' + badgeClass + '">' +
-                            '<span class="stat-mod-icon">' + (isPos ? '▲' : '▼') + '</span>' +
+                            '<span class="stat-mod-icon">' + icon + '</span>' +
                             '<span class="stat-mod-label">' + (isPos ? '+' : '') + atkMod + '</span>' +
                         '</div>');
                         square.append(badge);
@@ -3150,16 +3168,18 @@ function updateStatModBadges() {
                         // Asymmetric: show ATK and DEF separately
                         if (atkMod !== 0) {
                             var atkIsPos = atkMod > 0;
-                            var atkBadge = $('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + '">' +
-                                '<span class="stat-mod-icon">' + (atkIsPos ? '▲' : '▼') + '</span>' +
+                            var atkIcon = isPreviewMode ? '⚡' : (atkIsPos ? '▲' : '▼');
+                            var atkBadge = $('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + previewExtraClass + '">' +
+                                '<span class="stat-mod-icon">' + atkIcon + '</span>' +
                                 '<span class="stat-mod-label">ATK ' + (atkIsPos ? '+' : '') + atkMod + '</span>' +
                             '</div>');
                             square.append(atkBadge);
                         }
                         if (defMod !== 0) {
                             var defIsPos = defMod > 0;
-                            var defBadge = $('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + '">' +
-                                '<span class="stat-mod-icon">' + (defIsPos ? '▲' : '▼') + '</span>' +
+                            var defIcon = isPreviewMode ? '⚡' : (defIsPos ? '▲' : '▼');
+                            var defBadge = $('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + previewExtraClass + '">' +
+                                '<span class="stat-mod-icon">' + defIcon + '</span>' +
                                 '<span class="stat-mod-label">DEF ' + (defIsPos ? '+' : '') + defMod + '</span>' +
                             '</div>');
                             square.append(defBadge);
@@ -3179,34 +3199,38 @@ function updateStatModBadges() {
         var existingBadge = $(this).find('.stat-mod-badge');
 
         if (cardDef && cardDef.type === 'monsters') {
-            var mods = getFieldMods(cardDef);
+            var mods = isPreviewMode ? getFieldMods(cardDef, previewFieldSpellId) : getFieldMods(cardDef);
             var atkMod = mods.atk;
             var defMod = mods.def;
 
             existingBadge.remove();
 
             if (atkMod !== 0 || defMod !== 0) {
+                var previewExtraClass = isPreviewMode ? ' stat-mod-field-preview' : '';
                 if (atkMod === defMod) {
                     // Symmetric: single combined preview badge
                     var isPos = atkMod > 0;
-                    var modClass = (isPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview';
+                    var modClass = (isPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview' + previewExtraClass;
+                    var icon = isPreviewMode ? '⚡' : (isPos ? '▲' : '▼');
                     $(this).append($('<div class="stat-mod-badge ' + modClass + '">' +
-                        '<span class="stat-mod-icon">' + (isPos ? '▲' : '▼') + '</span>' +
+                        '<span class="stat-mod-icon">' + icon + '</span>' +
                         '<span class="stat-mod-label">' + (isPos ? '+' : '') + atkMod + '</span>' +
                     '</div>'));
                 } else {
                     // Asymmetric: show ATK and DEF separately
                     if (atkMod !== 0) {
                         var atkIsPos = atkMod > 0;
-                        $(this).append($('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview">' +
-                            '<span class="stat-mod-icon">' + (atkIsPos ? '▲' : '▼') + '</span>' +
+                        var atkIcon = isPreviewMode ? '⚡' : (atkIsPos ? '▲' : '▼');
+                        $(this).append($('<div class="stat-mod-badge ' + (atkIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview' + previewExtraClass + '">' +
+                            '<span class="stat-mod-icon">' + atkIcon + '</span>' +
                             '<span class="stat-mod-label">ATK ' + (atkIsPos ? '+' : '') + atkMod + '</span>' +
                         '</div>'));
                     }
                     if (defMod !== 0) {
                         var defIsPos = defMod > 0;
-                        $(this).append($('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview">' +
-                            '<span class="stat-mod-icon">' + (defIsPos ? '▲' : '▼') + '</span>' +
+                        var defIcon = isPreviewMode ? '⚡' : (defIsPos ? '▲' : '▼');
+                        $(this).append($('<div class="stat-mod-badge ' + (defIsPos ? 'stat-mod-buff' : 'stat-mod-debuff') + ' stat-mod-preview' + previewExtraClass + '">' +
+                            '<span class="stat-mod-icon">' + defIcon + '</span>' +
                             '<span class="stat-mod-label">DEF ' + (defIsPos ? '+' : '') + defMod + '</span>' +
                         '</div>'));
                     }

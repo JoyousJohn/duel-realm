@@ -118,26 +118,49 @@ img {
 
 #row-wrapper {
     display: grid;
-    grid-template-columns: var(--card-height) 1fr var(--card-height);
+    grid-template-columns: var(--card-height) minmax(0, 1fr) var(--card-height);
     gap: 16px;
     align-items: center;
     justify-items: center;
     padding: 0 6px;
     width: 100%;
     max-width: calc((var(--card-height) + 10px) * 7);
+    position: relative;
+    overflow: visible;
+}
+
+#player-deck-zone, #computer-deck-zone {
+    grid-column: 1;
+    z-index: 10;
+    position: relative;
+}
+
+#player-graveyard-zone, #computer-graveyard-zone {
+    grid-column: 3;
+    z-index: 10;
+    position: relative;
 }
 
 #player-hand, #computer-hand {
+    grid-column: 2;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: calc(var(--card-height) + 14px);
     width: 100%;
+    min-width: 0;
+    position: relative;
+    z-index: 40;
+    overflow: visible;
+}
+
+#player-hand:hover {
+    z-index: 50;
 }
 
 #player-hand > div, #computer-hand > div {
     width: var(--card-width);
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     margin: 0 -14px; /* Overlap hand cards naturally */
     position: relative;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -145,7 +168,7 @@ img {
 
 #player-hand > div:hover {
     margin: 0 6px;
-    z-index: 10;
+    z-index: 60;
 }
 
 /* When the hand is hovered, spread all cards apart so they overlap less */
@@ -1199,90 +1222,215 @@ img {
 }
 
 /* ==========================================================================
-   Tribute Summon Selection Styles
+   On-Mat Tribute Summon Selection Styles (Modern Tactical UX)
    ========================================================================== */
 
-.tribute-count-pill {
-    font-family: 'Cinzel', serif;
-    font-size: 11rem;
-    font-weight: 900;
-    letter-spacing: 1.5rem;
-    color: #fca5a5;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    padding: 4rem 12rem;
-    border-radius: 20rem;
-    display: inline-block;
-    margin-top: 6rem;
+body.tribute-selection-mode #opponent-field,
+body.tribute-selection-mode #player-field .card-zone-square.spell-zone-square {
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
 }
 
-.tribute-modal-stance-actions {
+body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight):not(.available-drop-zone) {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.card-zone-square.tribute-candidate-highlight {
+    cursor: pointer !important;
+    position: relative;
+    z-index: 40;
+}
+
+.card-zone-square.tribute-candidate-highlight .card-zone {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.9), inset 0 0 10px rgba(245, 158, 11, 0.45) !important;
+    animation: tributeCandidatePulse 1.2s ease-in-out infinite alternate !important;
+}
+
+@keyframes tributeCandidatePulse {
+    from {
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.6), inset 0 0 6px rgba(245, 158, 11, 0.3);
+        border-color: #d97706 !important;
+    }
+    to {
+        box-shadow: 0 0 24px rgba(245, 158, 11, 1), inset 0 0 14px rgba(245, 158, 11, 0.65);
+        border-color: #fef08a !important;
+    }
+}
+
+.card-zone-square.is-tribute-selected .card-zone {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.95), inset 0 0 14px rgba(239, 68, 68, 0.6) !important;
+    animation: none !important;
+}
+
+.tribute-selected-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.92) 70%, transparent 100%);
+    border: 2px solid #fee2e2;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
     display: flex;
-    gap: 12rem;
-    padding: 12rem 24rem 8rem;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.tribute-stance-btn {
-    flex: 1;
-    font-family: 'Cinzel', serif;
-    font-size: 12rem;
-    font-weight: 900;
-    letter-spacing: 1.2rem;
-    padding: 10rem 14rem;
-    border-radius: 8rem;
-    cursor: pointer;
-    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8rem;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    border: 1px solid transparent;
+    font-size: 22px;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.95), 0 0 10px #ffffff;
+    z-index: 45;
+    pointer-events: none;
+    animation: tributeBadgePop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.tribute-btn-attack {
+@keyframes tributeBadgePop {
+    from {
+        transform: translate(-50%, -50%) scale(0.4);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Floating On-Mat Tribute Action Bar */
+.tribute-action-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 18px;
+    background: rgba(13, 17, 23, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1.5px solid rgba(212, 175, 55, 0.7);
+    border-radius: 40px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 22px rgba(212, 175, 55, 0.35);
+    animation: tributeBarSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tributeBarSlideUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.tribute-bar-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tribute-bar-title {
+    font-family: 'Cinzel', serif;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.tribute-bar-counter {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fca5a5;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+
+.tribute-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tribute-bar-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.tribute-bar-btn.btn-atk {
     background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
     color: #ffffff;
     border-color: #fca5a5;
-    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.35);
 }
 
-.tribute-btn-attack:hover:not(:disabled) {
+.tribute-bar-btn.btn-atk:hover:not(:disabled) {
     background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.55);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(239, 68, 68, 0.55);
 }
 
-.tribute-btn-defense {
+.tribute-bar-btn.btn-def {
     background: linear-gradient(180deg, #3b82f6 0%, #1e40af 100%);
     color: #ffffff;
     border-color: #93c5fd;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+    box-shadow: 0 3px 10px rgba(59, 130, 246, 0.35);
 }
 
-.tribute-btn-defense:hover:not(:disabled) {
+.tribute-bar-btn.btn-def:hover:not(:disabled) {
     background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(59, 130, 246, 0.55);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(59, 130, 246, 0.55);
 }
 
-.tribute-stance-btn:disabled {
+.tribute-bar-btn.btn-mausoleum {
+    background: linear-gradient(180deg, #059669 0%, #047857 100%);
+    color: #ffffff;
+    border-color: #6ee7b7;
+    box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+}
+
+.tribute-bar-btn.btn-mausoleum:hover:not(:disabled) {
+    background: linear-gradient(180deg, #10b981 0%, #065f46 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(16, 185, 129, 0.55);
+}
+
+.tribute-bar-btn.btn-cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.tribute-bar-btn.btn-cancel:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.tribute-bar-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
     filter: grayscale(0.8);
-    transform: none;
-    box-shadow: none;
-}
-
-.rebirth-card-tile.is-selected-tribute {
-    border-color: #ef4444 !important;
-    background: rgba(239, 68, 68, 0.25) !important;
-    box-shadow: 0 0 16px rgba(239, 68, 68, 0.6) !important;
-    transform: translateY(-3px) scale(1.03);
-}
-
-.rebirth-card-tile.is-selected-tribute .target-owner-tag {
-    background: #ef4444 !important;
-    color: #ffffff !important;
+    transform: none !important;
+    box-shadow: none !important;
 }

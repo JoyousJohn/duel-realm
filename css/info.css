@@ -904,6 +904,24 @@ body.sidebar-is-resizing * {
     box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
+.hud-stat-mod-pill.is-field-preview {
+    border-style: dashed !important;
+    border-width: 1.5px !important;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.8), 0 0 6px rgba(254, 240, 138, 0.5) !important;
+    animation: previewModPillGlow 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes previewModPillGlow {
+    from {
+        transform: scale(0.96);
+        filter: brightness(1);
+    }
+    to {
+        transform: scale(1.04);
+        filter: brightness(1.25);
+    }
+}
+
 /* Lore / Effect Box */
 .preview-desc-container {
     background: rgba(13, 17, 23, 0.75);

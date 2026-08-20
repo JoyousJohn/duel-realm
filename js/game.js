@@ -286,6 +286,81 @@ function updateGraveyardZones() {
             }
         }
     });
+
+    updateBanishedZones();
+}
+
+function openBanishedModal(who) {
+    var isPlayer = (who === 'player');
+    $('#banished-modal-category').text(isPlayer ? 'PLAYER ARCHIVE' : 'OPPONENT ARCHIVE');
+    $('#banished-modal-title').text(isPlayer ? 'PLAYER BANISHED ZONE' : 'OPPONENT BANISHED ZONE');
+
+    var banishedList = (GameState && GameState[who] && GameState[who].banished) ? GameState[who].banished : [];
+    
+    var cardIds = banishedList.map(function(item) {
+        return typeof item === 'string' ? item : (item.cardId || (item.card && item.card.cardId));
+    }).filter(Boolean);
+
+    $('#banished-modal-count').text(cardIds.length + ' ' + (cardIds.length === 1 ? 'CARD' : 'CARDS') + ' REMOVED FROM PLAY');
+
+    var grid = $('#banished-cards-grid');
+    grid.empty();
+
+    if (cardIds.length === 0) {
+        $('#banished-empty-state').show();
+        grid.hide();
+    } else {
+        $('#banished-empty-state').hide();
+        grid.show();
+
+        // Render from top of banished pile downwards (newest first)
+        for (var i = cardIds.length - 1; i >= 0; i--) {
+            var cId = cardIds[i];
+            var cDef = cards[cId];
+            if (!cDef) continue;
+
+            var statsText = '';
+            if (cDef.type === 'monsters') {
+                statsText = 'ATK ' + cDef.atk + ' / DEF ' + cDef.def;
+            } else {
+                statsText = (cDef.subType ? cDef.subType.toUpperCase() : '') + ' ' + cDef.type.toUpperCase();
+            }
+
+            var cardTile = $('<div class="gy-card-tile card" data-card-name="' + cId + '">' +
+                '<div class="gy-card-img-wrap">' +
+                    '<img src="cards/' + cDef.file + '" alt="' + cDef.name + '">' +
+                '</div>' +
+                '<div class="gy-card-info-bar">' +
+                    '<span class="gy-card-name">' + cDef.name + '</span>' +
+                    '<span class="gy-card-stats">' + statsText + '</span>' +
+                '</div>' +
+            '</div>');
+
+            grid.append(cardTile);
+        }
+    }
+
+    $('#banished-modal').fadeIn(150);
+}
+
+function closeBanishedModal() {
+    $('#banished-modal').fadeOut(120);
+}
+
+function updateBanishedZones() {
+    ['player', 'computer'].forEach(function(who) {
+        var banishedList = (GameState && GameState[who] && GameState[who].banished) ? GameState[who].banished : [];
+        var tab = $('#' + who + '-banished-tab');
+        var countElem = $('#' + who + '-banished-count');
+
+        countElem.text(banishedList.length);
+
+        if (banishedList.length > 0) {
+            tab.fadeIn(200);
+        } else {
+            tab.fadeOut(150);
+        }
+    });
 }
 
 // System / Pause Menu Handlers
@@ -731,6 +806,7 @@ $(document).on('click', '#player-hand > .card', function() {
         hidePositionChangeOptionsIfVisible();
         hideAtkMenuIfVisible();
         clearAvailableZones();
+        if (typeof updateStatModBadges === 'function') updateStatModBadges();
         return;
     }
 
@@ -739,6 +815,7 @@ $(document).on('click', '#player-hand > .card', function() {
         hideSummonOptionsIfVisible();
         hidePositionChangeOptionsIfVisible();
         hideAtkMenuIfVisible();
+        if (typeof updateStatModBadges === 'function') updateStatModBadges();
     }
 
     // Hand cards: do not select unless they can actually be played now
@@ -751,11 +828,25 @@ $(document).on('click', '#player-hand > .card', function() {
     activeCard = $(this);
     $(this).addClass('active-card');
 
+    if (cardDef && cardDef.type === 'spells' && cardDef.subType === 'field') {
+        if (typeof updateStatModBadges === 'function') updateStatModBadges(cardDef.id);
+    } else {
+        if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    }
+
     if (turn === 0 && cardDef) showAvailableZonesForCard(cardDef);
 });
 
 // Select card on player's grid (monster, spell/trap, or field zone)
 $(document).on('click', '#player-field div.card-zone-square', function() {
+
+    if ($('body').hasClass('tribute-selection-mode')) {
+        if ($(this).hasClass('tribute-candidate-highlight')) {
+            var zoneNum = parseInt($(this).attr('data-zone'));
+            toggleTributeCandidateOnMat(zoneNum, $(this));
+        }
+        return;
+    }
 
     const thisSelectedZone = $(this).find('div.card-zone.main-zone');
 
@@ -791,7 +882,7 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
 
             var reqTributes = (typeof getRequiredTributes === 'function') ? getRequiredTributes(activeCardDef.level) : 0;
             if (activeCardDef.id === 'infernal-incinerator' || reqTributes > 0) {
-                openTributeSelectModal(activeCard, activeCardDef, $(this), activeCardDef.id === 'infernal-incinerator' ? 1 : reqTributes);
+                startOnMatTributeSelection(activeCard, activeCardDef, $(this), activeCardDef.id === 'infernal-incinerator' ? 1 : reqTributes);
                 return;
             }
 
@@ -967,7 +1058,7 @@ async function summonOptionSelected(position) {
 }
 
 // ==========================================================================
-// Tribute Summon System
+// Tribute Summon System (Direct On-Mat Selection UX)
 // ==========================================================================
 
 var pendingTributeSourceCard = null;
@@ -976,7 +1067,7 @@ var pendingTributeTargetSquare = null;
 var pendingTributeReqCount = 0;
 var selectedTributeZones = [];
 
-function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
+function startOnMatTributeSelection(sourceCard, cardDef, targetSquare, reqCount) {
     pendingTributeSourceCard = sourceCard;
     pendingTributeCardDef = cardDef;
     pendingTributeTargetSquare = targetSquare;
@@ -986,42 +1077,28 @@ function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
     var isInfernal = (cardDef.id === 'infernal-incinerator');
     var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
     var lpCost = reqCount * 1000;
+    var canAffordMausoleum = isMausoleum && !isInfernal && (GameState.player.lp > lpCost);
 
     if (isInfernal) {
         pendingTributeReqCount = 1;
-        $('#tribute-card-name').text('INFERNAL INCINERATOR');
+        $('#tribute-bar-card-name').text('INFERNAL INCINERATOR');
         var sourceUid = sourceCard.attr('data-uid');
         var otherHandCards = GameState.player.hand.filter(function(c) { return c.uid !== sourceUid; });
         var discardNote = otherHandCards.length > 0
-            ? ' (' + otherHandCards.length + ' OTHER HAND CARD' + (otherHandCards.length > 1 ? 'S' : '') + ' WILL BE DISCARDED)'
-            : ' (0 OTHER HAND CARDS)';
-        $('#tribute-requirement-label').text('SELECT 1 FACE-UP MONSTER WITH 2000+ ATK TO TRIBUTE' + discardNote);
+            ? ' (' + otherHandCards.length + ' HAND CARD' + (otherHandCards.length > 1 ? 'S' : '') + ' DISCARDED)'
+            : ' (0 DISCARDS)';
+        $('#tribute-bar-counter').text('SELECT 1 MONSTER WITH 2000+ ATK (0/1)' + discardNote);
     } else {
-        $('#tribute-card-name').text(cardDef.name || 'TRIBUTE SUMMON');
-        $('#tribute-requirement-label').text('SELECT ' + reqCount + ' MONSTER' + (reqCount > 1 ? 'S' : '') + ' ON YOUR FIELD TO TRIBUTE (LVL ' + (cardDef.level || 5) + ')');
-    }
-    updateTributeModalCounters();
-
-    // Check Mausoleum of Offerings field spell
-    var mausoleumOpt = $('#tribute-mausoleum-option');
-    if (isMausoleum && !isInfernal) {
-        $('#mausoleum-cost-atk').text(lpCost);
-        $('#mausoleum-cost-def').text(lpCost);
-        var canAfford = (GameState.player.lp > lpCost);
-        $('#mausoleum-btn-attack').prop('disabled', !canAfford).css('opacity', canAfford ? '1' : '0.5');
-        $('#mausoleum-btn-defense').prop('disabled', !canAfford).css('opacity', canAfford ? '1' : '0.5');
-        mausoleumOpt.show();
-    } else {
-        mausoleumOpt.hide();
+        $('#tribute-bar-card-name').text(cardDef.name || 'TRIBUTE SUMMON');
+        $('#tribute-bar-counter').text('SELECT ' + reqCount + ' MONSTER' + (reqCount > 1 ? 'S' : '') + ' ON YOUR FIELD (0/' + reqCount + ')');
     }
 
-    var grid = $('#tribute-monsters-grid');
-    grid.empty();
-
+    // Filter eligible monster zones on player field
     var ownMonsters = GameState.getMonstersOnField('player').filter(function(entry) {
         var mDef = cards[entry.card.cardId];
         return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
     });
+
     if (isInfernal) {
         ownMonsters = ownMonsters.filter(function(entry) {
             var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
@@ -1029,90 +1106,97 @@ function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
         });
     }
 
-    if (ownMonsters.length === 0) {
-        if (isMausoleum && !isInfernal && GameState.player.lp > lpCost) {
-            grid.append('<div style="grid-column: 1 / -1; padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">No monsters on field. You can pay ' + lpCost + ' LP via <strong>Mausoleum of Offerings</strong> below to Normal Summon/Set directly!</div>');
-            $('#tribute-select-modal').fadeIn(150);
+    // If no valid candidates exist
+    if (ownMonsters.length < reqCount) {
+        if (canAffordMausoleum) {
+            $('#tribute-bar-counter').text('NO MONSTERS ON FIELD — PAY ' + lpCost + ' LP VIA MAUSOLEUM');
+        } else {
+            if (isInfernal) {
+                addToFeed('You control no face-up monsters with 2000+ ATK to tribute for <em>' + cardDef.name + '</em>.\n');
+            } else {
+                addToFeed('You have no monsters on your field to tribute for <em>' + cardDef.name + '</em>.\n');
+            }
+            cancelTributeSelection();
             return;
         }
-
-        if (isInfernal) {
-            addToFeed('You control no face-up monsters with 2000+ ATK to tribute for <em>' + cardDef.name + '</em>.\n');
-        } else {
-            addToFeed('You have no monsters on your field to tribute for <em>' + cardDef.name + '</em>.\n');
-        }
-        cancelTributeSelectModal();
-        return;
     }
 
+    // Activate on-mat highlight mode
+    $('body').addClass('tribute-selection-mode');
     ownMonsters.forEach(function(entry) {
-        var mDef = cards[entry.card.cardId];
-        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
-        var displayName = isFaceDown ? (mDef ? mDef.name + ' (Face-Down)' : 'Face-Down Monster') : (mDef ? mDef.name : 'Monster');
-        var stats = isFaceDown 
-            ? 'DEF ' + getMonsterDef(entry.card) + ' (Set)' 
-            : 'ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card);
-        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + (mDef ? mDef.file : 'card_back.png');
-
-        var tile = $('<div class="rebirth-card-tile target-trap-tile" data-zone="' + entry.zone + '" style="cursor: pointer;">' +
-            '<div class="rebirth-card-preview-frame">' +
-                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
-                '<span class="target-owner-tag tag-player">ZONE #' + entry.zone + '</span>' +
-            '</div>' +
-            '<div class="rebirth-tile-meta">' +
-                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
-                '<span class="rebirth-tile-stats">' + stats + '</span>' +
-            '</div>' +
-        '</div>');
-
-        tile.on('click', function() {
-            toggleTributeCandidate(entry.zone, tile);
-        });
-
-        grid.append(tile);
+        var sq = getSquareElm('player', entry.zone);
+        sq.addClass('tribute-candidate-highlight');
     });
 
-    $('#tribute-select-modal').fadeIn(150);
+    // Configure Mausoleum buttons
+    if (canAffordMausoleum) {
+        $('#mausoleum-cost-atk').text(lpCost);
+        $('#mausoleum-cost-def').text(lpCost);
+        $('#mausoleum-btn-attack').show();
+        $('#mausoleum-btn-defense').show();
+    } else {
+        $('#mausoleum-btn-attack').hide();
+        $('#mausoleum-btn-defense').hide();
+    }
+
+    updateTributeActionBarUI();
+    $('#tribute-action-bar').fadeIn(150);
 }
 
-function toggleTributeCandidate(zoneNum, tileElm) {
+function toggleTributeCandidateOnMat(zoneNum, squareElm) {
     var idx = selectedTributeZones.indexOf(zoneNum);
     if (idx !== -1) {
         selectedTributeZones.splice(idx, 1);
-        tileElm.removeClass('is-selected-tribute');
+        squareElm.removeClass('is-tribute-selected').find('.tribute-selected-badge').remove();
     } else {
         if (selectedTributeZones.length < pendingTributeReqCount) {
             selectedTributeZones.push(zoneNum);
-            tileElm.addClass('is-selected-tribute');
+            squareElm.addClass('is-tribute-selected').append('<div class="tribute-selected-badge">🔥</div>');
         } else if (pendingTributeReqCount === 1) {
             // Auto swap if single tribute
+            $('#player-field .card-zone-square').removeClass('is-tribute-selected').find('.tribute-selected-badge').remove();
             selectedTributeZones = [zoneNum];
-            $('#tribute-monsters-grid .rebirth-card-tile').removeClass('is-selected-tribute');
-            tileElm.addClass('is-selected-tribute');
+            squareElm.addClass('is-tribute-selected').append('<div class="tribute-selected-badge">🔥</div>');
         }
     }
-    updateTributeModalCounters();
+    updateTributeActionBarUI();
 }
 
-function updateTributeModalCounters() {
+function updateTributeActionBarUI() {
     var count = selectedTributeZones.length;
     var req = pendingTributeReqCount;
-    $('#tribute-counter-badge').text('TRIBUTES SELECTED: ' + count + ' / ' + req);
+    var cardDef = pendingTributeCardDef;
+    var isInfernal = cardDef && (cardDef.id === 'infernal-incinerator');
+
+    if (isInfernal) {
+        $('#tribute-bar-counter').text('SELECT 1 MONSTER WITH 2000+ ATK (' + count + '/' + req + ')');
+    } else {
+        $('#tribute-bar-counter').text('SELECT ' + req + ' MONSTER' + (req > 1 ? 'S' : '') + ' ON YOUR FIELD (' + count + '/' + req + ')');
+    }
 
     var isReady = (count === req);
     $('#tribute-btn-attack').prop('disabled', !isReady);
     $('#tribute-btn-defense').prop('disabled', !isReady);
 }
 
-function cancelTributeSelectModal() {
-    $('#tribute-select-modal').fadeOut(120);
+function cancelTributeSelection() {
+    clearTributeSelectionMode();
+    resetActiveCardClass();
+    clearAvailableZones();
+    activeCard = null;
+    selectedSquare = null;
+}
+
+function clearTributeSelectionMode() {
+    $('body').removeClass('tribute-selection-mode');
+    $('#player-field .card-zone-square').removeClass('tribute-candidate-highlight is-tribute-selected').find('.tribute-selected-badge').remove();
+    $('#tribute-action-bar').fadeOut(120);
+
     pendingTributeSourceCard = null;
     pendingTributeCardDef = null;
     pendingTributeTargetSquare = null;
     pendingTributeReqCount = 0;
     selectedTributeZones = [];
-    resetActiveCardClass();
-    clearAvailableZones();
 }
 
 async function confirmTributeSummon(position) {
@@ -1124,7 +1208,7 @@ async function confirmTributeSummon(position) {
     var tributeZones = [...selectedTributeZones];
     var isInfernal = (cardDef.id === 'infernal-incinerator');
 
-    $('#tribute-select-modal').fadeOut(120);
+    clearTributeSelectionMode();
 
     // Collect tribute monster names for narrative feed
     var tributeNames = [];
@@ -1186,7 +1270,7 @@ async function confirmMausoleumSummon(position) {
         return;
     }
 
-    $('#tribute-select-modal').fadeOut(120);
+    clearTributeSelectionMode();
 
     // Deduct LP cost
     GameState.player.lp -= lpCost;
