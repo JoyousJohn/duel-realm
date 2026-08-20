@@ -1242,20 +1242,41 @@ body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candida
     z-index: 40;
 }
 
+/* During tribute selection, suppress the general blue actionable glow on the
+   player's mat so only the tribute candidates stand out. */
+body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight) .card-actionable .front,
+body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight) .card-actionable .back,
+body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight) .card-actionable .card-front,
+body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight) .card-actionable .card-back {
+    border-color: inherit !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
 .card-zone-square.tribute-candidate-highlight .card-zone {
-    border-color: #f59e0b !important;
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.9), inset 0 0 10px rgba(245, 158, 11, 0.45) !important;
+    border-color: #a855f7 !important;
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.9), inset 0 0 10px rgba(168, 85, 247, 0.45) !important;
+    animation: tributeCandidatePulse 1.2s ease-in-out infinite alternate !important;
+}
+
+/* Candidate glow also overrides the blue actionable aura on the inner card faces */
+.card-zone-square.tribute-candidate-highlight .card-zone .front,
+.card-zone-square.tribute-candidate-highlight .card-zone .back,
+.card-zone-square.tribute-candidate-highlight .card-zone .card-front,
+.card-zone-square.tribute-candidate-highlight .card-zone .card-back {
+    border-color: #a855f7 !important;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.7), inset 0 0 6px rgba(168, 85, 247, 0.35) !important;
     animation: tributeCandidatePulse 1.2s ease-in-out infinite alternate !important;
 }
 
 @keyframes tributeCandidatePulse {
     from {
-        box-shadow: 0 0 10px rgba(245, 158, 11, 0.6), inset 0 0 6px rgba(245, 158, 11, 0.3);
-        border-color: #d97706 !important;
+        box-shadow: 0 0 10px rgba(168, 85, 247, 0.6), inset 0 0 6px rgba(168, 85, 247, 0.3);
+        border-color: #9333ea !important;
     }
     to {
-        box-shadow: 0 0 24px rgba(245, 158, 11, 1), inset 0 0 14px rgba(245, 158, 11, 0.65);
-        border-color: #fef08a !important;
+        box-shadow: 0 0 24px rgba(168, 85, 247, 1), inset 0 0 14px rgba(168, 85, 247, 0.65);
+        border-color: #d8b4fe !important;
     }
 }
 

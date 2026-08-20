@@ -396,18 +396,32 @@ var cards = {
         'def': 1000
     },
 
-    'jinzo': {
-        'id': 'jinzo',
+    'jinzoid': {
+        'id': 'jinzoid',
         'type': 'monsters',
         'subType': 'effect',
-        'file': 'jinzo.png',
-        'name': 'Jinzo',
+        'file': 'jinzoid.png',
+        'name': 'Jinzoid',
         'monsterType': 'Machine',
-        'attribute': 'LIGHT',
+        'attribute': 'DARK',
         'level': 6,
         'atk': 2400,
         'def': 1500,
-        'desc': 'As long as this card remains face-up on the field, Trap Cards, and their effects on the field, cannot be activated. Negate all Trap Effects on the field.'
+        'desc': 'Trap Cards, and their effects on the field, cannot be activated. Negate all Trap effects on the field.'
+    },
+
+    'jinzo': {
+        'id': 'jinzoid',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'jinzoid.png',
+        'name': 'Jinzoid',
+        'monsterType': 'Machine',
+        'attribute': 'DARK',
+        'level': 6,
+        'atk': 2400,
+        'def': 1500,
+        'desc': 'Trap Cards, and their effects on the field, cannot be activated. Negate all Trap effects on the field.'
     },
 
     'chainsaw-insect': {
@@ -510,6 +524,48 @@ var cards = {
         'desc': 'This card can only be Normal Summoned or Set by discarding all other card(s) in your hand and Tributing 1 card you control with 2000 or more ATK. This card gains 200 ATK for each monster your opponent controls. This card loses 500 ATK for each other monster you control.'
     },
 
+    'titan-of-the-obsidian-peak': {
+        'id': 'titan-of-the-obsidian-peak',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'titan_of_the_obsidian_peak.png',
+        'name': 'Titan of the Obsidian Peak',
+        'monsterType': 'Rock',
+        'attribute': 'EARTH',
+        'level': 7,
+        'atk': 2700,
+        'def': 2400,
+        'desc': 'When this card is Tribute Summoned: Target 1 face-down card on the field; destroy that target. If this card destroys an opponent\'s monster by battle: Gain Life Points equal to that monster\'s original ATK.'
+    },
+
+    'gryphon-stormlord': {
+        'id': 'gryphon-stormlord',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'gryphon_stormlord.png',
+        'name': 'Gryphon Stormlord',
+        'monsterType': 'Winged Beast',
+        'attribute': 'WIND',
+        'level': 7,
+        'atk': 2500,
+        'def': 2300,
+        'desc': 'Gains 300 ATK and DEF for each other Winged Beast monster on the field. Once per turn (during your Main Phase): You can target 1 monster on the field; return that target to the hand.'
+    },
+
+    'abyssal-leviathan': {
+        'id': 'abyssal-leviathan',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'abyssal_leviathan.png',
+        'name': 'Abyssal Leviathan',
+        'monsterType': 'Sea Serpent',
+        'attribute': 'WATER',
+        'level': 7,
+        'atk': 2600,
+        'def': 2200,
+        'desc': 'When this card is Tribute Summoned: Destroy up to 2 Spell or Trap cards on the field. Once per turn, if this card declares an attack: Change the attack target to face-up Attack Position (Flip effects are not activated).'
+    },
+
     'dragon-piper': {
         'id': 'dragon-piper',
         'type': 'monsters',
@@ -608,6 +664,40 @@ var cards = {
         'isToken': true,
         'cannotBeTributed': true,
         'desc': 'This card can be used as a "Phantom Token".'
+    },
+
+    'catalyst-token': {
+        'id': 'catalyst-token',
+        'type': 'monsters',
+        'subType': 'token',
+        'file': 'catalyst_token.png',
+        'name': 'Catalyst Token',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 1,
+        'atk': 0,
+        'def': 0,
+        'isToken': true,
+        'cannotBeTributed': false,
+        'desc': 'This card can be used as a "Catalyst Token".'
+    },
+
+    'double-tribute-surge': {
+        'id': 'double-tribute-surge',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'double_tribute_surge.png',
+        'name': 'Double Tribute Surge',
+        'desc': 'You can conduct 2 Normal Summons/Sets this turn, instead of just 1.'
+    },
+
+    'phantom-catalyst': {
+        'id': 'phantom-catalyst',
+        'type': 'spells',
+        'subType': 'quick-play',
+        'file': 'phantom_catalyst.png',
+        'name': 'Phantom Catalyst',
+        'desc': 'Special Summon 2 "Catalyst Tokens" (Fiend/DARK/Level 1/ATK 0/DEF 0) in Defense Position. These tokens can be Tributed for a Tribute Summon.'
     },
 
     'trap-hole': {
@@ -724,7 +814,7 @@ var cards = {
         'subType': 'field',
         'file': 'wasteland.png',
         'name': 'Wasteland',
-        'desc': 'All Dinosaur, Zombie, and Rock monsters on the field gain 200 ATK/DEF.'
+        'desc': 'All Dinosaur, Zombie, and Rock monsters on the field gain 200 ATK and DEF.'
     },
 
     'mountain': {
@@ -883,14 +973,15 @@ var cards = {
             if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
 
             var allST = (typeof Queries !== 'undefined') ? Queries.getAllSpellTraps().filter(function(t) {
-                return !(t.side === ctx.who && t.zone === ctx.zoneNum);
+                return !(t.side === ctx.who && t.zone === ctx.zoneNum && t.isField === (ctx.zoneNum === null));
             }) : [];
 
             for (var i = 0; i < allST.length; i++) {
                 await destroySpellTrap(allST[i].side, allST[i].zone, allST[i].isField, false);
             }
 
-            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            // Destroy the Heavy Storm itself (handles both spell-slot and field-zone placement)
+            await destroySpellTrap(ctx.who, ctx.zoneNum, ctx.zoneNum === null, false);
             return true;
         },
         ai: {

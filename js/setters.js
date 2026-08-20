@@ -1,18 +1,28 @@
+// Helper to get all non-token collectible cards
+function getCollectibleCardIds() {
+    return Object.keys(cards).filter(function(id) {
+        var def = cards[id];
+        return def && !def.isToken && def.subType !== 'token';
+    });
+}
+
 // Populates deck variable from localStorage and shuffles it
 function buildPlayerDeck() {
 
     var rawDeck = localStorage.getItem('deck');
     var buildingDeckList = [];
+    var collectibleIds = getCollectibleCardIds();
 
     if (rawDeck === null) {
-        buildingDeckList = Object.keys(cards);
+        buildingDeckList = [...collectibleIds];
     } else {
         var localDeck = JSON.parse(rawDeck) || {};
         var cardList = Object.keys(localDeck);
 
         for (var c in cardList) {
             var cardId = cardList[c];
-            if (!cards[cardId]) continue;
+            var def = cards[cardId];
+            if (!def || def.isToken || def.subType === 'token') continue;
             var quantOfThisCard = parseInt(localDeck[cardId]) || 0;
             
             for (var i = 0; i < quantOfThisCard; i++) {
@@ -22,7 +32,7 @@ function buildPlayerDeck() {
     }
 
     if (buildingDeckList.length === 0) {
-        buildingDeckList = Object.keys(cards);
+        buildingDeckList = [...collectibleIds];
     }
 
     // Shuffle and assign player deck stack
@@ -32,10 +42,9 @@ function buildPlayerDeck() {
     }
 
     // Build and shuffle AI computer deck (35 cards)
-    var allCardIds = Object.keys(cards);
     var computerDeckList = [];
     for (var k = 0; k < 35; k++) {
-        computerDeckList.push(random(allCardIds));
+        computerDeckList.push(random(collectibleIds));
     }
     if (GameState && GameState.computer) {
         GameState.computer.deck = shuffleArray(computerDeckList);
@@ -120,10 +129,10 @@ function isCardCurrentlyPlayable(cardDef) {
     }
 
     var freeSlots = getNumOfFreeZones('player');
-    var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+    var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
 
     if (cardDef.type === 'monsters') {
-        if (normalSummonUsed) return false;
+        if (normalSummonExhausted) return false;
         if (cardDef.id === 'infernal-incinerator') {
             var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player') : [];
             var eligibleTributes = ownMonsters.filter(function(m) {
@@ -132,10 +141,14 @@ function isCardCurrentlyPlayable(cardDef) {
             return eligibleTributes.length > 0;
         }
         var reqTributes = getRequiredTributes(cardDef.level);
+        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+        var lpCost = reqTributes * 1000;
+        var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
+
         var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
-        if (ownMonsters < reqTributes) return false;
+        if (ownMonsters < reqTributes && !canMausoleum) return false;
         if (reqTributes === 0 && freeSlots <= 0) return false;
-        if (reqTributes > 0 && (freeSlots + reqTributes) < 1) return false;
+        if (reqTributes > 0 && (freeSlots + (canMausoleum ? 0 : reqTributes)) < 1 && freeSlots <= 0) return false;
         return true;
     }
     if (cardDef.type === 'spells' && cardDef.subType === 'field') {
@@ -205,10 +218,10 @@ function getCardUnplayableReason(cardDef) {
     }
 
     var freeSlots = getNumOfFreeZones('player');
-    var normalSummonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+    var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
 
     if (cardDef.type === 'monsters') {
-        if (normalSummonUsed) {
+        if (normalSummonExhausted) {
             return 'You have already used your Normal Summon / Set for this turn.';
         }
         if (cardDef.id === 'infernal-incinerator') {
@@ -222,8 +235,12 @@ function getCardUnplayableReason(cardDef) {
             return '';
         }
         var reqTributes = getRequiredTributes(cardDef.level);
+        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+        var lpCost = reqTributes * 1000;
+        var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
+
         var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
-        if (ownMonsters < reqTributes) {
+        if (ownMonsters < reqTributes && !canMausoleum) {
             if (reqTributes === 1) {
                 return 'Requires 1 Tribute (Level 5-6), but you control no monsters on your field.';
             } else {

@@ -230,6 +230,7 @@ var BattleFX = {
                 $(squareElm).removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
                 $(squareElm).find('.borrowed-monster-badge').remove();
                 $(squareElm).find('.def-locked-badge').remove();
+                $(squareElm).find('.flip-effect-badge').remove();
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');

@@ -1576,7 +1576,16 @@
         // Register the service worker for offline PWA support (only on http/https)
         if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('sw.js').catch(function(err) {
+                navigator.serviceWorker.register('sw.js').then(function(reg) {
+                    // Prompt the browser to check for an updated service worker
+                    // whenever the tab regains focus, so deployments propagate
+                    // without requiring a manual reload dance.
+                    document.addEventListener('visibilitychange', function() {
+                        if (document.visibilityState === 'visible' && reg) {
+                            reg.update();
+                        }
+                    });
+                }).catch(function(err) {
                     console.warn('Service worker registration failed:', err);
                 });
             });

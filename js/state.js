@@ -55,7 +55,8 @@ var GameState = {
         active: 'player', // 'player' | 'computer'
         count: 0,
         phase: 0, // 0: Draw, 1: Standby, 2: Main 1, 3: Battle, 4: Main 2, 5: End, 6: Game Start
-        normalSummonUsed: false
+        normalSummonUsed: false,
+        extraNormalSummons: 0
     },
     player: {
         lp: 8000,
@@ -94,7 +95,8 @@ var GameState = {
             active: 'player',
             count: 0,
             phase: 0,
-            normalSummonUsed: false
+            normalSummonUsed: false,
+            extraNormalSummons: 0
         };
         this.player = {
             lp: 8000,

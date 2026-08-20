@@ -301,6 +301,27 @@ function getMonsterAtk(instance) {
         }
     }
 
+    if (instance.cardId === 'gryphon-stormlord' && typeof GameState !== 'undefined' && GameState) {
+        if (!instance.faceDown && instance.position !== 'defense-down') {
+            var otherWingedBeastCount = 0;
+            ['player', 'computer'].forEach(function(who) {
+                var mons = GameState.getMonstersOnField(who);
+                mons.forEach(function(entry) {
+                    var m = entry.card;
+                    if (m && m !== instance && (!instance.uid || m.uid !== instance.uid)) {
+                        if (!m.faceDown && m.position !== 'defense-down') {
+                            var mDef = cards[m.cardId];
+                            if (mDef && mDef.monsterType === 'Winged Beast') {
+                                otherWingedBeastCount++;
+                            }
+                        }
+                    }
+                });
+            });
+            selfMod += (otherWingedBeastCount * 300);
+        }
+    }
+
     return Math.max(0, (def.atk || 0) + fieldMods.atk + equipMods.atk + selfMod);
 }
 
@@ -310,7 +331,30 @@ function getMonsterDef(instance) {
     if (!def || def.type !== 'monsters') return 0;
     var fieldMods = getFieldMods(def);
     var equipMods = getEquipMods(instance);
-    return Math.max(0, (def.def || 0) + fieldMods.def + equipMods.def);
+    var selfMod = 0;
+
+    if (instance.cardId === 'gryphon-stormlord' && typeof GameState !== 'undefined' && GameState) {
+        if (!instance.faceDown && instance.position !== 'defense-down') {
+            var otherWingedBeastCount = 0;
+            ['player', 'computer'].forEach(function(who) {
+                var mons = GameState.getMonstersOnField(who);
+                mons.forEach(function(entry) {
+                    var m = entry.card;
+                    if (m && m !== instance && (!instance.uid || m.uid !== instance.uid)) {
+                        if (!m.faceDown && m.position !== 'defense-down') {
+                            var mDef = cards[m.cardId];
+                            if (mDef && mDef.monsterType === 'Winged Beast') {
+                                otherWingedBeastCount++;
+                            }
+                        }
+                    }
+                });
+            });
+            selfMod += (otherWingedBeastCount * 300);
+        }
+    }
+
+    return Math.max(0, (def.def || 0) + fieldMods.def + equipMods.def + selfMod);
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +381,26 @@ function isAttackBlocked(attackerWho) {
     return hasActiveCard(defenderWho, 'swords-of-revealing-light');
 }
 
+// Jinzoid: while face-up on the field, Trap Cards and their effects cannot be activated / are negated
+function isJinzoidActive() {
+    if (typeof GameState === 'undefined' || !GameState) return false;
+    var active = false;
+    ['player', 'computer'].forEach(function(who) {
+        if (GameState[who] && GameState[who].field && GameState[who].field.monsters) {
+            for (var z = 1; z <= 6; z++) {
+                var m = GameState[who].field.monsters[z];
+                if (m && (m.cardId === 'jinzoid' || m.cardId === 'jinzo') && !m.faceDown && m.position !== 'defense-down') {
+                    active = true;
+                }
+            }
+        }
+    });
+    return active;
+}
+
 // Dragon Capture Jar: while face-up, Dragons cannot be in/switch to Attack Position.
 function isDragonLocked() {
+    if (isJinzoidActive()) return false;
     return hasActiveCard('player', 'dragon-capture-jar') || hasActiveCard('computer', 'dragon-capture-jar');
 }
 
@@ -361,6 +423,12 @@ async function activateCard(who, instance, zoneNum) {
     if (!def) return;
 
     var opp = GameState.getOpponent(who);
+
+    // Jinzoid trap negation
+    if (def.type === 'traps' && isJinzoidActive()) {
+        addToFeed('(Negated) <em>Jinzoid</em>\'s continuous field negation prevents Trap Cards from activating!\n\n');
+        return;
+    }
 
     // Counter Trap Interception: Check Arcane Disruptor response on Spell activation
     if (def.type === 'spells') {
@@ -489,10 +557,9 @@ async function activateCard(who, instance, zoneNum) {
             addToFeed(def.name + ' activated: summoning Phantom Tokens in Defense Position!\n');
             var summonedCount = 0;
             for (var k = 0; k < 3; k++) {
-                var freeZ = getFirstFreeZone(who);
-                if (freeZ === undefined) break;
-                await specialSummonMonster(who, 'phantom-token', who, 'defense-up');
-                var tokenInst = GameState[who].field.monsters[freeZ];
+                var spawnedZone = await specialSummonMonster(who, 'phantom-token', who, 'defense-up');
+                if (spawnedZone === false) break;
+                var tokenInst = GameState[who].field.monsters[spawnedZone];
                 if (tokenInst) {
                     tokenInst.cannotBeTributed = true;
                     tokenInst.isToken = true;
@@ -500,6 +567,34 @@ async function activateCard(who, instance, zoneNum) {
                 summonedCount++;
             }
             addToFeed('Special Summoned ' + summonedCount + ' Phantom Token(s) to ' + formatWho(who) + '\'s field.\n\n');
+            updateActionableCards();
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'double-tribute-surge': {
+            GameState.turn.extraNormalSummons = (GameState.turn.extraNormalSummons || 0) + 1;
+            addToFeed('<em>' + def.name + '</em> activated! ' + formatWho(who) + ' can conduct an additional Normal Summon/Set this turn.\n\n');
+            updateActionableCards();
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'phantom-catalyst': {
+            addToFeed(def.name + ' activated: summoning Catalyst Tokens in Defense Position!\n');
+            var summonedCount = 0;
+            for (var k = 0; k < 2; k++) {
+                var spawnedZone = await specialSummonMonster(who, 'catalyst-token', who, 'defense-up');
+                if (spawnedZone === false) break;
+                var tokenInst = GameState[who].field.monsters[spawnedZone];
+                if (tokenInst) {
+                    tokenInst.cannotBeTributed = false;
+                    tokenInst.isToken = true;
+                }
+                summonedCount++;
+            }
+            addToFeed('Special Summoned ' + summonedCount + ' Catalyst Token(s) to ' + formatWho(who) + '\'s field (available for Tribute Summons).\n\n');
+            updateActionableCards();
             await destroySpellTrap(who, zoneNum, false);
             break;
         }
@@ -598,7 +693,7 @@ async function activateCard(who, instance, zoneNum) {
                         allST.push({ side: side, zone: z, isField: false });
                     }
                 }
-                if (GameState[side].field.fieldZone) {
+                if (GameState[side].field.fieldZone && !(side === who && zoneNum === null)) {
                     allST.push({ side: side, zone: null, isField: true });
                 }
             });
@@ -607,7 +702,7 @@ async function activateCard(who, instance, zoneNum) {
                 await destroySpellTrap(allST[i].side, allST[i].zone, allST[i].isField, false);
             }
 
-            await destroySpellTrap(who, zoneNum, false);
+            await destroySpellTrap(who, zoneNum, zoneNum === null, false);
             break;
         }
 
@@ -1231,11 +1326,18 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
                 if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
                 await destroyMonster('player', target.zone);
             } else {
-                // If no player monsters, target highest ATK monster on field
-                allMonsters.sort(function(a, b) {
+                // If no player monsters, target highest ATK monster on field (never the flipped Bug itself)
+                var nonSelfMonsters = allMonsters.filter(function(m) {
+                    return !(m.side === who && m.zone === zoneNum);
+                });
+                if (nonSelfMonsters.length === 0) {
+                    addToFeed('<em>Man-Eater Bug</em>: No other monsters on the field to destroy.\n');
+                    return;
+                }
+                nonSelfMonsters.sort(function(a, b) {
                     return getMonsterAtk(b.card) - getMonsterAtk(a.card);
                 });
-                var fallback = allMonsters[0];
+                var fallback = nonSelfMonsters[0];
                 var fallbackDef = cards[fallback.card.cardId];
                 addToFeed('<em>Man-Eater Bug</em> destroys ' + (fallbackDef ? fallbackDef.name : 'monster') + '!\n');
                 await destroyMonster(fallback.side, fallback.zone);
@@ -1270,11 +1372,18 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
                 if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
                 await returnMonsterToHand('player', target.zone);
             } else {
-                // If no player monsters, target highest ATK monster on field
-                allMonsters.sort(function(a, b) {
+                // If no player monsters, target highest ATK monster on field (never the flipped Hane-Hane itself)
+                var nonSelfMonsters = allMonsters.filter(function(m) {
+                    return !(m.side === who && m.zone === zoneNum);
+                });
+                if (nonSelfMonsters.length === 0) {
+                    addToFeed('<em>Hane-Hane</em>: No other monsters on the field to return to hand.\n');
+                    return;
+                }
+                nonSelfMonsters.sort(function(a, b) {
                     return getMonsterAtk(b.card) - getMonsterAtk(a.card);
                 });
-                var fallback = allMonsters[0];
+                var fallback = nonSelfMonsters[0];
                 var fallbackDef = cards[fallback.card.cardId];
                 addToFeed('<em>Hane-Hane</em> returns ' + (fallbackDef ? fallbackDef.name : 'monster') + ' to hand!\n');
                 await returnMonsterToHand(fallback.side, fallback.zone);
@@ -1597,6 +1706,7 @@ function cancelSpearCretinTarget() {
 // Called after any monster is Normal Summoned.
 EventBus.on('MONSTER_SUMMONED', async function(data) {
     if (typeof GameState === 'undefined' || !GameState || !data) return;
+    if (isJinzoidActive()) return;
 
     var summonerWho = data.who;
     var opponent = GameState.getOpponent(summonerWho);
@@ -1920,6 +2030,7 @@ async function banishSpellTrapCard(who, zoneNum, isFieldZone) {
 }
 
 async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
+    if (isJinzoidActive()) return false;
     var opp = GameState.getOpponent(who);
     var trapZone = findSetTrapZone(opp, 'arcane-disruptor');
     if (trapZone === null) return false;
@@ -2238,6 +2349,7 @@ function applyCelestialTitheDiscards(uids) {
 var radiantBacklashResolver = null;
 
 async function checkRadiantBacklashResponse(attackerWho, attackerZone, defenderWho) {
+    if (isJinzoidActive()) return false;
     var rbZone = findSetTrapZone(defenderWho, 'radiant-backlash');
     if (rbZone === null) return false;
 
@@ -2513,6 +2625,7 @@ async function applyLunarGrimoireFlip(side, zoneNum) {
 var prismOfRetributionResolver = null;
 
 async function checkPrismOfRetributionResponse(attackerWho, attackerZone, defenderWho, attackerAtk, attackerDef) {
+    if (isJinzoidActive()) return false;
     var porZone = findSetTrapZone(defenderWho, 'prism-of-retribution');
     if (porZone === null) return false;
 
@@ -3243,6 +3356,9 @@ function updateStatModBadges(previewFieldSpellId) {
 
     // 3. Update DEF LOCKED badges for Dragon monsters under Dragon Capture Jar
     updateDefLockedBadges();
+
+    // 4. Update FLIP badges for face-down Defense monsters with flip effects
+    updateFlipBadges();
 }
 
 // Update or create visual "DEF LOCKED" badges for Dragon monsters affected by Dragon Capture Jar
@@ -3277,6 +3393,35 @@ function updateDefLockedBadges() {
             }
         }
     });
+}
+
+// Face-down Defense monsters with a FLIP effect get a "FLIP" badge so the
+// controller knows the monster is a flip monster waiting to be triggered.
+// Only shown for the human player's own monsters — showing it on the AI's
+// face-down monsters would leak that they are flip monsters.
+var FLIP_EFFECT_MONSTERS = ['man-eater-bug', 'hane-hane', 'dragon-piper', 'spear-cretin'];
+
+function updateFlipBadges() {
+    for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+        var square = getSquareElm('player', zoneNum);
+        if (!square || !square.length) continue;
+
+        var monsterInst = (GameState && GameState.player && GameState.player.field && GameState.player.field.monsters) ? GameState.player.field.monsters[zoneNum] : null;
+        var isFaceDown = monsterInst ? (monsterInst.position === 'defense-down' || monsterInst.faceDown) : false;
+        var existing = square.find('.flip-effect-badge');
+
+        if (monsterInst && isFaceDown && FLIP_EFFECT_MONSTERS.indexOf(monsterInst.cardId) !== -1) {
+            if (!existing.length) {
+                var badge = $('<div class="flip-effect-badge">' +
+                    '<span class="flip-badge-icon">🔄</span>' +
+                    '<span class="flip-badge-label">FLIP</span>' +
+                '</div>');
+                square.append(badge);
+            }
+        } else if (existing.length) {
+            existing.remove();
+        }
+    }
 }
 
 // ==========================================================================
@@ -3889,6 +4034,285 @@ async function applyExiledForceTarget(targetSide, targetZone) {
     if (typeof updateStatModBadges === 'function') updateStatModBadges();
     if (typeof updateActionableCards === 'function') updateActionableCards();
     updateResourceCounters();
+}
+
+// ---------------------------------------------------------------------------
+// Monster Bounce to Hand Utility (e.g. Gryphon Stormlord, Hane-Hane)
+// ---------------------------------------------------------------------------
+async function returnMonsterToHand(who, zoneNum) {
+    var monsterInst = GameState[who].field.monsters[zoneNum];
+    if (!monsterInst) return false;
+
+    var cardDef = cards[monsterInst.cardId];
+    var monsterName = cardDef ? cardDef.name : 'Monster';
+
+    // Remove from field state
+    delete GameState[who].field.monsters[zoneNum];
+
+    var square = getSquareElm(who, zoneNum);
+    var zone = square.find('div.card-zone');
+
+    // Return to hand animation if not a token
+    if (monsterInst.isToken) {
+        addToFeed(monsterName + ' vanishes from the field (tokens cannot return to hand).\n\n');
+    } else {
+        var freshInst = new CardInstance(monsterInst.cardId);
+        GameState[who].hand.push(freshInst);
+        addCardToHand(who, monsterInst.cardId, freshInst.uid, false);
+        updateHandDisplay(who);
+        addToFeed('<em>' + monsterName + '</em> on ' + formatWho(who) + '\'s field was returned to the hand!\n\n');
+    }
+
+    // Clear board square
+    square.removeAttr('data-card-type data-card-name data-card-position data-turn-moved data-turn-posChanged');
+    zone.removeAttr('style').removeData('transform');
+    zone.find('.front, .back').removeAttr('style').removeData('transform');
+    zone.find('.card-img').removeAttr('src');
+    zone.hide();
+
+    updateResourceCounters();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    if (typeof updateActionableCards === 'function') updateActionableCards();
+
+    await EventBus.emitAsync('MONSTER_DESTROYED', { who: who, zone: zoneNum, returnedToHand: true });
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Gryphon Stormlord: Cyclone Bounce Ignition Modal
+// ---------------------------------------------------------------------------
+async function openGryphonStormlordModal(sourceZone) {
+    var sourceInst = GameState.player.field.monsters[sourceZone];
+    if (!sourceInst) return;
+
+    var candidates = [];
+    ['player', 'computer'].forEach(function(side) {
+        var monsters = GameState.getMonstersOnField(side);
+        monsters.forEach(function(entry) {
+            if (side !== 'player' || entry.zone !== sourceZone) {
+                var mDef = cards[entry.card.cardId];
+                candidates.push({
+                    side: side,
+                    zone: entry.zone,
+                    inst: entry.card,
+                    def: mDef,
+                    name: mDef ? mDef.name : 'Monster',
+                    type: 'monsters'
+                });
+            }
+        });
+    });
+
+    if (candidates.length === 0) {
+        addToFeed('No other monsters on the field to return to hand.\n');
+        return;
+    }
+
+    var chosen = await TargetEngine.requestTarget('player', {
+        title: 'GRYPHON STORMLORD: CYCLONE BOUNCE',
+        subtitle: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
+        badge: { category: 'CYCLONE BOUNCE', color: '#10b981', glowColor: 'rgba(16, 185, 129, 0.45)' },
+        candidates: candidates
+    });
+
+    if (!chosen) return;
+
+    sourceInst.lastEffectTurn = turnCount;
+    addToFeed('You activate <em>Gryphon Stormlord</em>\'s Cyclone Bounce!\n');
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.triggerScreenShake('small');
+    }
+    await returnMonsterToHand(chosen.side, chosen.zone);
+    resetActiveCardClass();
+    hideAtkMenuIfVisible();
+}
+
+// AI routine to trigger Gryphon Stormlord bounce
+async function AIPlayGryphonStormlord() {
+    var gryphonMonsters = GameState.getMonstersOnField('computer').filter(function(entry) {
+        return entry.card.cardId === 'gryphon-stormlord' && entry.card.position !== 'defense-down' && entry.card.lastEffectTurn !== turnCount;
+    });
+
+    for (var g = 0; g < gryphonMonsters.length; g++) {
+        var gryphonEntry = gryphonMonsters[g];
+        var playerMonsters = GameState.getMonstersOnField('player');
+        if (playerMonsters.length === 0) continue;
+
+        // Find opponent monster with highest ATK
+        playerMonsters.sort(function(a, b) {
+            return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+        });
+
+        var target = playerMonsters[0];
+        var targetDef = cards[target.card.cardId];
+        var targetName = targetDef ? targetDef.name : 'Monster';
+
+        gryphonEntry.card.lastEffectTurn = turnCount;
+        addToFeed('Computer activates <em>Gryphon Stormlord</em>\'s Cyclone Bounce on your <strong>' + targetName + '</strong>!\n\n');
+        if (typeof BattleFX !== 'undefined') {
+            BattleFX.triggerScreenShake('small');
+        }
+        await returnMonsterToHand('player', target.zone);
+        await sleep(getAnimDuration(400));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Universal Tribute Summon Trigger Resolution (Titan, Leviathan, etc.)
+// ---------------------------------------------------------------------------
+async function checkTributeSummonTriggers(who, cardDef, zoneNum) {
+    if (!cardDef) return;
+
+    // 1. Titan of the Obsidian Peak: Destroy 1 face-down card
+    if (cardDef.id === 'titan-of-the-obsidian-peak') {
+        var faceDownCandidates = [];
+        ['player', 'computer'].forEach(function(side) {
+            for (var z = 1; z <= 6; z++) {
+                var m = GameState[side].field.monsters[z];
+                if (m && (m.faceDown || m.position === 'defense-down')) {
+                    faceDownCandidates.push({
+                        side: side,
+                        zone: z,
+                        isMonster: true,
+                        inst: m,
+                        name: 'Face-Down Monster',
+                        def: cards[m.cardId]
+                    });
+                }
+                var s = GameState[side].field.spells[z];
+                if (s && s.position === 'set') {
+                    faceDownCandidates.push({
+                        side: side,
+                        zone: z,
+                        isSpellTrap: true,
+                        inst: s,
+                        name: 'Set Spell/Trap',
+                        def: cards[s.cardId]
+                    });
+                }
+            }
+        });
+
+        if (faceDownCandidates.length === 0) {
+            addToFeed('<em>Titan of the Obsidian Peak</em> was Tribute Summoned, but no face-down cards were found on the field.\n\n');
+            return;
+        }
+
+        addToFeed('<em>Titan of the Obsidian Peak</em> triggers! Destroy 1 face-down card on the field.\n');
+
+        var chosen = await TargetEngine.requestTarget(who, {
+            title: 'TITAN OF THE OBSIDIAN PEAK',
+            subtitle: 'TARGET 1 FACE-DOWN CARD TO DESTROY',
+            badge: { category: 'OBSIDIAN SHATTER', color: '#f59e0b', glowColor: 'rgba(245, 158, 11, 0.45)' },
+            candidates: faceDownCandidates,
+            aiPick: function(list) {
+                var oppCards = list.filter(function(c) { return c.side === 'player'; });
+                return oppCards.length > 0 ? oppCards[0] : list[0];
+            }
+        });
+
+        if (chosen) {
+            var cDef = chosen.def || (chosen.inst ? cards[chosen.inst.cardId] : null);
+            var cName = cDef ? cDef.name : 'face-down card';
+            addToFeed('<em>Titan of the Obsidian Peak</em> shatters ' + formatWho(chosen.side) + '\'s <strong>' + cName + '</strong>!\n\n');
+            if (typeof BattleFX !== 'undefined') {
+                BattleFX.triggerScreenShake('medium');
+            }
+            if (chosen.isMonster) {
+                await destroyMonster(chosen.side, chosen.zone);
+            } else {
+                await destroySpellTrap(chosen.side, chosen.zone, false);
+            }
+        }
+    }
+
+    // 2. Abyssal Leviathan: Destroy up to 2 Spell/Trap cards
+    else if (cardDef.id === 'abyssal-leviathan') {
+        var stCandidates = [];
+        ['player', 'computer'].forEach(function(side) {
+            for (var z = 1; z <= 6; z++) {
+                var s = GameState[side].field.spells[z];
+                if (s) {
+                    stCandidates.push({
+                        side: side,
+                        zone: z,
+                        isField: false,
+                        inst: s,
+                        def: cards[s.cardId],
+                        name: cards[s.cardId] ? cards[s.cardId].name : 'Spell/Trap'
+                    });
+                }
+            }
+            if (GameState[side].field.fieldZone) {
+                var fz = GameState[side].field.fieldZone;
+                stCandidates.push({
+                    side: side,
+                    zone: null,
+                    isField: true,
+                    inst: fz,
+                    def: cards[fz.cardId],
+                    name: cards[fz.cardId] ? cards[fz.cardId].name : 'Field Spell'
+                });
+            }
+        });
+
+        if (stCandidates.length === 0) {
+            addToFeed('<em>Abyssal Leviathan</em> was Tribute Summoned, but no Spell or Trap cards were found.\n\n');
+            return;
+        }
+
+        addToFeed('<em>Abyssal Leviathan</em> triggers! Destroy up to 2 Spell/Trap cards on the field.\n');
+
+        // First target
+        var target1 = await TargetEngine.requestTarget(who, {
+            title: 'ABYSSAL LEVIATHAN (1/2)',
+            subtitle: 'SELECT FIRST SPELL/TRAP CARD TO DESTROY',
+            badge: { category: 'TIDAL SURGE', color: '#06b6d4', glowColor: 'rgba(6, 182, 212, 0.45)' },
+            candidates: stCandidates,
+            aiPick: function(list) {
+                var oppCards = list.filter(function(c) { return c.side === 'player'; });
+                return oppCards.length > 0 ? oppCards[0] : list[0];
+            }
+        });
+
+        if (target1) {
+            var tDef1 = target1.def || (target1.inst ? cards[target1.inst.cardId] : null);
+            addToFeed('<em>Abyssal Leviathan</em> destroys ' + formatWho(target1.side) + '\'s <strong>' + (tDef1 ? tDef1.name : 'Spell/Trap') + '</strong>!\n');
+            if (target1.isField) {
+                await destroySpellTrap(target1.side, null, true);
+            } else {
+                await destroySpellTrap(target1.side, target1.zone, false);
+            }
+
+            // Filter out destroyed target for second target
+            var remainingST = stCandidates.filter(function(c) {
+                return (c.side !== target1.side) || (c.isField !== target1.isField) || (c.zone !== target1.zone);
+            });
+
+            if (remainingST.length > 0) {
+                var target2 = await TargetEngine.requestTarget(who, {
+                    title: 'ABYSSAL LEVIATHAN (2/2)',
+                    subtitle: 'SELECT SECOND SPELL/TRAP CARD TO DESTROY (OR CANCEL)',
+                    badge: { category: 'TIDAL SURGE', color: '#06b6d4', glowColor: 'rgba(6, 182, 212, 0.45)' },
+                    candidates: remainingST,
+                    aiPick: function(list) {
+                        var oppCards = list.filter(function(c) { return c.side === 'player'; });
+                        return oppCards.length > 0 ? oppCards[0] : null;
+                    }
+                });
+
+                if (target2) {
+                    var tDef2 = target2.def || (target2.inst ? cards[target2.inst.cardId] : null);
+                    addToFeed('<em>Abyssal Leviathan</em> destroys ' + formatWho(target2.side) + '\'s <strong>' + (tDef2 ? tDef2.name : 'Spell/Trap') + '</strong>!\n\n');
+                    if (target2.isField) {
+                        await destroySpellTrap(target2.side, null, true);
+                    } else {
+                        await destroySpellTrap(target2.side, target2.zone, false);
+                    }
+                }
+            }
+        }
+    }
 }
 
 

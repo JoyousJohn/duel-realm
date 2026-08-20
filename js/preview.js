@@ -9,6 +9,7 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         hoverCardName = null;
         $('#info-panel').removeClass('sidebar-inspecting');
         $('#duel-log-module').show();
+        $('#info-stats').show();
         $('#scanner-active').hide();
         $('#scanner-idle').show();
         $('#preview-card-img').removeAttr('src');
@@ -31,6 +32,7 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
             hoverCardName = null;
             $('#info-panel').removeClass('sidebar-inspecting');
             $('#duel-log-module').show();
+            $('#info-stats').show();
             $('#scanner-active').hide();
             $('#scanner-idle').show();
             $('#preview-card-img').removeAttr('src');
@@ -188,6 +190,7 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
     // Switch View
     $('#info-panel').addClass('sidebar-inspecting');
     $('#duel-log-module').hide();
+    $('#info-stats').hide();
     $('#scanner-idle').hide();
     $('#scanner-active').show();
 });
@@ -196,6 +199,7 @@ $(document).on('mouseleave', '.card-zone-square, .card', function() {
     hoverCardName = null;
     $('#info-panel').removeClass('sidebar-inspecting');
     $('#duel-log-module').show();
+    $('#info-stats').show();
     $('#scanner-active').hide();
     $('#scanner-idle').show();
     $('#preview-card-img').removeAttr('src');

@@ -489,11 +489,81 @@ async function AIPlayExiledForce() {
     await sleep(getAnimDuration(500));
 }
 
-// Step 2: AI Normal/Tribute Summons the best monster currently in hand
-async function AISummonMonsterRoutine() {
-    if (GameState.turn.normalSummonUsed) return;
+// Step 2b: AI plays summon enabler spells (Double Tribute Surge, Phantom Catalyst, Mausoleum) BEFORE the summon routine
+async function AIPlaySummonEnablerSpells() {
+    var hand = GameState.computer.hand.slice();
+    for (var i = 0; i < hand.length; i++) {
+        var instance = hand[i];
+        var def = cards[instance.cardId];
+        if (!def || def.type !== 'spells') continue;
 
-    var currentHand = [...computer['hand']['monsters']];
+        // Verify instance is still in hand
+        var stillInHand = GameState.computer.hand.some(function(c) { return c.uid === instance.uid; });
+        if (!stillInHand) continue;
+
+        // 1. Double Tribute Surge
+        if (def.id === 'double-tribute-surge') {
+            var handMonsters = GameState.computer.hand.filter(function(c) {
+                var d = cards[c.cardId]; return d && d.type === 'monsters';
+            });
+            var hasHighLvl = handMonsters.some(function(c) {
+                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+            });
+            var freeZones = getNumOfFreeZones('computer');
+            if ((hasHighLvl && handMonsters.length >= 2) || (handMonsters.length >= 2 && freeZones >= 2)) {
+                var zoneNum = getFirstFreeZone('computer');
+                if (zoneNum !== undefined) {
+                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getSquareElm('computer', zoneNum), def, 'slot');
+                    await sleep(getAnimDuration(300));
+                }
+            }
+        }
+        // 2. Phantom Catalyst
+        else if (def.id === 'phantom-catalyst') {
+            var compMons = GameState.getMonstersOnField('computer').length;
+            var playerMons = GameState.getMonstersOnField('player').length;
+            var handMonsters = GameState.computer.hand.filter(function(c) {
+                var d = cards[c.cardId]; return d && d.type === 'monsters';
+            });
+            var hasHighLvl = handMonsters.some(function(c) {
+                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+            });
+            var freeZones = getNumOfFreeZones('computer');
+            if (freeZones >= 1 && (hasHighLvl || compMons === 0 || playerMons > compMons)) {
+                var zoneNum = getFirstFreeZone('computer');
+                if (zoneNum !== undefined) {
+                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getSquareElm('computer', zoneNum), def, 'slot');
+                    await sleep(getAnimDuration(300));
+                }
+            }
+        }
+        // 3. Mausoleum of Offerings
+        else if (def.id === 'mausoleum-of-offerings') {
+            if (GameState.isFieldZoneEmpty('computer')) {
+                var handMonsters = GameState.computer.hand.filter(function(c) {
+                    var d = cards[c.cardId]; return d && d.type === 'monsters';
+                });
+                var hasHighLvl = handMonsters.some(function(c) {
+                    var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                });
+                if (hasHighLvl && GameState.computer.lp >= 2500) {
+                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getFieldZoneElm('computer'), def, 'field');
+                    await sleep(getAnimDuration(300));
+                }
+            }
+        }
+    }
+}
+
+// Step 3: AI Normal/Tribute Summons the best monster currently in hand
+async function AISummonMonsterRoutine() {
+    if (GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0)) return;
+
+    var currentHand = GameState.computer.hand.filter(function(c) {
+        var d = cards[c.cardId];
+        return d && d.type === 'monsters';
+    }).map(function(c) { return c.cardId; });
+
     if (currentHand.length === 0) return;
 
     var fieldMonsters = GameState.getMonstersOnField('computer');
@@ -567,12 +637,21 @@ async function AISummonMonsterRoutine() {
 
             // AI considers tribute worth it if new monster ATK exceeds the single strongest sacrificed monster or total gain is positive
             if (gainAtk >= 2000 || gainAtk > (lostAtk * 0.8)) {
+                var score = gainAtk - (lostAtk * 0.5);
+                if (mDef.id === 'jinzoid') {
+                    var playerSetTraps = 0;
+                    for (var pz = 1; pz <= 6; pz++) {
+                        var ps = GameState.player.field.spells[pz];
+                        if (ps && ps.position === 'set') playerSetTraps++;
+                    }
+                    score += (playerSetTraps * 400);
+                }
                 summonable.push({
                     name: mName,
                     def: mDef,
                     reqTributes: req,
                     tributes: tributes,
-                    score: gainAtk - (lostAtk * 0.5)
+                    score: score
                 });
             }
         }
@@ -600,6 +679,9 @@ async function AISummonMonsterRoutine() {
         addToFeed('Computer pays <strong>' + chosen.lpCost + ' LP</strong> via <em>Mausoleum of Offerings</em> to ' + actionType + ' ' + monsterLabel + ' in ' + stanceLabel + ' in zone #' + firstFree + ' without Tributing.\n\n');
         await sleep(getAnimDuration(350));
         await summonMonster('computer', chosen.name, false);
+        if (typeof checkTributeSummonTriggers === 'function') {
+            await checkTributeSummonTriggers('computer', chosen.def, firstFree);
+        }
         await sleep(getAnimDuration(300));
         return;
     }
@@ -644,6 +726,9 @@ async function AISummonMonsterRoutine() {
         addToFeed('Computer Tributes <strong>' + tributeNames.join(' and ') + '</strong>' + discardMsg + ' to ' + actionType + ' ' + monsterLabel + ' in ' + stanceLabel + ' in zone #' + firstFree + '.\n\n');
         await sleep(getAnimDuration(350));
         await summonMonster('computer', chosen.name, true);
+        if (typeof checkTributeSummonTriggers === 'function') {
+            await checkTributeSummonTriggers('computer', chosen.def, firstFree);
+        }
     } else {
         await summonMonster('computer', chosen.name, false);
     }
@@ -733,6 +818,19 @@ async function AIPlaySpellTrapCards() {
                             var compMons = GameState.getMonstersOnField('computer').length;
                             var playerMons = GameState.getMonstersOnField('player').length;
                             shouldPlay = (compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined;
+                        } else if (def.id === 'double-tribute-surge') {
+                            var handMonsters = (computer.hand && computer.hand.monsters) ? computer.hand.monsters.length : 0;
+                            var hasHighLvl = computer.hand && computer.hand.monsters ? computer.hand.monsters.some(function(m) {
+                                var d = cards[m]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            }) : false;
+                            shouldPlay = (hasHighLvl && handMonsters >= 2) || (handMonsters >= 2 && getNumOfFreeZones('computer') >= 2);
+                        } else if (def.id === 'phantom-catalyst') {
+                            var compMons = GameState.getMonstersOnField('computer').length;
+                            var playerMons = GameState.getMonstersOnField('player').length;
+                            var hasHighLvl = computer.hand && computer.hand.monsters ? computer.hand.monsters.some(function(m) {
+                                var d = cards[m]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            }) : false;
+                            shouldPlay = (hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
                         } else if (def.subType === 'equip') {

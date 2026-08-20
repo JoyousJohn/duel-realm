@@ -32,6 +32,7 @@ async function playerTurn() {
     GameState.turn.active = 'player';
     GameState.turn.count = turnCount;
     GameState.turn.normalSummonUsed = false;
+    GameState.turn.extraNormalSummons = 0;
 
     // Reset attack flags for player monsters
     var playerMonsters = GameState.getMonstersOnField('player');
@@ -63,6 +64,7 @@ async function computerTurn() {
     GameState.turn.active = 'computer';
     GameState.turn.count = turnCount;
     GameState.turn.normalSummonUsed = false;
+    GameState.turn.extraNormalSummons = 0;
 
     // Reset attack flags for computer monsters
     var computerMonsters = GameState.getMonstersOnField('computer');
@@ -83,12 +85,17 @@ async function computerTurn() {
         await AIEvaluatePositionChanges();
     }
 
-    // 2. Play draw acceleration (Pot of Greed) FIRST to maximize options
+    // 2. Play draw acceleration (Pot of Greed, Celestial Tithe) FIRST to maximize options
     if (typeof AIPlayDrawCards === 'function') {
         await AIPlayDrawCards();
     }
 
-    // 3. AI Normal Summons 1 monster per turn with full hand visibility
+    // 2b. Play summon enabling setup spells (Double Tribute Surge, Phantom Catalyst, Mausoleum) BEFORE the summon routine
+    if (typeof AIPlaySummonEnablerSpells === 'function') {
+        await AIPlaySummonEnablerSpells();
+    }
+
+    // 3. AI Normal/Tribute Summons best monster with full hand visibility
     if (typeof AISummonMonsterRoutine === 'function') {
         await AISummonMonsterRoutine();
     }
@@ -102,6 +109,9 @@ async function computerTurn() {
     }
     if (typeof AIPlayExiledForce === 'function') {
         await AIPlayExiledForce();
+    }
+    if (typeof AIPlayGryphonStormlord === 'function') {
+        await AIPlayGryphonStormlord();
     }
 
     // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game
@@ -124,6 +134,11 @@ async function computerTurn() {
 
     // 5. Computer plays spells and sets traps dynamically
     await AIPlaySpellTrapCards();
+
+    // 5a. If Double Tribute Surge or tribute tokens were deployed, conduct extra/pending summon
+    if (typeof AISummonMonsterRoutine === 'function' && (!GameState.turn.normalSummonUsed || (GameState.turn.extraNormalSummons && GameState.turn.extraNormalSummons > 0))) {
+        await AISummonMonsterRoutine();
+    }
 
     // 5b. Re-evaluate monster positions before Battle Phase (e.g. monsters acquired via Change of Heart)
     if (typeof AIEvaluatePositionChanges === 'function') {
@@ -347,4 +362,5 @@ function resetAllSquares(squareElm) {
     $('.borrowed-monster-badge').remove();
     $('.stat-mod-badge').remove();
     $('.def-locked-badge').remove();
+    $('.flip-effect-badge').remove();
 }

@@ -447,7 +447,9 @@ async function getCards(who, num) {
                 deck = GameState.player.deck;
             }
         } else {
-            var pool = Object.keys(cards);
+            var pool = (typeof getCollectibleCardIds === 'function')
+                ? getCollectibleCardIds()
+                : Object.keys(cards).filter(function(id) { var d = cards[id]; return d && !d.isToken && d.subType !== 'token'; });
             cardName = random(pool);
         }
 
@@ -562,13 +564,18 @@ async function moveCard(who, source, targetSquare, mode, skipFeed) {
     }
 
     if (who === GameState.turn.active && cardType === 'monsters') {
-        GameState.turn.normalSummonUsed = true;
+        if (GameState.turn.normalSummonUsed && GameState.turn.extraNormalSummons > 0) {
+            GameState.turn.extraNormalSummons--;
+        } else {
+            GameState.turn.normalSummonUsed = true;
+        }
     }
 
     await animateCardPlacement(who, source, targetSquare, faceDown, isDefense, cardName, cardType, mode);
 
     EventBus.emit('MONSTER_SUMMONED', { who: who, instance: instance, zone: zoneNum });
     updateActionableCards();
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
 }
 
 // Shared flight/flip/rotate animation when a card leaves the hand and lands on a square
@@ -880,6 +887,16 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
                 return;
             }
 
+            var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
+            if (normalSummonExhausted) {
+                addToFeed('(Action) You have already used your Normal Summon/Set for this turn.\n\n');
+                resetActiveCardClass();
+                clearAvailableZones();
+                activeCard = null;
+                selectedSquare = null;
+                return;
+            }
+
             var reqTributes = (typeof getRequiredTributes === 'function') ? getRequiredTributes(activeCardDef.level) : 0;
             if (activeCardDef.id === 'infernal-incinerator' || reqTributes > 0) {
                 startOnMatTributeSelection(activeCard, activeCardDef, $(this), activeCardDef.id === 'infernal-incinerator' ? 1 : reqTributes);
@@ -965,6 +982,14 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
                 if (allFieldMonsters.length > 0) {
                     canUseEffect = true;
                     effectBtnText = 'EXILE STRIKE';
+                }
+            } else if (monsterInst.cardId === 'gryphon-stormlord') {
+                var anyOtherMonsters = (GameState) ? [...GameState.getMonstersOnField('player'), ...GameState.getMonstersOnField('computer')].filter(function(entry) {
+                    return entry.zone !== zoneNum || entry.side !== 'player';
+                }) : [];
+                if (anyOtherMonsters.length > 0) {
+                    canUseEffect = true;
+                    effectBtnText = 'CYCLONE BOUNCE';
                 }
             }
         }
@@ -1052,7 +1077,6 @@ async function summonOptionSelected(position) {
 
     await moveCard('player', sourceCard, targetSq, position);
 
-    GameState.turn.normalSummonUsed = true;
     updateActionableCards();
     updateResourceCounters();
 }
@@ -1068,6 +1092,13 @@ var pendingTributeReqCount = 0;
 var selectedTributeZones = [];
 
 function startOnMatTributeSelection(sourceCard, cardDef, targetSquare, reqCount) {
+    var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
+    if (normalSummonExhausted) {
+        addToFeed('(Action) You have already used your Normal Summon/Set for this turn.\n\n');
+        cancelTributeSelection();
+        return;
+    }
+
     pendingTributeSourceCard = sourceCard;
     pendingTributeCardDef = cardDef;
     pendingTributeTargetSquare = targetSquare;
@@ -1253,8 +1284,17 @@ async function confirmTributeSummon(position) {
 
     await moveCard('player', sourceCard, targetSq, position, true);
 
+    // Trigger Tribute Summon monster abilities (e.g. Titan, Leviathan)
+    if (typeof checkTributeSummonTriggers === 'function') {
+        await checkTributeSummonTriggers('player', cardDef, zoneNum);
+    }
+
     // Consume Normal Summon for turn
-    GameState.turn.normalSummonUsed = true;
+    if (GameState.turn.normalSummonUsed && GameState.turn.extraNormalSummons > 0) {
+        GameState.turn.extraNormalSummons--;
+    } else {
+        GameState.turn.normalSummonUsed = true;
+    }
     updateActionableCards();
     updateResourceCounters();
 }
@@ -1293,8 +1333,17 @@ async function confirmMausoleumSummon(position) {
 
     await moveCard('player', sourceCard, targetSq, position, true);
 
+    // Trigger Tribute Summon monster abilities (e.g. Titan, Leviathan)
+    if (typeof checkTributeSummonTriggers === 'function') {
+        await checkTributeSummonTriggers('player', cardDef, zoneNum);
+    }
+
     // Consume Normal Summon for turn
-    GameState.turn.normalSummonUsed = true;
+    if (GameState.turn.normalSummonUsed && GameState.turn.extraNormalSummons > 0) {
+        GameState.turn.extraNormalSummons--;
+    } else {
+        GameState.turn.normalSummonUsed = true;
+    }
     updateActionableCards();
     updateResourceCounters();
 }
@@ -1493,6 +1542,8 @@ function activateSelectedMonsterEffect() {
         openHarpieLadyDiscardModal(zoneNum);
     } else if (monsterInst.cardId === 'exiled-force') {
         openExiledForceTargetModal(zoneNum);
+    } else if (monsterInst.cardId === 'gryphon-stormlord') {
+        openGryphonStormlordModal(zoneNum);
     }
 }
 
@@ -1518,6 +1569,19 @@ function requestAttack() {
             executeBattle('player', attackerZone, computerMonsters[0].zone);
         }
     }
+}
+
+// Titan of the Obsidian Peak: Gain LP equal to the destroyed monster's original ATK
+async function triggerTitanLpGain(titanWho, destroyedDef, gainSquare) {
+    if (!destroyedDef || (destroyedDef.atk || 0) <= 0) return;
+    var absorbedAtk = destroyedDef.atk || 0;
+    GameState[titanWho].lp += absorbedAtk;
+    updateResourceCounters();
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.spawnFloatingDamage(gainSquare, absorbedAtk, 'heal');
+        BattleFX.animateLPCount(titanWho, GameState[titanWho].lp);
+    }
+    addToFeed('<em>Titan of the Obsidian Peak</em> absorbs energy: ' + formatWho(titanWho) + ' gains <strong>' + absorbedAtk + ' LP</strong>!\n\n');
 }
 
 // Unified Battle Resolution Engine
@@ -1604,11 +1668,14 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             addToFeed('<em>Shadow Infiltrator</em> struck! ' + formatWho(defenderWho) + ' discards <strong>' + (rDef ? rDef.name : 'a card') + '</strong> at random!\n\n');
         }
 
-        // End of Damage Step Triggers (Direct Attack)
-        if (attackerInst.cardId === 'chainsaw-insect' && GameState[defenderWho].lp > 0) {
-            addToFeed('<em>Chainsaw Insect</em>\'s effect activated: ' + formatWho(defenderWho) + ' draws 1 card!\n\n');
-            await getCards(defenderWho, 1);
-        }
+        // Damage Step End event (Chainsaw Insect via onDamageStepEnd)
+        EventBus.emit('DAMAGE_STEP_END', {
+            attackerInst: attackerInst,
+            attackerWho: attackerWho,
+            defenderInst: null,
+            defenderWho: defenderWho,
+            directAttack: true
+        });
 
         if (attackerWho === 'player' && GameState.player.lp > 0 && GameState.computer.lp > 0) {
             setPhase(4); // M2 - Main Phase 2
@@ -1622,6 +1689,18 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     if (!defenderInst) return;
 
     var defenderDef = cards[defenderInst.cardId];
+
+    // Abyssal Leviathan: Force defender into face-up Attack Position (Flip effects suppressed)
+    if (attackerInst.cardId === 'abyssal-leviathan' && (defenderInst.position === 'defense-up' || defenderInst.position === 'defense-down')) {
+        var wasFaceDown = (defenderInst.position === 'defense-down');
+        defenderInst.position = 'attack';
+        defenderInst.faceDown = false;
+        defenderSquare.attr('data-card-position', 'attack');
+        defenderSquare.find('div.card-zone').flip(false).css({ 'transform': 'rotate(0deg)' });
+        updateCardImage(defenderSquare);
+        addToFeed('<em>Abyssal Leviathan</em> forces <strong>' + defenderDef.name + '</strong> into face-up Attack Position before battle!' + (wasFaceDown ? ' (Flip effects suppressed)\n' : '\n'));
+        await sleep(getAnimDuration(300));
+    }
 
     // Flip face-up if attacked while face-down (Damage Step Reveal)
     if (defenderInst.position === 'defense-down') {
@@ -1666,6 +1745,12 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             } else {
                 await destroyMonster(defenderWho, defenderZone);
                 addToFeed(defenderDef.name + ' is destroyed! ' + formatWho(defenderWho) + ' takes ' + diff + ' damage.\n\n');
+
+                // Titan of the Obsidian Peak: Gain LP equal to destroyed monster's original ATK
+                if (attackerInst.cardId === 'titan-of-the-obsidian-peak') {
+                    await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
+                }
+
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
                     await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
                 }
@@ -1688,6 +1773,13 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             if (defenderInst.cardId !== 'nether-wraith') destPromises.push(destroyMonster(defenderWho, defenderZone));
             await Promise.all(destPromises);
             addToFeed('Both monsters had equal ATK!\n\n');
+
+            // Titan of the Obsidian Peak: Gains LP if it destroyed an opponent's monster in the double KO
+            if (attackerInst.cardId === 'titan-of-the-obsidian-peak') {
+                await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
+            } else if (defenderInst.cardId === 'titan-of-the-obsidian-peak') {
+                await triggerTitanLpGain(defenderWho, attackerDef, defenderSquare);
+            }
         } else {
             var diff = defenderAtk - attackerAtk;
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
@@ -1703,6 +1795,12 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             } else {
                 await destroyMonster(attackerWho, attackerZone);
                 addToFeed(attackerDef.name + ' is destroyed! ' + formatWho(attackerWho) + ' takes ' + diff + ' damage.\n\n');
+
+                // Titan of the Obsidian Peak: Gain LP when attacked and the attacker is destroyed
+                if (defenderInst.cardId === 'titan-of-the-obsidian-peak') {
+                    await triggerTitanLpGain(defenderWho, attackerDef, defenderSquare);
+                }
+
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
                     await triggerBattleDestructionGraveyardEffect(attackerInst, attackerWho, attackerZone, defenderInst, defenderWho, defenderZone);
                 }
@@ -1716,6 +1814,12 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             } else {
                 await destroyMonster(defenderWho, defenderZone);
                 addToFeed(defenderDef.name + ' in DEF mode is destroyed! No LP damage.\n\n');
+
+                // Titan of the Obsidian Peak: Gain LP equal to destroyed monster's original ATK
+                if (attackerInst.cardId === 'titan-of-the-obsidian-peak') {
+                    await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
+                }
+
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
                     await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
                 }
@@ -1736,15 +1840,15 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         }
     }
 
-    // End of Damage Step Triggers (Monster vs Monster)
-    if (attackerInst.cardId === 'chainsaw-insect' && GameState[defenderWho].lp > 0) {
-        addToFeed('<em>Chainsaw Insect</em>\'s effect activated: ' + formatWho(defenderWho) + ' draws 1 card!\n\n');
-        await getCards(defenderWho, 1);
-    }
-    if (defenderInst.cardId === 'chainsaw-insect' && GameState[attackerWho].lp > 0) {
-        addToFeed('<em>Chainsaw Insect</em>\'s effect activated: ' + formatWho(attackerWho) + ' draws 1 card!\n\n');
-        await getCards(attackerWho, 1);
-    }
+    // Damage Step End event (Chainsaw Insect via onDamageStepEnd)
+    EventBus.emit('DAMAGE_STEP_END', {
+        attackerInst: attackerInst,
+        attackerWho: attackerWho,
+        defenderInst: defenderInst,
+        defenderWho: defenderWho,
+        directAttack: false
+    });
+
     // Monolith of Echoes: Return attacking monster to owner's hand
     if (defenderInst.cardId === 'monolith-of-echoes' && GameState[attackerWho].field.monsters[attackerZone]) {
         addToFeed('<em>Monolith of Echoes</em> activated: ' + formatWho(attackerWho) + '\'s <strong>' + attackerDef.name + '</strong> is returned to the hand!\n\n');
@@ -1766,7 +1870,7 @@ var Actions = {
         var square = getSquareElm(who, zoneNum);
         if (!square || !square.length) return;
 
-        square.find('.borrowed-monster-badge, .def-locked-badge, .stat-mod-badge, .equip-tag-badge, .action-badge').remove();
+        square.find('.borrowed-monster-badge, .def-locked-badge, .flip-effect-badge, .stat-mod-badge, .equip-tag-badge, .action-badge').remove();
         square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
 
         square.attr('data-card-type', '');
@@ -1970,9 +2074,9 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
     await EventBus.emitAsync('CARD_SENT_TO_GRAVE', { cardInst: graveInst, who: who, zone: zoneNum, isFieldZone: isFieldZone, suppressGraveEffect: suppressGraveEffect });
 }
 
-// Special Summon a monster from a graveyard to a free monster zone (Attack Position).
+// Special Summon a monster from a graveyard (or spawn a token) to a free monster zone.
 // `sourceWho` is the side whose graveyard the monster comes from; it is summoned
-// onto `targetWho`'s field.
+// onto `targetWho`'s field. Returns the freeZone number on success, or false on failure.
 async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
     position = position || 'attack';
     var def = cards[cardId];
@@ -1986,27 +2090,48 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
         return false;
     }
 
-    // Remove one matching instance from the source graveyard
-    var gy = GameState[sourceWho].graveyard;
-    var sourceIdx = -1;
-    for (var i = 0; i < gy.length; i++) {
-        if (gy[i].cardId === cardId) {
-            sourceIdx = i;
-            break;
-        }
-    }
-    if (sourceIdx === -1) return false;
+    var isToken = (def.isToken || def.subType === 'token' || cardId.indexOf('token') > -1);
+    var instance;
 
-    var instance = gy[sourceIdx];
-    gy.splice(sourceIdx, 1);
-    if (!instance.originalOwner) {
-        instance.originalOwner = sourceWho;
+    if (isToken) {
+        // Tokens are created fresh on field, not pulled from the graveyard
+        instance = {
+            cardId: cardId,
+            uid: 'token_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
+            position: position,
+            faceDown: (position === 'defense-down'),
+            hasAttacked: false,
+            turnSummoned: turnCount,
+            turnPosChanged: turnCount,
+            originalOwner: targetWho,
+            isToken: true,
+            cannotBeTributed: (def.cannotBeTributed === true),
+            equips: []
+        };
+    } else {
+        // Remove one matching instance from the source graveyard
+        var gy = GameState[sourceWho].graveyard;
+        var sourceIdx = -1;
+        for (var i = 0; i < gy.length; i++) {
+            if (gy[i].cardId === cardId) {
+                sourceIdx = i;
+                break;
+            }
+        }
+        if (sourceIdx === -1) return false;
+
+        instance = gy[sourceIdx];
+        gy.splice(sourceIdx, 1);
+        if (!instance.originalOwner) {
+            instance.originalOwner = sourceWho;
+        }
+        instance.position = position;
+        instance.faceDown = (position === 'defense-down');
+        instance.hasAttacked = false; // Fresh attack state for Special Summon
+        instance.turnSummoned = turnCount;
+        instance.turnPosChanged = turnCount;
     }
-    instance.position = position;
-    instance.faceDown = (position === 'defense-down');
-    instance.hasAttacked = false; // Fresh attack state for Special Summon
-    instance.turnSummoned = turnCount;
-    instance.turnPosChanged = turnCount;
+
     GameState[targetWho].field.monsters[freeZone] = instance;
 
     var targetSquare = getSquareElm(targetWho, freeZone);
@@ -2018,33 +2143,52 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
     zone.find('.front, .back').removeAttr('style');
     zone.find('.front, .back').removeData('transform');
 
-    // Spirit-flight animation from graveyard to monster zone
-    // Hidden monsters (face-down Defense) fly as a card-back only, so the
-    // opponent never sees which monster is being special summoned.
-    var gyZone = $('#' + sourceWho + '-graveyard-zone');
-    var gyOffset = gyZone.length ? gyZone.offset() : null;
-    var targetOffset = zone.offset();
-    if (gyOffset && targetOffset) {
-        var isHiddenFlight = (position === 'defense-down');
-        var flightFace = isHiddenFlight
-            ? '<div class="card-back"></div>'
-            : '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>';
-        var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + gyOffset.top + 'px; left: ' + gyOffset.left + 'px;">' +
+    if (isToken) {
+        // Ethereal token materialization animation directly on the target zone
+        var tokenBurst = $('<div class="card" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + zone.offset().top + 'px; left: ' + zone.offset().left + 'px; opacity: 0; transform: scale(0.4);">' +
             '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
-                flightFace +
+                '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
             '</div>' +
         '</div>');
-        $('body').append(flightClone);
+        $('body').append(tokenBurst);
         await new Promise(function(resolve) {
-            flightClone.transition({
-                top: targetOffset.top,
-                left: targetOffset.left,
-                scale: 1
-            }, getAnimDuration(420), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
-                flightClone.remove();
-                resolve();
+            tokenBurst.transition({
+                opacity: 1,
+                scale: 1.05
+            }, getAnimDuration(260), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                tokenBurst.transition({ scale: 1 }, getAnimDuration(100), function() {
+                    tokenBurst.remove();
+                    resolve();
+                });
             });
         });
+    } else {
+        // Spirit-flight animation from graveyard to monster zone
+        var gyZone = $('#' + sourceWho + '-graveyard-zone');
+        var gyOffset = gyZone.length ? gyZone.offset() : null;
+        var targetOffset = zone.offset();
+        if (gyOffset && targetOffset) {
+            var isHiddenFlight = (position === 'defense-down');
+            var flightFace = isHiddenFlight
+                ? '<div class="card-back"></div>'
+                : '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>';
+            var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + gyOffset.top + 'px; left: ' + gyOffset.left + 'px;">' +
+                '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
+                    flightFace +
+                '</div>' +
+            '</div>');
+            $('body').append(flightClone);
+            await new Promise(function(resolve) {
+                flightClone.transition({
+                    top: targetOffset.top,
+                    left: targetOffset.left,
+                    scale: 1
+                }, getAnimDuration(420), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                    flightClone.remove();
+                    resolve();
+                });
+            });
+        }
     }
 
     // Build the board square markup
@@ -2124,7 +2268,7 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
     if (typeof updateActionableCards === 'function') updateActionableCards();
 
     EventBus.emit('MONSTER_SUMMONED', { who: targetWho, instance: instance, zone: freeZone, isSpecialSummon: true });
-    return true;
+    return freeZone;
 }
 
 // Special Summon a monster directly from a player's Deck in Attack Position (e.g. Giant Germ)

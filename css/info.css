@@ -676,7 +676,9 @@ body.sidebar-is-resizing * {
     flex-direction: column;
     gap: 6rem;
     width: 100%;
-    flex: 1 1 0;
+    flex: 0 1 auto; /* natural height; shrink when tight but never grow, so
+                       leftover vertical space flows to the bottom of the
+                       sidebar (below all the card info), not around the image */
     min-height: 0;
     overflow: hidden;
 }
@@ -684,10 +686,10 @@ body.sidebar-is-resizing * {
 .preview-img-container {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start; /* pin the card image to the top, never center it */
     width: 100%;
-    flex: 1 1 0;
-    min-height: 60px;
+    flex: 0 1 auto; /* natural height; shrink first when space is tight, never grow */
+    min-height: 0;
     overflow: hidden;
     padding: 0;
 }
@@ -696,8 +698,8 @@ body.sidebar-is-resizing * {
     position: relative;
     height: 100%;
     max-height: 100%;
-    max-width: 100%;
     width: auto;
+    max-width: 100%;
     aspect-ratio: 2 / 3;
     border-radius: 6rem;
     overflow: hidden;
