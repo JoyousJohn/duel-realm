@@ -1565,6 +1565,56 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     updateResourceCounters();
 }
 
+// ---------------------------------------------------------------------------
+// Centralized Zone Mutation & Lifecycle Actions
+// ---------------------------------------------------------------------------
+var Actions = {
+    // Purges all dynamic badges, dataset attributes, classes, and flip transforms on a board square
+    resetSquareDOM: function(who, zoneNum) {
+        var square = getSquareElm(who, zoneNum);
+        if (!square || !square.length) return;
+
+        square.find('.borrowed-monster-badge, .def-locked-badge, .stat-mod-badge, .equip-tag-badge, .action-badge').remove();
+        square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
+
+        square.attr('data-card-type', '');
+        square.attr('data-card-name', '');
+        square.attr('data-card-position', '');
+        square.attr('data-turn-moved', '');
+        square.attr('data-turn-posChanged', '');
+
+        var zone = square.find('div.card-zone');
+        zone.removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
+        zone.off('.flip');
+        zone.removeData('flip-model');
+        zone.removeAttr('style');
+        zone.removeData('transform');
+        zone.find('img').removeAttr('src');
+        zone.find('.front, .back').removeAttr('style').removeData('transform');
+        zone.css('opacity', 0).show().fadeTo(200, 1);
+    },
+
+    // Purges the field spell zone square
+    resetFieldZoneDOM: function(who) {
+        var square = getFieldZoneElm(who);
+        if (!square || !square.length) return;
+
+        square.removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable');
+        square.attr('data-card-type', '');
+        square.attr('data-card-name', '');
+        square.attr('data-card-position', '');
+
+        var zone = square.find('div.card-zone');
+        zone.off('.flip');
+        zone.removeData('flip-model');
+        zone.removeAttr('style');
+        zone.removeData('transform');
+        zone.find('img').removeAttr('src').hide();
+        zone.find('.front, .back').removeAttr('style').removeData('transform');
+        zone.css('opacity', 0).show().fadeTo(200, 1);
+    }
+};
+
 async function destroyMonster(who, zoneNum) {
     var cardInst = GameState[who].field.monsters[zoneNum];
     if (!cardInst) return;
@@ -1587,7 +1637,6 @@ async function destroyMonster(who, zoneNum) {
     }
 
     // Equip cards attached to the destroyed monster are destroyed with it
-    // (their "sent to Graveyard" effects resolve, e.g. Black Pendant's burn)
     var equipZones = [];
     for (var z = 1; z <= 6; z++) {
         var sp = GameState[who].field.spells[z];
@@ -1598,44 +1647,19 @@ async function destroyMonster(who, zoneNum) {
     }
 
     var square = getSquareElm(who, zoneNum);
-    if (square && square.length) {
-        square.find('.borrowed-monster-badge').remove();
-        square.find('.def-locked-badge').remove();
-        square.find('.stat-mod-badge').remove();
-        square.find('.equip-tag-badge').remove();
-        square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
-        square.find('div.card-zone').removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
-    }
-    
     if (typeof BattleFX !== 'undefined') {
         await BattleFX.animateMonsterDestruction(square);
-    } else {
-        square.attr('data-card-type', '');
-        square.attr('data-card-name', '');
-        square.attr('data-card-position', '');
-        square.attr('data-turn-moved', '');
-        square.attr('data-turn-posChanged', '');
-
-        var zone = square.find('div.card-zone');
-        await new Promise(function(resolve) {
-            zone.fadeOut(400, function() {
-                zone.off('.flip');
-                zone.removeData('flip-model');
-                zone.removeAttr('style');
-                zone.find('img').removeAttr('src');
-                zone.find('.front, .back').removeAttr('style');
-                zone.find('.front, .back').removeData('transform');
-                zone.css('opacity', 0).show().fadeTo(300, 1);
-                resolve();
-            });
-        });
     }
+    Actions.resetSquareDOM(who, zoneNum);
 
     clearAvailableZones();
     if (typeof updateStatModBadges === 'function') updateStatModBadges();
     if (typeof updateActionableCards === 'function') updateActionableCards();
     updateGraveyardZones();
     updateResourceCounters();
+
+    await EventBus.emitAsync('MONSTER_DESTROYED', { cardInst: cardInst, who: who, zone: zoneNum });
+    await EventBus.emitAsync('CARD_SENT_TO_GRAVE', { cardInst: cardInst, who: who, zone: zoneNum, fromField: true });
 }
 
 // Return a monster from field to owner's hand (e.g. Hane-Hane)
@@ -1674,57 +1698,31 @@ async function returnMonsterToHand(who, zoneNum) {
         cardElm.css({ opacity: 1, visibility: 'visible' });
     }
 
-    var square = getSquareElm(who, zoneNum);
-    if (square && square.length) {
-        square.find('.borrowed-monster-badge').remove();
-        square.find('.def-locked-badge').remove();
-        square.find('.stat-mod-badge').remove();
-        square.find('.equip-tag-badge').remove();
-        square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
-        square.find('div.card-zone').removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
-
-        square.attr('data-card-type', '');
-        square.attr('data-card-name', '');
-        square.attr('data-card-position', '');
-        square.attr('data-turn-moved', '');
-        square.attr('data-turn-posChanged', '');
-
-        var zone = square.find('div.card-zone');
-        await new Promise(function(resolve) {
-            zone.fadeOut(300, function() {
-                zone.off('.flip');
-                zone.removeData('flip-model');
-                zone.removeAttr('style');
-                zone.find('img').removeAttr('src');
-                zone.find('.front, .back').removeAttr('style');
-                zone.find('.front, .back').removeData('transform');
-                zone.css('opacity', 0).show().fadeTo(200, 1);
-                resolve();
-            });
-        });
-    }
-
-    clearAvailableZones();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
-    if (typeof updateActionableCards === 'function') updateActionableCards();
+    Actions.resetSquareDOM(who, zoneNum);
     updateResourceCounters();
 }
 
 // Destroy a spell/trap/field card: move to graveyard, clear state + DOM
 async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) {
-    var square;
+    var graveInst;
 
     if (isFieldZone) {
         var fieldInst = GameState[who].field.fieldZone;
         if (!fieldInst) return;
+        graveInst = fieldInst;
         GameState[who].graveyard.push(fieldInst);
         GameState[who].field.fieldZone = null;
-        square = getFieldZoneElm(who);
+
+        var square = getFieldZoneElm(who);
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
+            await BattleFX.animateSpellToGraveyard(square);
+        }
+        Actions.resetFieldZoneDOM(who);
     } else {
         var spellInst = GameState[who].field.spells[zoneNum];
         if (!spellInst) return;
+        graveInst = spellInst;
 
-        // If this is an equipped card, sever the link and clear its visual tag
         if (spellInst.equippedToUid) {
             removeEquipTag(who, spellInst.equippedToUid);
             spellInst.equippedToUid = null;
@@ -1733,64 +1731,19 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
 
         GameState[who].graveyard.push(spellInst);
         delete GameState[who].field.spells[zoneNum];
-        square = getSpellSquareElm(who, zoneNum);
+
+        var square = getSpellSquareElm(who, zoneNum);
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
+            await BattleFX.animateSpellToGraveyard(square);
+        }
+        Actions.resetSquareDOM(who, zoneNum);
     }
 
-    if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
-        await BattleFX.animateSpellToGraveyard(square);
-    } else {
-        var zone = square.find('div.card-zone');
-        zone.flip(false);
-        square.attr('data-card-type', '');
-        square.attr('data-card-name', '');
-        square.attr('data-card-position', '');
-        square.attr('data-turn-moved', '');
-
-        zone.off('.flip');
-        zone.removeData('flip-model');
-        zone.removeAttr('style');
-        zone.removeData('transform');
-        zone.find('img').removeAttr('src').hide();
-        zone.find('.front, .back').removeAttr('style');
-        zone.find('.front, .back').removeData('transform');
-        zone.css('opacity', 0).show().fadeTo(300, 1);
-
-        updateGraveyardZones();
-    }
-
+    updateGraveyardZones();
     updateResourceCounters();
 
-    // Equip cards that resolve "sent from field to Graveyard" effects
-    if (!suppressGraveEffect) {
-        var graveInst = isFieldZone ? fieldInst : spellInst;
-        if (graveInst && graveInst.cardId === 'black-pendant') {
-            var opp = GameState.getOpponent(who);
-            var pendantDef = cards['black-pendant'];
-            addToFeed('<em>' + (pendantDef ? pendantDef.name : 'Black Pendant') + '</em> is sent to the Graveyard: ' + formatWho(opp) + ' takes <strong>500</strong> damage!\n');
-            damageLP(opp, 500);
-        } else if (graveInst && graveInst.cardId === 'horn-of-the-unicorn') {
-            var hornDef = cards['horn-of-the-unicorn'];
-            var ownerWho = graveInst.originalOwner || who;
-            // Remove from Graveyard
-            if (GameState[ownerWho] && GameState[ownerWho].graveyard) {
-                var gy = GameState[ownerWho].graveyard;
-                var gyIdx = gy.lastIndexOf(graveInst);
-                if (gyIdx > -1) {
-                    gy.splice(gyIdx, 1);
-                }
-            }
-            // Return to top of Deck
-            if (GameState[ownerWho] && GameState[ownerWho].deck) {
-                GameState[ownerWho].deck.push('horn-of-the-unicorn');
-                if (ownerWho === 'player' && typeof deck !== 'undefined') {
-                    deck = GameState.player.deck;
-                }
-            }
-            addToFeed('<em>' + (hornDef ? hornDef.name : 'Horn of the Unicorn') + '</em> returned from the Graveyard to the top of ' + formatWho(ownerWho) + '\'s Deck!\n\n');
-            updateGraveyardZones();
-            if (typeof BattleFX !== 'undefined') BattleFX.updateDeckVisuals();
-        }
-    }
+    await EventBus.emitAsync('SPELL_TRAP_DESTROYED', { cardInst: graveInst, who: who, zone: zoneNum, isFieldZone: isFieldZone });
+    await EventBus.emitAsync('CARD_SENT_TO_GRAVE', { cardInst: graveInst, who: who, zone: zoneNum, isFieldZone: isFieldZone, suppressGraveEffect: suppressGraveEffect });
 }
 
 // Special Summon a monster from a graveyard to a free monster zone (Attack Position).
