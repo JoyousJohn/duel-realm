@@ -68,7 +68,7 @@ function updateLPDisplay() {
 }
 
 function updateResourceCounters() {
-    var playerDeckCount = (GameState && GameState.player && GameState.player.deck) ? GameState.player.deck.length : (typeof deck !== 'undefined' && deck ? deck.length : 35);
+    var playerDeckCount = (GameState && GameState.player && GameState.player.deck) ? GameState.player.deck.length : 0;
     var playerGyList = (GameState && GameState.player && GameState.player.graveyard) ? GameState.player.graveyard : [];
     var playerGyCount = playerGyList.length;
 
@@ -142,7 +142,7 @@ function updateActionableCards() {
                 }
             }
 
-            var hasHandCards = (player && player.hand) ? ((player.hand.monsters ? player.hand.monsters.length : 0) + (player.hand.spells ? player.hand.spells.length : 0) + (player.hand.traps ? player.hand.traps.length : 0) > 0) : false;
+            var hasHandCards = (GameState && GameState.player && GameState.player.hand) ? (GameState.player.hand.length > 0) : false;
             var canUseEffect = false;
             if (isMainPhase && monster.position !== 'defense-down' && monster.lastEffectTurn !== turnCount) {
                 if (monster.cardId === 'time-wizard') {
@@ -371,8 +371,6 @@ async function getCards(who, num) {
             if (who === 'player' && typeof deck !== 'undefined') {
                 deck = GameState.player.deck;
             }
-        } else if (who === 'player' && typeof deck !== 'undefined' && deck.length > 0) {
-            cardName = deck.pop();
         } else {
             var pool = Object.keys(cards);
             cardName = random(pool);
@@ -384,12 +382,6 @@ async function getCards(who, num) {
         GameState[who].hand.push(instance);
 
         var cardElm = addCardToHand(who, cardName, instance.uid, true);
-
-        const cardType = cards[cardName]['type'];
-        if (window[who] && window[who]['hand'] && window[who]['hand'][cardType]) {
-            window[who]['hand'][cardType].push(cardName);
-        }
-
         drawnCards.push({ name: cardName, elm: cardElm });
     }
 
@@ -415,7 +407,7 @@ async function getCards(who, num) {
         }
     } else {
         drawnCards.forEach(function(c) {
-            if (c.elm) c.elm.css({ opacity: 1, visibility: 'visible' });
+            if (c.elm) $(c.elm).css({ opacity: 1, visibility: 'visible' });
         });
     }
 
@@ -436,7 +428,6 @@ async function summonMonster(who, monsterName, skipFeed) {
     target.attr('data-card-type', 'monsters');
     target.attr('data-card-position', mode);
 
-    removeMonsterFromHandVar(who, monsterName);
     await moveCard(who, source, target, mode, skipFeed);
 }
 
@@ -867,7 +858,7 @@ $(document).on('click', '#player-field div.card-zone-square', function() {
         btnToAttack.prop('disabled', false).removeClass('is-locked').find('span').text('TO ATTACK');
 
         var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
-        var hasHandCards = (player && player.hand) ? ((player.hand.monsters ? player.hand.monsters.length : 0) + (player.hand.spells ? player.hand.spells.length : 0) + (player.hand.traps ? player.hand.traps.length : 0) > 0) : false;
+        var hasHandCards = (GameState && GameState.player && GameState.player.hand) ? (GameState.player.hand.length > 0) : false;
         var canUseEffect = false;
         var effectBtnText = 'ACTIVATE EFFECT';
 
@@ -968,7 +959,6 @@ async function summonOptionSelected(position) {
     activeCard = null;
     selectedSquare = null;
 
-    removeMonsterFromHandVar('player', monsterName);
     await moveCard('player', sourceCard, targetSq, position);
 
     GameState.turn.normalSummonUsed = true;
@@ -994,6 +984,9 @@ function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
     selectedTributeZones = [];
 
     var isInfernal = (cardDef.id === 'infernal-incinerator');
+    var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+    var lpCost = reqCount * 1000;
+
     if (isInfernal) {
         pendingTributeReqCount = 1;
         $('#tribute-card-name').text('INFERNAL INCINERATOR');
@@ -1009,10 +1002,26 @@ function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
     }
     updateTributeModalCounters();
 
+    // Check Mausoleum of Offerings field spell
+    var mausoleumOpt = $('#tribute-mausoleum-option');
+    if (isMausoleum && !isInfernal) {
+        $('#mausoleum-cost-atk').text(lpCost);
+        $('#mausoleum-cost-def').text(lpCost);
+        var canAfford = (GameState.player.lp > lpCost);
+        $('#mausoleum-btn-attack').prop('disabled', !canAfford).css('opacity', canAfford ? '1' : '0.5');
+        $('#mausoleum-btn-defense').prop('disabled', !canAfford).css('opacity', canAfford ? '1' : '0.5');
+        mausoleumOpt.show();
+    } else {
+        mausoleumOpt.hide();
+    }
+
     var grid = $('#tribute-monsters-grid');
     grid.empty();
 
-    var ownMonsters = GameState.getMonstersOnField('player');
+    var ownMonsters = GameState.getMonstersOnField('player').filter(function(entry) {
+        var mDef = cards[entry.card.cardId];
+        return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
+    });
     if (isInfernal) {
         ownMonsters = ownMonsters.filter(function(entry) {
             var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
@@ -1021,6 +1030,12 @@ function openTributeSelectModal(sourceCard, cardDef, targetSquare, reqCount) {
     }
 
     if (ownMonsters.length === 0) {
+        if (isMausoleum && !isInfernal && GameState.player.lp > lpCost) {
+            grid.append('<div style="grid-column: 1 / -1; padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">No monsters on field. You can pay ' + lpCost + ' LP via <strong>Mausoleum of Offerings</strong> below to Normal Summon/Set directly!</div>');
+            $('#tribute-select-modal').fadeIn(150);
+            return;
+        }
+
         if (isInfernal) {
             addToFeed('You control no face-up monsters with 2000+ ATK to tribute for <em>' + cardDef.name + '</em>.\n');
         } else {
@@ -1130,9 +1145,6 @@ async function confirmTributeSummon(position) {
             var dDef = cards[dInst.cardId];
             discardedNames.push(dDef ? dDef.name : 'a card');
             GameState.player.graveyard.push(dInst);
-            if (dDef) {
-                removeCardFromHandVar('player', dInst.cardId, dDef.type);
-            }
         }
         GameState.player.hand = GameState.player.hand.filter(function(c) { return c.uid === sourceUid; });
         updateHandDisplay('player');
@@ -1155,7 +1167,46 @@ async function confirmTributeSummon(position) {
     activeCard = null;
     selectedSquare = null;
 
-    removeMonsterFromHandVar('player', cardDef.id);
+    await moveCard('player', sourceCard, targetSq, position, true);
+
+    // Consume Normal Summon for turn
+    GameState.turn.normalSummonUsed = true;
+    updateActionableCards();
+    updateResourceCounters();
+}
+
+async function confirmMausoleumSummon(position) {
+    var sourceCard = pendingTributeSourceCard;
+    var targetSq = pendingTributeTargetSquare;
+    var cardDef = pendingTributeCardDef;
+    var lpCost = pendingTributeReqCount * 1000;
+
+    if (GameState.player.lp <= lpCost) {
+        addToFeed('You do not have enough Life Points to pay the ' + lpCost + ' LP cost for <em>Mausoleum of Offerings</em>.\n');
+        return;
+    }
+
+    $('#tribute-select-modal').fadeOut(120);
+
+    // Deduct LP cost
+    GameState.player.lp -= lpCost;
+    updateResourceCounters();
+    if (typeof showFloatingDamage === 'function') {
+        showFloatingDamage('player', lpCost);
+    }
+
+    var zoneNum = parseInt(targetSq.attr('data-zone'));
+    var actionType = (position === 'defense-down') ? 'Tribute Set' : 'Tribute Summon';
+    var stanceLabel = (position === 'defense-down') ? 'Defense Position' : 'Attack Position';
+
+    addToFeed('Player pays <strong>' + lpCost + ' LP</strong> via <em>Mausoleum of Offerings</em> to ' + actionType + ' <em>' + cardDef.name + '</em> in ' + stanceLabel + ' in zone #' + zoneNum + ' without Tributing.\n\n');
+
+    resetActiveCardClass();
+    clearAvailableZones();
+
+    activeCard = null;
+    selectedSquare = null;
+
     await moveCard('player', sourceCard, targetSq, position, true);
 
     // Consume Normal Summon for turn
@@ -1244,8 +1295,7 @@ async function playNonMonsterCard(who, source, targetSquare, cardDef, zoneKind) 
     targetSquare.attr('data-card-type', cardDef.type);
     targetSquare.attr('data-card-position', instance.position);
 
-    // Sync legacy hand variable arrays
-    removeCardFromHandVar(who, cardDef.id, cardDef.type);
+    // Remove instance from GameState hand
     removeCardInstanceFromHand(who, instance.uid);
 
     // Animate the card flying from hand to the square and place on arrival
@@ -1398,17 +1448,13 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     var attackerInst = GameState[attackerWho].field.monsters[attackerZone];
     if (!attackerInst) return;
 
+    var attackerDef = cards[attackerInst.cardId];
+
     // Swords of Revealing Light: opponent's monsters cannot declare an attack
     if (isAttackBlocked(attackerWho)) {
-        var lockedDef = cards[attackerInst.cardId];
-        addToFeed('(Locked) Swords of Revealing Light prevents <em>' + lockedDef.name + '</em> from attacking.\n\n');
+        addToFeed('(Locked) Swords of Revealing Light prevents <em>' + (attackerDef ? attackerDef.name : 'monster') + '</em> from attacking.\n\n');
         return;
     }
-
-    var attackerSquare = getSquareElm(attackerWho, attackerZone);
-    var defenderSquare = (defenderZone !== null) ? getSquareElm(defenderWho, defenderZone) : null;
-    var attackerDef = cards[attackerInst.cardId];
-    attackerInst.hasAttacked = true;
 
     // Modified stats from field spells and card effects
     var attackerAtk = getMonsterAtk(attackerInst);
@@ -1420,6 +1466,27 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         attackerAtk = Math.max(0, halvedBase + fieldMods.atk + equipMods.atk);
         addToFeed('<em>Lionhearted Locomotive</em>\'s ATK is halved to ' + attackerAtk + ' until the end of the Damage Step!\n');
     }
+
+    // Radiant Backlash response on attack declaration
+    if (typeof checkRadiantBacklashResponse === 'function') {
+        var rbTriggered = await checkRadiantBacklashResponse(attackerWho, attackerZone, defenderWho);
+        if (rbTriggered) {
+            return;
+        }
+    }
+
+    // Prism of Retribution response on attack declaration
+    if (typeof checkPrismOfRetributionResponse === 'function') {
+        var porTriggered = await checkPrismOfRetributionResponse(attackerWho, attackerZone, defenderWho, attackerAtk, attackerDef);
+        if (porTriggered) {
+            return;
+        }
+    }
+
+    var attackerSquare = getSquareElm(attackerWho, attackerZone);
+    var defenderSquare = (defenderZone !== null) ? getSquareElm(defenderWho, defenderZone) : null;
+    attackerInst.hasAttacked = true;
+
 
     // Set Battle Phase on HUD Tracker
     setPhase(3); // BP - Battle Phase
@@ -1440,6 +1507,18 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             BattleFX.animateLPCount(defenderWho, GameState[defenderWho].lp);
         }
         EventBus.emit('LP_CHANGED', { who: defenderWho, lp: GameState[defenderWho].lp, damage: damage });
+
+        // Shadow Infiltrator: Discard 1 random card on battle damage
+        if (attackerInst.cardId === 'shadow-infiltrator' && damage > 0 && GameState[defenderWho].hand && GameState[defenderWho].hand.length > 0) {
+            var dHand = GameState[defenderWho].hand;
+            var rIdx = Math.floor(Math.random() * dHand.length);
+            var rCard = dHand.splice(rIdx, 1)[0];
+            GameState[defenderWho].graveyard.push(rCard);
+            var rDef = cards[rCard.cardId];
+            updateHandDisplay(defenderWho);
+            updateGraveyardZones();
+            addToFeed('<em>Shadow Infiltrator</em> struck! ' + formatWho(defenderWho) + ' discards <strong>' + (rDef ? rDef.name : 'a card') + '</strong> at random!\n\n');
+        }
 
         // End of Damage Step Triggers (Direct Attack)
         if (attackerInst.cardId === 'chainsaw-insect' && GameState[defenderWho].lp > 0) {
@@ -1498,17 +1577,33 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             }
             EventBus.emit('LP_CHANGED', { who: defenderWho, lp: GameState[defenderWho].lp, damage: diff });
 
-            await destroyMonster(defenderWho, defenderZone);
-            addToFeed(defenderDef.name + ' is destroyed! ' + formatWho(defenderWho) + ' takes ' + diff + ' damage.\n\n');
-            if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
-                await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
+            if (defenderInst.cardId === 'nether-wraith') {
+                addToFeed('<em>Nether Wraith</em> cannot be destroyed by battle! ' + formatWho(defenderWho) + ' takes ' + diff + ' damage.\n\n');
+            } else {
+                await destroyMonster(defenderWho, defenderZone);
+                addToFeed(defenderDef.name + ' is destroyed! ' + formatWho(defenderWho) + ' takes ' + diff + ' damage.\n\n');
+                if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
+                    await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
+                }
+            }
+
+            // Shadow Infiltrator: Discard 1 random card on battle damage
+            if (attackerInst.cardId === 'shadow-infiltrator' && diff > 0 && GameState[defenderWho].hand && GameState[defenderWho].hand.length > 0) {
+                var dHand = GameState[defenderWho].hand;
+                var rIdx = Math.floor(Math.random() * dHand.length);
+                var rCard = dHand.splice(rIdx, 1)[0];
+                GameState[defenderWho].graveyard.push(rCard);
+                var rDef = cards[rCard.cardId];
+                updateHandDisplay(defenderWho);
+                updateGraveyardZones();
+                addToFeed('<em>Shadow Infiltrator</em> struck! ' + formatWho(defenderWho) + ' discards <strong>' + (rDef ? rDef.name : 'a card') + '</strong> at random!\n\n');
             }
         } else if (attackerAtk === defenderAtk) {
-            await Promise.all([
-                destroyMonster(attackerWho, attackerZone),
-                destroyMonster(defenderWho, defenderZone)
-            ]);
-            addToFeed('Both monsters had equal ATK and were destroyed!\n\n');
+            var destPromises = [];
+            if (attackerInst.cardId !== 'nether-wraith') destPromises.push(destroyMonster(attackerWho, attackerZone));
+            if (defenderInst.cardId !== 'nether-wraith') destPromises.push(destroyMonster(defenderWho, defenderZone));
+            await Promise.all(destPromises);
+            addToFeed('Both monsters had equal ATK!\n\n');
         } else {
             var diff = defenderAtk - attackerAtk;
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
@@ -1519,19 +1614,27 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             }
             EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: diff });
 
-            await destroyMonster(attackerWho, attackerZone);
-            addToFeed(attackerDef.name + ' is destroyed! ' + formatWho(attackerWho) + ' takes ' + diff + ' damage.\n\n');
-            if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
-                await triggerBattleDestructionGraveyardEffect(attackerInst, attackerWho, attackerZone, defenderInst, defenderWho, defenderZone);
+            if (attackerInst.cardId === 'nether-wraith') {
+                addToFeed('<em>Nether Wraith</em> cannot be destroyed by battle! ' + formatWho(attackerWho) + ' takes ' + diff + ' damage.\n\n');
+            } else {
+                await destroyMonster(attackerWho, attackerZone);
+                addToFeed(attackerDef.name + ' is destroyed! ' + formatWho(attackerWho) + ' takes ' + diff + ' damage.\n\n');
+                if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
+                    await triggerBattleDestructionGraveyardEffect(attackerInst, attackerWho, attackerZone, defenderInst, defenderWho, defenderZone);
+                }
             }
         }
     } else {
         // ATK vs DEF
         if (attackerAtk > defenderDefVal) {
-            await destroyMonster(defenderWho, defenderZone);
-            addToFeed(defenderDef.name + ' in DEF mode is destroyed! No LP damage.\n\n');
-            if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
-                await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
+            if (defenderInst.cardId === 'nether-wraith') {
+                addToFeed('<em>Nether Wraith</em> cannot be destroyed by battle!\n\n');
+            } else {
+                await destroyMonster(defenderWho, defenderZone);
+                addToFeed(defenderDef.name + ' in DEF mode is destroyed! No LP damage.\n\n');
+                if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
+                    await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
+                }
             }
         } else if (attackerAtk < defenderDefVal) {
             var diff = defenderDefVal - attackerAtk;
@@ -1557,6 +1660,11 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     if (defenderInst.cardId === 'chainsaw-insect' && GameState[attackerWho].lp > 0) {
         addToFeed('<em>Chainsaw Insect</em>\'s effect activated: ' + formatWho(attackerWho) + ' draws 1 card!\n\n');
         await getCards(attackerWho, 1);
+    }
+    // Monolith of Echoes: Return attacking monster to owner's hand
+    if (defenderInst.cardId === 'monolith-of-echoes' && GameState[attackerWho].field.monsters[attackerZone]) {
+        addToFeed('<em>Monolith of Echoes</em> activated: ' + formatWho(attackerWho) + '\'s <strong>' + attackerDef.name + '</strong> is returned to the hand!\n\n');
+        await returnMonsterToHand(attackerWho, attackerZone);
     }
 
     if (attackerWho === 'player' && GameState.player.lp > 0 && GameState.computer.lp > 0) {
@@ -1633,6 +1741,22 @@ async function destroyMonster(who, zoneNum) {
             setTimeout(function() {
                 triggerSpearCretinGraveyardEffect();
             }, 500);
+        }
+    }
+
+    // Continuous Trap binding (Crypt Awakening): If monster is destroyed, destroy bound trap
+    if (cardInst.boundTrapUid) {
+        var bTrapUid = cardInst.boundTrapUid;
+        cardInst.boundTrapUid = null;
+        var bTrapZone = null;
+        for (var sz = 1; sz <= 6; sz++) {
+            if (GameState[who].field.spells[sz] && GameState[who].field.spells[sz].uid === bTrapUid) {
+                bTrapZone = sz;
+                break;
+            }
+        }
+        if (bTrapZone !== null) {
+            await destroySpellTrap(who, bTrapZone, false);
         }
     }
 
@@ -1729,6 +1853,22 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
             if (typeof updateStatModBadges === 'function') updateStatModBadges();
         }
 
+        // Continuous Trap binding (Crypt Awakening): If trap leaves field, destroy bound monster
+        if (spellInst.boundMonsterUid) {
+            var bMonUid = spellInst.boundMonsterUid;
+            spellInst.boundMonsterUid = null;
+            var bMonZone = null;
+            for (var mz = 1; mz <= 6; mz++) {
+                if (GameState[who].field.monsters[mz] && GameState[who].field.monsters[mz].uid === bMonUid) {
+                    bMonZone = mz;
+                    break;
+                }
+            }
+            if (bMonZone !== null) {
+                await destroyMonster(who, bMonZone);
+            }
+        }
+
         GameState[who].graveyard.push(spellInst);
         delete GameState[who].field.spells[zoneNum];
 
@@ -1795,13 +1935,19 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
     zone.find('.front, .back').removeData('transform');
 
     // Spirit-flight animation from graveyard to monster zone
+    // Hidden monsters (face-down Defense) fly as a card-back only, so the
+    // opponent never sees which monster is being special summoned.
     var gyZone = $('#' + sourceWho + '-graveyard-zone');
     var gyOffset = gyZone.length ? gyZone.offset() : null;
     var targetOffset = zone.offset();
     if (gyOffset && targetOffset) {
+        var isHiddenFlight = (position === 'defense-down');
+        var flightFace = isHiddenFlight
+            ? '<div class="card-back"></div>'
+            : '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>';
         var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + gyOffset.top + 'px; left: ' + gyOffset.left + 'px;">' +
             '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
-                '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
+                flightFace +
             '</div>' +
         '</div>');
         $('body').append(flightClone);
@@ -1848,7 +1994,11 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
             'transform': 'rotateY(180deg)',
             'display': 'none'
         });
-        addToFeed(formatWho(targetWho) + ' Special Summons <em>' + def.name + '</em> in face-down Defense Position.\n\n');
+        // Face-down Defense: conceal the monster's identity from the opponent
+        var specialLabel = (targetWho === 'computer')
+            ? 'a monster'
+            : '<em>' + def.name + '</em>';
+        addToFeed(formatWho(targetWho) + ' Special Summons ' + specialLabel + ' in face-down Defense Position.\n\n');
     } else {
         if (typeof zone.flip === 'function') {
             try {

@@ -613,6 +613,220 @@
             </div>
         </div>
 
+        <!-- Arcane Disruptor Prompt Modal -->
+        <div id="arcane-disruptor-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveArcaneDisruptorPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.18); border-color: rgba(236, 72, 153, 0.45);">
+                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
+                        <span class="action-header-category" style="color: #f472b6;">COUNTER TRAP ACTIVATION</span>
+                    </div>
+                    <h3 class="action-modal-card-name">ARCANE DISRUPTOR</h3>
+                    <div class="action-modal-card-stats" id="ad-trigger-cause">OPPONENT ACTIVATED A SPELL!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;" id="ad-prompt-description">
+                        Opponent activated a Spell Card. Discard 1 card from hand to negate its activation and remove it from play?
+                    </div>
+                    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(244, 114, 182, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <strong>Cost:</strong> 1 Discard from Hand • <strong>Effect:</strong> Negate & Banish Spell Card
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #db2777, #9d174d); border: 1px solid #f472b6; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneDisruptorPrompt(true)">
+                        ⚡ ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneDisruptorPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arcane Disruptor Discard Selection Modal -->
+        <div id="arcane-disruptor-discard-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelArcaneDisruptorDiscard()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4);">
+                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
+                        <span class="action-header-category" style="color: #f472b6;">ACTIVATION COST</span>
+                    </div>
+                    <h3 class="action-modal-card-name">ARCANE DISRUPTOR</h3>
+                    <div class="action-modal-card-stats">SELECT 1 CARD FROM YOUR HAND TO DISCARD</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="arcane-disruptor-discard-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelArcaneDisruptorDiscard()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Abyssal Scout Deck Search Modal -->
+        <div id="abyssal-scout-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4);">
+                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
+                        <span class="action-header-category" style="color: #c084fc;">DECK SEARCH • TUTOR ENGINE</span>
+                    </div>
+                    <h3 class="action-modal-card-name">ABYSSAL SCOUT</h3>
+                    <div class="action-modal-card-stats">SELECT 1 MONSTER (ATK 1500 OR LESS) TO ADD TO YOUR HAND</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="abyssal-scout-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <div style="font-size: 12px; color: #94a3b8;">Choose a monster with 1500 or less ATK</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Celestial Tithe Discard Modal -->
+        <div id="celestial-tithe-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(52, 211, 153, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.4);">
+                        <span class="action-pulse-dot" style="background: #34d399; box-shadow: 0 0 8px #34d399;"></span>
+                        <span class="action-header-category" style="color: #6ee7b7;">CELESTIAL TITHE • DISCARD 2 CARDS</span>
+                    </div>
+                    <h3 class="action-modal-card-name">CELESTIAL TITHE</h3>
+                    <div class="action-modal-card-stats" id="celestial-tithe-counter">SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (0/2)</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="celestial-tithe-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button id="celestial-tithe-confirm-btn" class="tactical-action-btn" style="background: linear-gradient(135deg, #059669, #047857); border: 1px solid #34d399; color: #fff; padding: 10px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none;" onclick="confirmCelestialTitheDiscards()">
+                        ✓ DISCARD SELECTED CARDS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Radiant Backlash Prompt Modal -->
+        <div id="radiant-backlash-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveRadiantBacklashPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(245, 158, 11, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(245, 158, 11, 0.18); border-color: rgba(245, 158, 11, 0.45);">
+                        <span class="action-pulse-dot" style="background: #f59e0b; box-shadow: 0 0 8px #f59e0b;"></span>
+                        <span class="action-header-category" style="color: #fbbf24;">TRAP ACTIVATION WINDOW</span>
+                    </div>
+                    <h3 class="action-modal-card-name">RADIANT BACKLASH</h3>
+                    <div class="action-modal-card-stats" id="rb-trigger-cause">OPPONENT DECLARED AN ATTACK!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+                        Opponent declared an attack. Activate your face-down <strong style="color: #fbbf24;">Radiant Backlash</strong> to destroy <em>all Attack Position monsters</em> on your opponent's side of the field?
+                    </div>
+                    <div id="rb-modal-casualty-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <!-- Casualties summary -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #d97706, #b45309); border: 1px solid #fbbf24; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveRadiantBacklashPrompt(true)">
+                        💥 ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveRadiantBacklashPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Crypt Awakening Modal -->
+        <div id="crypt-awakening-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelCryptAwakeningTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4);">
+                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
+                        <span class="action-header-category" style="color: #c084fc;">CRYPT AWAKENING • RESURRECTION</span>
+                    </div>
+                    <h3 class="action-modal-card-name">CRYPT AWAKENING</h3>
+                    <div class="action-modal-card-stats">SELECT 1 MONSTER FROM YOUR GRAVEYARD TO SPECIAL SUMMON</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="crypt-awakening-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelCryptAwakeningTarget()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lunar Grimoire Target Selection Modal -->
+        <div id="lunar-grimoire-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelLunarGrimoireTarget()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4);">
+                        <span class="action-pulse-dot" style="background: #38bdf8; box-shadow: 0 0 8px #38bdf8;"></span>
+                        <span class="action-header-category" style="color: #7dd3fc;">LUNAR GRIMOIRE • FLIP DEFENSE</span>
+                    </div>
+                    <h3 class="action-modal-card-name">LUNAR GRIMOIRE</h3>
+                    <div class="action-modal-card-stats">SELECT 1 FACE-UP MONSTER TO CHANGE TO FACE-DOWN DEFENSE POSITION</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="lunar-grimoire-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelLunarGrimoireTarget()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prism of Retribution Prompt Modal -->
+        <div id="prism-of-retribution-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolvePrismOfRetributionPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.18); border-color: rgba(236, 72, 153, 0.45);">
+                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
+                        <span class="action-header-category" style="color: #f472b6;">COUNTER-ATTACK TRAP</span>
+                    </div>
+                    <h3 class="action-modal-card-name">PRISM OF RETRIBUTION</h3>
+                    <div class="action-modal-card-stats" id="por-trigger-cause">OPPONENT DECLARED AN ATTACK!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;" id="por-prompt-description">
+                        Opponent declared an attack. Activate your face-down <strong style="color: #f472b6;">Prism of Retribution</strong> to negate the attack and inflict its full ATK damage to your opponent?
+                    </div>
+                    <div id="por-modal-damage-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(244, 114, 182, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <!-- Reflected Damage Summary -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #db2777, #9d174d); border: 1px solid #f472b6; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolvePrismOfRetributionPrompt(true)">
+                        ⚡ ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolvePrismOfRetributionPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Spear Cretin Graveyard Selection Modal -->
         <div id="spear-cretin-modal" class="tactical-action-modal" style="display: none;">
             <div class="action-modal-backdrop" onclick="cancelSpearCretinTarget()"></div>
@@ -838,6 +1052,19 @@
                     <div id="tribute-monsters-grid" class="rebirth-cards-grid"></div>
                 </div>
 
+                <!-- Mausoleum of Offerings Alternative LP Summon Option -->
+                <div id="tribute-mausoleum-option" style="display: none; padding: 10px 16px; margin: 0 16px 10px 16px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(52, 211, 153, 0.45); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 11px; color: #6ee7b7; font-weight: 800; margin-bottom: 8px; letter-spacing: 0.8px;">⚡ MAUSOLEUM OF OFFERINGS (ACTIVE FIELD SPELL)</div>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button class="tribute-stance-btn tribute-btn-attack" id="mausoleum-btn-attack" onclick="confirmMausoleumSummon('attack')" style="flex: 1; padding: 9px 12px; font-size: 11.5px; background: linear-gradient(135deg, #059669, #047857); border: 1px solid #34d399; color: #fff; font-weight: bold; border-radius: 6px; cursor: pointer;">
+                            ⚔ PAY <span id="mausoleum-cost-atk">1000</span> LP (ATTACK)
+                        </button>
+                        <button class="tribute-stance-btn tribute-btn-defense" id="mausoleum-btn-defense" onclick="confirmMausoleumSummon('defense-down')" style="flex: 1; padding: 9px 12px; font-size: 11.5px; background: linear-gradient(135deg, #0284c7, #0369a1); border: 1px solid #38bdf8; color: #fff; font-weight: bold; border-radius: 6px; cursor: pointer;">
+                            🛡 PAY <span id="mausoleum-cost-def">1000</span> LP (SET)
+                        </button>
+                    </div>
+                </div>
+
                 <div class="tribute-modal-stance-actions">
                     <button class="tribute-stance-btn tribute-btn-attack" id="tribute-btn-attack" onclick="confirmTributeSummon('attack')" disabled>
                         <span class="tribute-btn-icon">⚔</span>
@@ -938,6 +1165,7 @@
 
         <!-- AAA Tactical Command & Inspector Sidebar -->
         <aside id="info-panel" class="tactical-sidebar">
+            <div id="sidebar-resizer" class="sidebar-resizer" title="Drag to resize sidebar"></div>
 
             <!-- Sidebar Top Header with System Button -->
             <div class="sidebar-header">
@@ -994,9 +1222,11 @@
                 <!-- Active Inspect State (shown when hovering a card) -->
                 <div id="scanner-active" class="scanner-active-view" style="display: none;">
                     <div class="preview-media-container">
-                        <div class="preview-img-frame">
-                            <img id="preview-card-img" alt="Card Preview">
-                            <div class="preview-holo-shimmer"></div>
+                        <div class="preview-img-container">
+                            <div class="preview-img-frame">
+                                <img id="preview-card-img" alt="Card Preview">
+                                <div class="preview-holo-shimmer"></div>
+                            </div>
                         </div>
                         <div class="preview-primary-meta">
                             <div class="preview-badge-row">
@@ -1035,8 +1265,7 @@
                     </div>
 
                     <!-- Lore & Ability Description -->
-                    <div class="preview-desc-container">
-                        <div class="preview-desc-title">CARD DETAILS & EFFECT</div>
+                    <div class="preview-desc-container" id="preview-desc-module">
                         <p id="preview-card-desc" class="preview-desc-text">The ultimate wizard in terms of attack and defense.</p>
                     </div>
                 </div>
@@ -1053,7 +1282,7 @@
             </div>  
 
             <!-- Live Combat & Action Feed -->
-            <div class="hud-module log-module">
+            <div class="hud-module log-module" id="duel-log-module">
                 <div class="log-module-header">
                     <div class="log-header-left">
                         <span class="log-live-dot"></span>

@@ -42,27 +42,11 @@ function buildPlayerDeck() {
     }
 }
 
-// Remove card string from who.hand.<type> array
-function removeCardFromHandVar(who, cardId, type) {
-    if (window[who] && window[who]['hand'] && window[who]['hand'][type]) {
-        window[who]['hand'][type] = remove(window[who]['hand'][type], cardId);
-    }
-}
-
-// Remove monster string from who.monsters array
-function removeMonsterFromHandVar(who, monsterName) {
-    removeCardFromHandVar(who, monsterName, 'monsters');
-}
-
-// Remove spell string from who.spells array
-function removeSpellFromHandVar(who, spellName) {
-    removeCardFromHandVar(who, spellName, 'spells');
-}
-
-// Remove trap string from who.traps array
-function removeTrapFromHandVar(who, trapName) {
-    removeCardFromHandVar(who, trapName, 'traps');
-}
+// Legacy compatibility stubs (hand management is handled natively via GameState[who].hand)
+function removeCardFromHandVar(who, cardId, type) {}
+function removeMonsterFromHandVar(who, monsterName) {}
+function removeSpellFromHandVar(who, spellName) {}
+function removeTrapFromHandVar(who, trapName) {}
 
 function updateCardImage(squareElm) {
     const cardName = $(squareElm).attr('data-card-name');

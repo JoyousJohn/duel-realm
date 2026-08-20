@@ -7,6 +7,8 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
 
     if (isOpponentHand) {
         hoverCardName = null;
+        $('#info-panel').removeClass('sidebar-inspecting');
+        $('#duel-log-module').show();
         $('#scanner-active').hide();
         $('#scanner-idle').show();
         $('#preview-card-img').removeAttr('src');
@@ -27,6 +29,8 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
 
         if (isFaceDown) {
             hoverCardName = null;
+            $('#info-panel').removeClass('sidebar-inspecting');
+            $('#duel-log-module').show();
             $('#scanner-active').hide();
             $('#scanner-idle').show();
             $('#preview-card-img').removeAttr('src');
@@ -59,7 +63,8 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         
         var stars = '★'.repeat(cardData.level || 4);
         $('#preview-card-level-row').text(stars + ' (LVL ' + (cardData.level || 4) + ')').show();
-        $('#preview-card-types').text('[' + (cardData.monsterType || 'Monster') + ' / ' + (cardData.attribute || 'EARTH') + ']').show();
+        var typeKindLabel = cardData.subType === 'effect' ? 'Effect' : (cardData.isToken ? 'Token' : 'Normal');
+        $('#preview-card-types').text('[' + (cardData.monsterType || 'Monster') + ' / ' + typeKindLabel + ']').show();
         
         // Show ATK & DEF gauges with active stat modifiers (+/-)
         var baseAtk = cardData.atk !== undefined ? cardData.atk : 0;
@@ -133,8 +138,13 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
 
         $('#preview-combat-stats').show();
 
-        // Lore/Effect
-        $('#preview-card-desc').text(cardData.desc || (cardData.name + ' stands primed for tactical combat on the duel arena.'));
+        // Only show effect description if the monster is an effect monster with an effect
+        if (cardData.subType === 'effect' && cardData.desc) {
+            $('#preview-card-desc').text(cardData.desc);
+            $('.preview-desc-container, #preview-desc-module').show();
+        } else {
+            $('.preview-desc-container, #preview-desc-module').hide();
+        }
     } else if (cardData.type === 'spells') {
         typeBadge.addClass('badge-spell').text('SPELL');
         $('#preview-card-attr').text((cardData.subType ? cardData.subType.toUpperCase() : 'NORMAL')).show();
@@ -143,6 +153,7 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         $('#preview-card-types').text('[' + (cardData.subType ? cardData.subType.toUpperCase() : 'NORMAL') + ' SPELL CARD]').show();
         $('#preview-combat-stats').hide();
         $('#preview-card-desc').text(cardData.desc || 'Activate to unleash arcane spell abilities.');
+        $('.preview-desc-container, #preview-desc-module').show();
     } else if (cardData.type === 'traps') {
         typeBadge.addClass('badge-trap').text('TRAP');
         $('#preview-card-attr').text((cardData.subType ? cardData.subType.toUpperCase() : 'NORMAL')).show();
@@ -151,16 +162,99 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
         $('#preview-card-types').text('[' + (cardData.subType ? cardData.subType.toUpperCase() : 'NORMAL') + ' TRAP CARD]').show();
         $('#preview-combat-stats').hide();
         $('#preview-card-desc').text(cardData.desc || 'Set face-down to counter opponent actions when triggered.');
+        $('.preview-desc-container, #preview-desc-module').show();
     }
 
     // Switch View
+    $('#info-panel').addClass('sidebar-inspecting');
+    $('#duel-log-module').hide();
     $('#scanner-idle').hide();
     $('#scanner-active').show();
 });
 
 $(document).on('mouseleave', '.card-zone-square, .card', function() {
     hoverCardName = null;
+    $('#info-panel').removeClass('sidebar-inspecting');
+    $('#duel-log-module').show();
     $('#scanner-active').hide();
     $('#scanner-idle').show();
     $('#preview-card-img').removeAttr('src');
+});
+
+// ---------------------------------------------------------------------------
+// Draggable Left Sidebar Resizer
+// ---------------------------------------------------------------------------
+function initSidebarResizer() {
+    var sidebar = $('#info-panel');
+    if (!sidebar.length) return;
+
+    var resizer = $('#sidebar-resizer');
+    if (!resizer.length) {
+        resizer = $('<div id="sidebar-resizer" class="sidebar-resizer" title="Drag to resize sidebar"></div>');
+        sidebar.prepend(resizer);
+    }
+
+    var MIN_WIDTH = 200;
+    var MAX_WIDTH = Math.min(650, Math.floor(window.innerWidth * 0.55));
+
+    function setSidebarWidth(w) {
+        w = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, w));
+        document.documentElement.style.setProperty('--sidebar-width', w + 'px');
+        sidebar.css({
+            'width': w + 'px',
+            'min-width': w + 'px',
+            'max-width': w + 'px',
+            'flex': '0 0 ' + w + 'px'
+        });
+    }
+
+    // Restore saved width from localStorage if present
+    var savedWidth = localStorage.getItem('duel_realm_sidebar_width');
+    if (savedWidth) {
+        var parsed = parseInt(savedWidth, 10);
+        if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
+            setSidebarWidth(parsed);
+        }
+    }
+
+    var isDragging = false;
+    var startX = 0;
+    var startWidth = 0;
+
+    resizer.on('mousedown touchstart', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        isDragging = true;
+        resizer.addClass('is-dragging');
+        $('body').addClass('sidebar-is-resizing');
+
+        startX = e.type === 'touchstart' ? e.originalEvent.touches[0].clientX : e.clientX;
+        startWidth = sidebar.outerWidth();
+
+        MAX_WIDTH = Math.min(650, Math.floor(window.innerWidth * 0.55));
+    });
+
+    $(document).on('mousemove touchmove', function(e) {
+        if (!isDragging) return;
+
+        var clientX = e.type === 'touchmove' ? e.originalEvent.touches[0].clientX : e.clientX;
+        var newWidth = startWidth + (clientX - startX);
+        setSidebarWidth(newWidth);
+    });
+
+    $(document).on('mouseup touchend touchcancel', function(e) {
+        if (!isDragging) return;
+
+        isDragging = false;
+        resizer.removeClass('is-dragging');
+        $('body').removeClass('sidebar-is-resizing');
+
+        var finalWidth = sidebar.outerWidth();
+        localStorage.setItem('duel_realm_sidebar_width', finalWidth);
+    });
+}
+
+$(document).ready(function() {
+    initSidebarResizer();
 });

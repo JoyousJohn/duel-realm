@@ -130,6 +130,9 @@ function initCardTriggers() {
         if (data.suppressGraveEffect) return;
         var cardInst = data.cardInst;
         if (!cardInst) return;
+        if (cardInst.cardId === 'abyssal-scout' && data.fromField) {
+            await triggerAbyssalScoutSearch(data.who);
+        }
         var cardDef = cards[cardInst.cardId];
         if (cardDef && typeof cardDef.onSentToGraveyard === 'function') {
             await cardDef.onSentToGraveyard(data);
@@ -334,6 +337,14 @@ function isDragonLocked() {
     return hasActiveCard('player', 'dragon-capture-jar') || hasActiveCard('computer', 'dragon-capture-jar');
 }
 
+// Mausoleum of Offerings: while face-up in either Field Zone, turn player can pay 1000 LP per required tribute
+function isMausoleumActive() {
+    var pField = GameState && GameState.player && GameState.player.field ? GameState.player.field.fieldZone : null;
+    var cField = GameState && GameState.computer && GameState.computer.field ? GameState.computer.field.fieldZone : null;
+    return (pField && pField.cardId === 'mausoleum-of-offerings' && pField.position !== 'set') ||
+           (cField && cField.cardId === 'mausoleum-of-offerings' && cField.position !== 'set');
+}
+
 // ---------------------------------------------------------------------------
 // Card Activation & Resolution
 // ---------------------------------------------------------------------------
@@ -345,6 +356,14 @@ async function activateCard(who, instance, zoneNum) {
     if (!def) return;
 
     var opp = GameState.getOpponent(who);
+
+    // Counter Trap Interception: Check Arcane Disruptor response on Spell activation
+    if (def.type === 'spells') {
+        var disrupted = await checkArcaneDisruptorResponse(who, instance, zoneNum, def);
+        if (disrupted) {
+            return;
+        }
+    }
 
     // Declarative Unified Registry Resolution
     if (typeof def.onActivate === 'function') {
@@ -361,6 +380,124 @@ async function activateCard(who, instance, zoneNum) {
             await getCards(who, 2);
             await destroySpellTrap(who, zoneNum, false);
             break;
+
+        case 'celestial-tithe': {
+            addToFeed(def.name + ' activated: ' + formatWho(who) + ' draws 3 cards, then discards 2 cards.\n');
+            await getCards(who, 3);
+            if (who === 'player') {
+                await promptPlayerCelestialTitheDiscards();
+            } else {
+                var handCards = GameState.computer.hand.slice();
+                if (handCards.length >= 2) {
+                    handCards.sort(function(a, b) {
+                        var dA = cards[a.cardId]; var dB = cards[b.cardId];
+                        var atkA = (dA && dA.type === 'monsters') ? (dA.atk || 0) : -1;
+                        var atkB = (dB && dB.type === 'monsters') ? (dB.atk || 0) : -1;
+                        return atkA - atkB;
+                    });
+                    for (var d = 0; d < 2; d++) {
+                        var discardInst = handCards[d];
+                        var dIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
+                        if (dIdx !== -1) {
+                            var discarded = GameState.computer.hand.splice(dIdx, 1)[0];
+                            GameState.computer.graveyard.push(discarded);
+                        }
+                    }
+                    updateHandDisplay('computer');
+                    updateGraveyardZones();
+                }
+            }
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'crypt-awakening': {
+            addToFeed(def.name + ' activated: resurrecting a monster from the Graveyard in Attack Position!\n');
+            var trapInst = GameState[who].field.spells[zoneNum];
+            if (trapInst) {
+                trapInst.position = 'active';
+                trapInst.faceDown = false;
+            }
+            if (who === 'player') {
+                await promptPlayerCryptAwakening(zoneNum);
+            } else {
+                var gyMonsters = GameState.computer.graveyard.filter(function(c) {
+                    var d = cards[c.cardId];
+                    return d && d.type === 'monsters';
+                });
+                if (gyMonsters.length > 0 && getFirstFreeZone('computer') !== undefined) {
+                    gyMonsters.sort(function(a, b) {
+                        var dA = cards[a.cardId]; var dB = cards[b.cardId];
+                        return (dB.atk || 0) - (dA.atk || 0);
+                    });
+                    var bestMon = gyMonsters[0];
+                    var gIdx = GameState.computer.graveyard.findIndex(function(c) { return c.uid === bestMon.uid; });
+                    if (gIdx !== -1) GameState.computer.graveyard.splice(gIdx, 1);
+                    
+                    var freeZ = getFirstFreeZone('computer');
+                    await specialSummonMonster('computer', bestMon.cardId, 'computer', 'attack');
+                    var summonedInst = GameState.computer.field.monsters[freeZ];
+                    if (summonedInst && trapInst) {
+                        trapInst.boundMonsterUid = summonedInst.uid;
+                        summonedInst.boundTrapUid = trapInst.uid;
+                    }
+                    updateGraveyardZones();
+                } else {
+                    addToFeed('No valid monster in Graveyard to revive; Crypt Awakening remains on field.\n');
+                }
+            }
+            break;
+        }
+
+        case 'lunar-grimoire': {
+            addToFeed(def.name + ' activated: changing a face-up monster to face-down Defense Position.\n');
+            var faceUpMonsters = [];
+            ['player', 'computer'].forEach(function(side) {
+                for (var z = 1; z <= 6; z++) {
+                    var m = GameState[side].field.monsters[z];
+                    if (m && !m.faceDown && m.position !== 'defense-down') {
+                        faceUpMonsters.push({ side: side, zone: z, card: m });
+                    }
+                }
+            });
+
+            if (faceUpMonsters.length === 0) {
+                addToFeed('No face-up monsters on the field; Lunar Grimoire resolves with no effect.\n');
+            } else if (who === 'player') {
+                await promptPlayerLunarGrimoireTarget(faceUpMonsters);
+            } else {
+                var playerTargets = faceUpMonsters.filter(function(t) { return t.side === 'player'; });
+                if (playerTargets.length > 0) {
+                    playerTargets.sort(function(a, b) {
+                        return (getMonsterAtk(b.card) || 0) - (getMonsterAtk(a.card) || 0);
+                    });
+                    await applyLunarGrimoireFlip(playerTargets[0].side, playerTargets[0].zone);
+                } else {
+                    await applyLunarGrimoireFlip(faceUpMonsters[0].side, faceUpMonsters[0].zone);
+                }
+            }
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'astral-phantoms': {
+            addToFeed(def.name + ' activated: summoning Phantom Tokens in Defense Position!\n');
+            var summonedCount = 0;
+            for (var k = 0; k < 3; k++) {
+                var freeZ = getFirstFreeZone(who);
+                if (freeZ === undefined) break;
+                await specialSummonMonster(who, 'phantom-token', who, 'defense-up');
+                var tokenInst = GameState[who].field.monsters[freeZ];
+                if (tokenInst) {
+                    tokenInst.cannotBeTributed = true;
+                    tokenInst.isToken = true;
+                }
+                summonedCount++;
+            }
+            addToFeed('Special Summoned ' + summonedCount + ' Phantom Token(s) to ' + formatWho(who) + '\'s field.\n\n');
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
 
         case 'ookazi': {
             addToFeed('<em>' + def.name + '</em> activated! ' + formatWho(opp) + ' takes <strong>800</strong> points of direct damage!\n');
@@ -612,11 +749,15 @@ async function activateCard(who, instance, zoneNum) {
                 });
                 var discardInst = handCards[0];
                 var discardDef = cards[discardInst.cardId];
-                // Remove from hand
+                // Remove from hand and push to graveyard
                 var handIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
-                if (handIdx !== -1) GameState.computer.hand.splice(handIdx, 1);
+                if (handIdx !== -1) {
+                    var discardedCard = GameState.computer.hand.splice(handIdx, 1)[0];
+                    GameState.computer.graveyard.push(discardedCard);
+                }
                 addToFeed('<em>' + def.name + '</em>: AI discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
                 updateHandDisplay('computer');
+                updateGraveyardZones();
 
                 // Target highest ATK opponent monster
                 var oppField = GameState.getMonstersOnField('player');
@@ -691,6 +832,7 @@ async function activateCard(who, instance, zoneNum) {
         case 'mystic-plasma-zone':
         case 'luminous-spark':
         case 'gaia-power':
+        case 'mausoleum-of-offerings':
             // Continuous field spells: already placed in field zone; just ensure active state
             instance.position = 'active';
             instance.turnCounter = null;
@@ -959,10 +1101,12 @@ function tttdDiscardCardSelected(uid) {
     var idx = GameState.player.hand.findIndex(function(c) { return c.uid === uid; });
     if (idx !== -1) {
         var discarded = GameState.player.hand.splice(idx, 1)[0];
+        GameState.player.graveyard.push(discarded);
         tttdDiscardedCardId = discarded.cardId;
         var discardDef = cards[tttdDiscardedCardId];
         addToFeed('<em>Tribute to the Doomed</em>: You discard <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
         updateHandDisplay('player');
+        updateGraveyardZones();
     }
 
     // Now open Step 2 — pick a monster to destroy
@@ -1637,6 +1781,821 @@ async function executeTorrentialTribute(who, zoneNum) {
     }
     if (typeof updateActionableCards === 'function') updateActionableCards();
     if (typeof updateStatModBadges === 'function') updateStatModBadges();
+}
+
+// ---------------------------------------------------------------------------
+// Arcane Disruptor Counter Trap Handlers
+// ---------------------------------------------------------------------------
+
+var arcaneDisruptorPromptResolver = null;
+var arcaneDisruptorDiscardResolver = null;
+
+function promptPlayerArcaneDisruptor(zoneNum, spellDef) {
+    return new Promise(function(resolve) {
+        arcaneDisruptorPromptResolver = resolve;
+
+        $('#ad-trigger-cause').text((spellDef ? spellDef.name.toUpperCase() : 'A SPELL CARD') + ' WAS ACTIVATED!');
+        $('#ad-prompt-description').html(
+            'Opponent activated <strong>' + (spellDef ? spellDef.name : 'a Spell Card') + '</strong>.<br>' +
+            'Activate your face-down <span style="color: #f472b6; font-weight: bold;">Arcane Disruptor</span> to negate it and remove it from play? (Requires 1 discard)'
+        );
+
+        $('#arcane-disruptor-prompt-modal').fadeIn(150);
+    });
+}
+
+function resolveArcaneDisruptorPrompt(shouldActivate) {
+    $('#arcane-disruptor-prompt-modal').fadeOut(120);
+    if (typeof arcaneDisruptorPromptResolver === 'function') {
+        var res = arcaneDisruptorPromptResolver;
+        arcaneDisruptorPromptResolver = null;
+        res(shouldActivate);
+    }
+}
+
+function promptPlayerArcaneDisruptorDiscard() {
+    return new Promise(function(resolve) {
+        arcaneDisruptorDiscardResolver = resolve;
+        var grid = $('#arcane-disruptor-discard-grid');
+        grid.empty();
+
+        var hand = GameState.player.hand;
+        if (!hand || hand.length === 0) {
+            resolve(null);
+            return;
+        }
+
+        hand.forEach(function(inst) {
+            var cardDef = cards[inst.cardId];
+            if (!cardDef) return;
+
+            var typeBadge = cardDef.type === 'monsters'
+                ? 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0)
+                : (cardDef.subType ? cardDef.subType.toUpperCase() + ' ' : '') + cardDef.type.slice(0, -1).toUpperCase();
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-player">HAND</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#arcane-disruptor-discard-modal').fadeOut(120);
+                if (typeof arcaneDisruptorDiscardResolver === 'function') {
+                    var r = arcaneDisruptorDiscardResolver;
+                    arcaneDisruptorDiscardResolver = null;
+                    r({ uid: inst.uid, cardId: inst.cardId });
+                }
+            });
+
+            grid.append(tile);
+        });
+
+        $('#arcane-disruptor-discard-modal').fadeIn(150);
+    });
+}
+
+function cancelArcaneDisruptorDiscard() {
+    $('#arcane-disruptor-discard-modal').fadeOut(120);
+    if (typeof arcaneDisruptorDiscardResolver === 'function') {
+        var r = arcaneDisruptorDiscardResolver;
+        arcaneDisruptorDiscardResolver = null;
+        r(null);
+    }
+}
+
+async function banishSpellTrapCard(who, zoneNum, isFieldZone) {
+    var banishedInst = null;
+    if (isFieldZone) {
+        var fieldInst = GameState[who].field.fieldZone;
+        if (fieldInst) {
+            banishedInst = fieldInst;
+            GameState[who].field.fieldZone = null;
+            var square = getFieldZoneElm(who);
+            if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
+                await BattleFX.animateSpellToGraveyard(square);
+            }
+            Actions.resetFieldZoneDOM(who);
+        }
+    } else {
+        var spellInst = GameState[who].field.spells[zoneNum];
+        if (spellInst) {
+            banishedInst = spellInst;
+            if (spellInst.equippedToUid) {
+                removeEquipTag(who, spellInst.equippedToUid);
+                spellInst.equippedToUid = null;
+                if (typeof updateStatModBadges === 'function') updateStatModBadges();
+            }
+            delete GameState[who].field.spells[zoneNum];
+            var square = getSpellSquareElm(who, zoneNum);
+            if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
+                await BattleFX.animateSpellToGraveyard(square);
+            }
+            Actions.resetSquareDOM(who, zoneNum);
+        }
+    }
+    if (banishedInst) {
+        if (!GameState[who].banished) GameState[who].banished = [];
+        GameState[who].banished.push(banishedInst);
+    }
+    updateResourceCounters();
+    updateGraveyardZones();
+}
+
+async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
+    var opp = GameState.getOpponent(who);
+    var trapZone = findSetTrapZone(opp, 'arcane-disruptor');
+    if (trapZone === null) return false;
+
+    // Check if opponent has any cards in hand to discard
+    if (!GameState[opp].hand || GameState[opp].hand.length === 0) return false;
+
+    if (opp === 'player') {
+        var shouldActivate = await promptPlayerArcaneDisruptor(trapZone, spellDef);
+        if (!shouldActivate) return false;
+
+        var discardCard = await promptPlayerArcaneDisruptorDiscard();
+        if (!discardCard) return false;
+
+        // Perform hand discard
+        var discardedInst = null;
+        var gIdx = -1;
+        if (discardCard.uid) {
+            gIdx = GameState.player.hand.findIndex(function(c) { return c.uid === discardCard.uid; });
+        }
+        if (gIdx === -1 && discardCard.cardId) {
+            gIdx = GameState.player.hand.findIndex(function(c) { return c.cardId === discardCard.cardId; });
+        }
+        if (gIdx !== -1) {
+            discardedInst = GameState.player.hand.splice(gIdx, 1)[0];
+        } else {
+            discardedInst = new CardInstance(discardCard.cardId);
+        }
+
+        var dDef = cards[discardedInst.cardId];
+        GameState.player.graveyard.push(discardedInst);
+        updateHandDisplay('player');
+        updateGraveyardZones();
+
+        // Reveal & destroy Arcane Disruptor
+        var trapSquare = getSpellSquareElm('player', trapZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Player activates Counter Trap: <strong>Arcane Disruptor</strong>!\n');
+        addToFeed('⚡ Arcane Disruptor radiates an intense pulse, discarding <strong>' + (dDef ? dDef.name : 'a card') + '</strong> to negate <em>' + spellDef.name + '</em>!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+        await sleep(getAnimDuration(400));
+
+        await destroySpellTrap('player', trapZone, false);
+
+        // Banish the opponent's activated Spell Card
+        await banishSpellTrapCard(who, zoneNum, spellDef.subType === 'field');
+        addToFeed('<em>' + spellDef.name + '</em> was negated and removed from play!\n\n');
+        return true;
+    } else {
+        // AI Decision
+        var handCards = GameState.computer.hand.slice();
+        if (handCards.length === 0) return false;
+
+        var highThreatSpells = ['raigeki', 'dark-hole', 'change-of-heart', 'pot-of-greed', 'monster-reborn', 'heavy-storm', 'fissure', 'tribute-to-the-doomed'];
+        var shouldAIActivate = (highThreatSpells.indexOf(spellDef.id) !== -1) || (handCards.length >= 2);
+
+        if (!shouldAIActivate) return false;
+
+        handCards.sort(function(a, b) {
+            var dA = cards[a.cardId]; var dB = cards[b.cardId];
+            var atkA = (dA && dA.type === 'monsters') ? (dA.atk || 0) : -1;
+            var atkB = (dB && dB.type === 'monsters') ? (dB.atk || 0) : -1;
+            return atkA - atkB;
+        });
+        var aiDiscard = handCards[0];
+        var aiDiscardDef = cards[aiDiscard.cardId];
+
+        var handIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === aiDiscard.uid; });
+        if (handIdx !== -1) {
+            var discarded = GameState.computer.hand.splice(handIdx, 1)[0];
+            GameState.computer.graveyard.push(discarded);
+        }
+        updateHandDisplay('computer');
+        updateGraveyardZones();
+
+        var trapSquare = getSpellSquareElm('computer', trapZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Computer activates Counter Trap: <strong>Arcane Disruptor</strong>!\n');
+        addToFeed('⚡ Computer discards <strong>' + (aiDiscardDef ? aiDiscardDef.name : 'a card') + '</strong> to negate your <em>' + spellDef.name + '</em>!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+        await sleep(getAnimDuration(400));
+
+        await destroySpellTrap('computer', trapZone, false);
+
+        await banishSpellTrapCard(who, zoneNum, spellDef.subType === 'field');
+        addToFeed('Your <em>' + spellDef.name + '</em> was negated and removed from play!\n\n');
+        return true;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Abyssal Scout Tutor Search Handlers
+// ---------------------------------------------------------------------------
+var abyssalScoutResolver = null;
+
+async function triggerAbyssalScoutSearch(who) {
+    var deck = GameState[who].deck;
+    if (!deck || deck.length === 0) return;
+
+    var validTargets = [];
+    deck.forEach(function(cardId, idx) {
+        var def = cards[cardId];
+        if (def && def.type === 'monsters' && (def.atk || 0) <= 1500) {
+            validTargets.push({ cardId: cardId, def: def, index: idx });
+        }
+    });
+
+    if (validTargets.length === 0) {
+        addToFeed('No monsters with 1500 or less ATK in ' + formatWho(who) + '\'s deck for Abyssal Scout.\n');
+        return;
+    }
+
+    if (who === 'player') {
+        var chosenCardId = await promptPlayerAbyssalScout(validTargets);
+        if (!chosenCardId) return;
+
+        var dIdx = GameState.player.deck.indexOf(chosenCardId);
+        if (dIdx !== -1) {
+            GameState.player.deck.splice(dIdx, 1);
+            if (typeof window.deck !== 'undefined') window.deck = GameState.player.deck;
+        }
+
+        var instance = new CardInstance(chosenCardId);
+        GameState.player.hand.push(instance);
+        addCardToHand('player', chosenCardId, instance.uid, true);
+        var chosenDef = cards[chosenCardId];
+        updateHandDisplay('player');
+        updateResourceCounters();
+
+        addToFeed('<em>Abyssal Scout</em>: Added <strong>' + (chosenDef ? chosenDef.name : 'monster') + '</strong> (ATK ' + (chosenDef ? chosenDef.atk : 0) + ') from Deck to hand!\n\n');
+    } else {
+        validTargets.sort(function(a, b) {
+            var prioA = (a.cardId === 'man-eater-bug' || a.cardId === 'exiled-force' || a.cardId === 'yomi-ship') ? 2000 : (a.def.atk || 0);
+            var prioB = (b.cardId === 'man-eater-bug' || b.cardId === 'exiled-force' || b.cardId === 'yomi-ship') ? 2000 : (b.def.atk || 0);
+            return prioB - prioA;
+        });
+        var aiChoice = validTargets[0];
+        var dIdx = GameState.computer.deck.indexOf(aiChoice.cardId);
+        if (dIdx !== -1) GameState.computer.deck.splice(dIdx, 1);
+
+        var instance = new CardInstance(aiChoice.cardId);
+        GameState.computer.hand.push(instance);
+        addCardToHand('computer', aiChoice.cardId, instance.uid, true);
+        updateHandDisplay('computer');
+        updateResourceCounters();
+
+        addToFeed('Computer activates <em>Abyssal Scout</em>: added <strong>' + aiChoice.def.name + '</strong> to hand!\n\n');
+    }
+}
+
+function promptPlayerAbyssalScout(validTargets) {
+    return new Promise(function(resolve) {
+        abyssalScoutResolver = resolve;
+        var grid = $('#abyssal-scout-grid');
+        grid.empty();
+
+        var distinctCards = {};
+        validTargets.forEach(function(item) {
+            distinctCards[item.cardId] = (distinctCards[item.cardId] || 0) + 1;
+        });
+
+        Object.keys(distinctCards).forEach(function(cardId) {
+            var cardDef = cards[cardId];
+            if (!cardDef) return;
+
+            var countBadge = distinctCards[cardId] > 1 ? ' (x' + distinctCards[cardId] + ')' : '';
+            var typeBadge = 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0);
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-player">DECK' + countBadge + '</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#abyssal-scout-modal').fadeOut(120);
+                if (typeof abyssalScoutResolver === 'function') {
+                    var r = abyssalScoutResolver;
+                    abyssalScoutResolver = null;
+                    r(cardId);
+                }
+            });
+
+            grid.append(tile);
+        });
+
+        $('#abyssal-scout-modal').fadeIn(150);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Celestial Tithe Discard Handlers
+// ---------------------------------------------------------------------------
+var celestialTitheResolver = null;
+var celestialTitheSelectedUids = [];
+
+function promptPlayerCelestialTitheDiscards() {
+    return new Promise(function(resolve) {
+        celestialTitheResolver = resolve;
+        celestialTitheSelectedUids = [];
+        $('#celestial-tithe-counter').text('SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (0/2)');
+        $('#celestial-tithe-confirm-btn').hide();
+
+        var grid = $('#celestial-tithe-grid');
+        grid.empty();
+
+        var hand = GameState.player.hand;
+        if (!hand || hand.length <= 2) {
+            var discardedUids = (hand || []).map(function(c) { return c.uid; });
+            applyCelestialTitheDiscards(discardedUids);
+            resolve();
+            return;
+        }
+
+        hand.forEach(function(inst) {
+            var cardDef = cards[inst.cardId];
+            if (!cardDef) return;
+
+            var typeBadge = cardDef.type === 'monsters'
+                ? 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0)
+                : (cardDef.subType ? cardDef.subType.toUpperCase() + ' ' : '') + cardDef.type.slice(0, -1).toUpperCase();
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" data-uid="' + inst.uid + '" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-player">HAND</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                var uid = inst.uid;
+                var idx = celestialTitheSelectedUids.indexOf(uid);
+                if (idx !== -1) {
+                    celestialTitheSelectedUids.splice(idx, 1);
+                    tile.removeClass('selected-tribute-tile');
+                } else {
+                    if (celestialTitheSelectedUids.length < 2) {
+                        celestialTitheSelectedUids.push(uid);
+                        tile.addClass('selected-tribute-tile');
+                    }
+                }
+
+                var count = celestialTitheSelectedUids.length;
+                $('#celestial-tithe-counter').text('SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (' + count + '/2)');
+                if (count === 2) {
+                    $('#celestial-tithe-confirm-btn').show();
+                } else {
+                    $('#celestial-tithe-confirm-btn').hide();
+                }
+            });
+
+            grid.append(tile);
+        });
+
+        $('#celestial-tithe-modal').fadeIn(150);
+    });
+}
+
+function confirmCelestialTitheDiscards() {
+    if (celestialTitheSelectedUids.length !== 2) return;
+    $('#celestial-tithe-modal').fadeOut(120);
+    applyCelestialTitheDiscards(celestialTitheSelectedUids);
+    if (typeof celestialTitheResolver === 'function') {
+        var r = celestialTitheResolver;
+        celestialTitheResolver = null;
+        r();
+    }
+}
+
+function applyCelestialTitheDiscards(uids) {
+    var discardedNames = [];
+    uids.forEach(function(uid) {
+        var idx = GameState.player.hand.findIndex(function(c) { return c.uid === uid; });
+        if (idx !== -1) {
+            var discarded = GameState.player.hand.splice(idx, 1)[0];
+            GameState.player.graveyard.push(discarded);
+            var dDef = cards[discarded.cardId];
+            discardedNames.push(dDef ? dDef.name : 'a card');
+        }
+    });
+    updateHandDisplay('player');
+    updateGraveyardZones();
+    addToFeed('You discard <strong>' + discardedNames.join(' and ') + '</strong> for Celestial Tithe.\n\n');
+}
+
+// ---------------------------------------------------------------------------
+// Radiant Backlash Attack Response Handlers
+// ---------------------------------------------------------------------------
+var radiantBacklashResolver = null;
+
+async function checkRadiantBacklashResponse(attackerWho, attackerZone, defenderWho) {
+    var rbZone = findSetTrapZone(defenderWho, 'radiant-backlash');
+    if (rbZone === null) return false;
+
+    var atkMonsters = [];
+    for (var z = 1; z <= 6; z++) {
+        var m = GameState[attackerWho].field.monsters[z];
+        if (m && m.position === 'attack') {
+            atkMonsters.push({ zone: z, card: m });
+        }
+    }
+    if (atkMonsters.length === 0) return false;
+
+    if (defenderWho === 'player') {
+        var shouldActivate = await promptPlayerRadiantBacklash(rbZone, atkMonsters);
+        if (!shouldActivate) return false;
+
+        var trapSquare = getSpellSquareElm('player', rbZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Player activates Trap Card: <strong>Radiant Backlash</strong>!\n');
+        addToFeed('💥 A shimmering prism barrier reflects the attack, destroying all enemy Attack Position monsters!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+        await sleep(getAnimDuration(450));
+
+        await destroySpellTrap('player', rbZone, false);
+
+        for (var i = 0; i < atkMonsters.length; i++) {
+            await destroyMonster(attackerWho, atkMonsters[i].zone);
+        }
+        addToFeed('Radiant Backlash obliterated ' + atkMonsters.length + ' attacking monster(s)!\n\n');
+
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+            BattleFX.cancelTargetSelection();
+        }
+        return true;
+    } else {
+        var trapSquare = getSpellSquareElm('computer', rbZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Computer activates Trap Card: <strong>Radiant Backlash</strong>!\n');
+        addToFeed('💥 The computer\'s Radiant Backlash unleashes a devastating prismatic blast!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+        await sleep(getAnimDuration(450));
+
+        await destroySpellTrap('computer', rbZone, false);
+
+        for (var i = 0; i < atkMonsters.length; i++) {
+            await destroyMonster(attackerWho, atkMonsters[i].zone);
+        }
+        addToFeed('Radiant Backlash destroyed all ' + atkMonsters.length + ' of your Attack Position monster(s)!\n\n');
+
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+            BattleFX.cancelTargetSelection();
+        }
+        return true;
+    }
+}
+
+function promptPlayerRadiantBacklash(zoneNum, atkMonsters) {
+    return new Promise(function(resolve) {
+        radiantBacklashResolver = resolve;
+
+        $('#rb-modal-casualty-preview').html(
+            '<strong>Enemy Casualties:</strong> ' +
+            '<span style="color: #f87171;">' + atkMonsters.length + ' Attack Monster(s) destroyed</span>'
+        );
+
+        $('#radiant-backlash-prompt-modal').fadeIn(150);
+    });
+}
+
+function resolveRadiantBacklashPrompt(shouldActivate) {
+    $('#radiant-backlash-prompt-modal').fadeOut(120);
+    if (typeof radiantBacklashResolver === 'function') {
+        var res = radiantBacklashResolver;
+        radiantBacklashResolver = null;
+        res(shouldActivate);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Crypt Awakening Graveyard Revival Handlers
+// ---------------------------------------------------------------------------
+var cryptAwakeningResolver = null;
+var pendingCryptAwakeningTrapZone = null;
+
+function promptPlayerCryptAwakening(zoneNum) {
+    return new Promise(function(resolve) {
+        cryptAwakeningResolver = resolve;
+        pendingCryptAwakeningTrapZone = zoneNum;
+
+        var grid = $('#crypt-awakening-grid');
+        grid.empty();
+
+        var gyMonsters = GameState.player.graveyard.filter(function(inst) {
+            var def = cards[inst.cardId];
+            return def && def.type === 'monsters';
+        });
+
+        if (gyMonsters.length === 0 || getFirstFreeZone('player') === undefined) {
+            addToFeed('No valid monster in Graveyard or no free zone for Crypt Awakening.\n');
+            resolve();
+            return;
+        }
+
+        gyMonsters.forEach(function(inst) {
+            var cardDef = cards[inst.cardId];
+            if (!cardDef) return;
+
+            var typeBadge = 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0);
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-player">GRAVEYARD</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', async function() {
+                $('#crypt-awakening-modal').fadeOut(120);
+                
+                var gIdx = GameState.player.graveyard.findIndex(function(c) { return c.uid === inst.uid; });
+                if (gIdx !== -1) GameState.player.graveyard.splice(gIdx, 1);
+
+                var freeZ = getFirstFreeZone('player');
+                await specialSummonMonster('player', inst.cardId, 'player', 'attack');
+                var summonedInst = GameState.player.field.monsters[freeZ];
+                var trapInst = GameState.player.field.spells[pendingCryptAwakeningTrapZone];
+                if (summonedInst && trapInst) {
+                    trapInst.boundMonsterUid = summonedInst.uid;
+                    summonedInst.boundTrapUid = trapInst.uid;
+                }
+                updateGraveyardZones();
+                updateResourceCounters();
+
+                addToFeed('Crypt Awakening resurrected <strong>' + cardDef.name + '</strong> in Attack Position!\n\n');
+
+                if (typeof cryptAwakeningResolver === 'function') {
+                    var r = cryptAwakeningResolver;
+                    cryptAwakeningResolver = null;
+                    r();
+                }
+            });
+
+            grid.append(tile);
+        });
+
+        $('#crypt-awakening-modal').fadeIn(150);
+    });
+}
+
+function cancelCryptAwakeningTarget() {
+    $('#crypt-awakening-modal').fadeOut(120);
+    if (typeof cryptAwakeningResolver === 'function') {
+        var r = cryptAwakeningResolver;
+        cryptAwakeningResolver = null;
+        r();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Lunar Grimoire Target & Flip Handlers
+// ---------------------------------------------------------------------------
+var lunarGrimoireResolver = null;
+
+function promptPlayerLunarGrimoireTarget(targets) {
+    return new Promise(function(resolve) {
+        lunarGrimoireResolver = resolve;
+
+        var grid = $('#lunar-grimoire-grid');
+        grid.empty();
+
+        targets.forEach(function(item) {
+            var cardDef = cards[item.card.cardId];
+            if (!cardDef) return;
+
+            var sideLabel = item.side === 'player' ? 'YOU' : 'OPPONENT';
+            var tagClass = item.side === 'player' ? 'tag-player' : 'tag-opponent';
+            var stats = 'ATK ' + (typeof getMonsterAtk === 'function' ? getMonsterAtk(item.card) : cardDef.atk) + ' / DEF ' + (typeof getMonsterDef === 'function' ? getMonsterDef(item.card) : cardDef.def);
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag ' + tagClass + '">' + sideLabel + ' #' + item.zone + '</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + stats + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', async function() {
+                $('#lunar-grimoire-modal').fadeOut(120);
+                await applyLunarGrimoireFlip(item.side, item.zone);
+                if (typeof lunarGrimoireResolver === 'function') {
+                    var r = lunarGrimoireResolver;
+                    lunarGrimoireResolver = null;
+                    r();
+                }
+            });
+
+            grid.append(tile);
+        });
+
+        $('#lunar-grimoire-modal').fadeIn(150);
+    });
+}
+
+function cancelLunarGrimoireTarget() {
+    $('#lunar-grimoire-modal').fadeOut(120);
+    if (typeof lunarGrimoireResolver === 'function') {
+        var r = lunarGrimoireResolver;
+        lunarGrimoireResolver = null;
+        r();
+    }
+}
+
+async function applyLunarGrimoireFlip(side, zoneNum) {
+    var monsterInst = GameState[side].field.monsters[zoneNum];
+    if (!monsterInst) return;
+
+    var mDef = cards[monsterInst.cardId];
+
+    // Check Nether Wraith self-destruction on targeting
+    if (monsterInst.cardId === 'nether-wraith') {
+        addToFeed('<em>Nether Wraith</em> was targeted by Lunar Grimoire! Its self-destruction effect activates!\n');
+        await destroyMonster(side, zoneNum);
+        return;
+    }
+
+    monsterInst.position = 'defense-down';
+    monsterInst.faceDown = true;
+
+    var square = getSquareElm(side, zoneNum);
+    if (square && square.length) {
+        square.attr('data-card-position', 'defense-down');
+        var cardZone = square.find('div.card-zone');
+        if (typeof cardZone.flip === 'function') {
+            try {
+                cardZone.flip({ trigger: 'manual' });
+                cardZone.flip(true);
+            } catch (e) {}
+        }
+    }
+
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    addToFeed('<em>Lunar Grimoire</em> changed ' + formatWho(side) + '\'s <strong>' + (mDef ? mDef.name : 'monster') + '</strong> to face-down Defense Position!\n\n');
+}
+
+// ---------------------------------------------------------------------------
+// Prism of Retribution Attack Response Handlers
+// ---------------------------------------------------------------------------
+var prismOfRetributionResolver = null;
+
+async function checkPrismOfRetributionResponse(attackerWho, attackerZone, defenderWho, attackerAtk, attackerDef) {
+    var porZone = findSetTrapZone(defenderWho, 'prism-of-retribution');
+    if (porZone === null) return false;
+
+    if (defenderWho === 'player') {
+        var shouldActivate = await promptPlayerPrismOfRetribution(porZone, attackerAtk, attackerDef);
+        if (!shouldActivate) return false;
+
+        var trapSquare = getSpellSquareElm('player', porZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Player activates Trap Card: <strong>Prism of Retribution</strong>!\n');
+        addToFeed('💎 Prism of Retribution absorbs and reflects the attack! ' + formatWho(attackerWho) + ' takes <strong>' + attackerAtk + '</strong> damage!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+        await sleep(getAnimDuration(450));
+
+        await destroySpellTrap('player', porZone, false);
+
+        GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - attackerAtk);
+        if (typeof BattleFX !== 'undefined') {
+            BattleFX.spawnFloatingDamage(attackerWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), attackerAtk, 'direct');
+            BattleFX.animateLPCount(attackerWho, GameState[attackerWho].lp);
+        }
+        EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: attackerAtk });
+        updateResourceCounters();
+
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+            BattleFX.cancelTargetSelection();
+        }
+        return true;
+    } else {
+        var shouldAIActivate = (attackerAtk >= 1400) || (GameState.computer.lp <= attackerAtk) || (GameState.player.lp <= attackerAtk);
+        if (!shouldAIActivate) return false;
+
+        var trapSquare = getSpellSquareElm('computer', porZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find('div.card-zone');
+            if (typeof trapZoneElm.flip === 'function') {
+                try {
+                    trapZoneElm.flip({ trigger: 'manual' });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed('Computer activates Trap Card: <strong>Prism of Retribution</strong>!\n');
+        addToFeed('💎 The computer\'s Prism of Retribution reflects the attack back at you for <strong>' + attackerAtk + '</strong> damage!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+        await sleep(getAnimDuration(450));
+
+        await destroySpellTrap('computer', porZone, false);
+
+        GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - attackerAtk);
+        if (typeof BattleFX !== 'undefined') {
+            BattleFX.spawnFloatingDamage(attackerWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), attackerAtk, 'direct');
+            BattleFX.animateLPCount(attackerWho, GameState[attackerWho].lp);
+        }
+        EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: attackerAtk });
+        updateResourceCounters();
+
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+            BattleFX.cancelTargetSelection();
+        }
+        return true;
+    }
+}
+
+function promptPlayerPrismOfRetribution(zoneNum, attackerAtk, attackerDef) {
+    return new Promise(function(resolve) {
+        prismOfRetributionResolver = resolve;
+
+        $('#por-trigger-cause').text((attackerDef ? attackerDef.name : 'OPPONENT') + ' DECLARED AN ATTACK!');
+        $('#por-modal-damage-preview').html(
+            '<strong>Incoming Monster:</strong> ' + (attackerDef ? attackerDef.name : 'Monster') + '<br>' +
+            '<strong>Reflected Damage to Opponent:</strong> <span style="color: #f472b6; font-weight: bold;">' + attackerAtk + ' LP</span>'
+        );
+
+        $('#prism-of-retribution-prompt-modal').fadeIn(150);
+    });
+}
+
+function resolvePrismOfRetributionPrompt(shouldActivate) {
+    $('#prism-of-retribution-prompt-modal').fadeOut(120);
+    if (typeof prismOfRetributionResolver === 'function') {
+        var res = prismOfRetributionResolver;
+        prismOfRetributionResolver = null;
+        res(shouldActivate);
+    }
 }
 
 // Find the spell zone on `who`'s field containing a SET copy of cardId (or null).
@@ -2536,33 +3495,23 @@ async function applyHarpieLadyDiscard(cardUid, cardName) {
     var def = cards[cardName];
     addToFeed('You discard <strong>' + (def ? def.name : 'a card') + '</strong> from your hand for Harpie Lady.\n');
 
-    var handElm = $('#player-hand > .card[data-uid="' + cardUid + '"]');
-    if (!handElm.length) {
-        handElm = $('#player-hand > .card[data-card-name="' + cardName + '"]').first();
+    var discardedInst = null;
+    var gIdx = -1;
+    if (cardUid) {
+        gIdx = GameState.player.hand.findIndex(function(c) { return c.uid === cardUid; });
     }
-    
-    var removed = false;
-    ['monsters', 'spells', 'traps'].forEach(function(cat) {
-        if (removed) return;
-        var idx = player.hand[cat].indexOf(cardName);
-        if (idx !== -1) {
-            player.hand[cat].splice(idx, 1);
-            removed = true;
-        }
-    });
-
-    GameState.player.graveyard.push(new CardInstance(cardName));
-
-    if (handElm.length) {
-        handElm.fadeOut(250, function() {
-            handElm.remove();
-            updateResourceCounters();
-            updateGraveyardZones();
-        });
+    if (gIdx === -1 && cardName) {
+        gIdx = GameState.player.hand.findIndex(function(c) { return c.cardId === cardName; });
+    }
+    if (gIdx !== -1) {
+        discardedInst = GameState.player.hand.splice(gIdx, 1)[0];
     } else {
-        updateResourceCounters();
-        updateGraveyardZones();
+        discardedInst = new CardInstance(cardName);
     }
+
+    GameState.player.graveyard.push(discardedInst);
+    updateHandDisplay('player');
+    updateGraveyardZones();
 
     await sleep(300);
     openHarpieLadyTargetModal();

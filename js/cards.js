@@ -538,6 +538,78 @@ var cards = {
         'desc': 'If this card is destroyed by battle and sent to the Graveyard: Destroy the monster that destroyed this card.'
     },
 
+    'abyssal-scout': {
+        'id': 'abyssal-scout',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'abyssal_scout.png',
+        'name': 'Abyssal Scout',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 3,
+        'atk': 1000,
+        'def': 600,
+        'desc': 'If this card on the field is sent to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.'
+    },
+
+    'monolith-of-echoes': {
+        'id': 'monolith-of-echoes',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'monolith_of_echoes.png',
+        'name': 'Monolith of Echoes',
+        'monsterType': 'Rock',
+        'attribute': 'EARTH',
+        'level': 4,
+        'atk': 800,
+        'def': 2000,
+        'desc': 'A monster that attacks this card is returned to the owner\'s hand at the end of the Damage Step.'
+    },
+
+    'shadow-infiltrator': {
+        'id': 'shadow-infiltrator',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'shadow_infiltrator.png',
+        'name': 'Shadow Infiltrator',
+        'monsterType': 'Warrior',
+        'attribute': 'DARK',
+        'level': 4,
+        'atk': 1400,
+        'def': 1500,
+        'desc': 'When this card inflicts battle damage to your opponent: Your opponent discards 1 random card from their hand.'
+    },
+
+    'nether-wraith': {
+        'id': 'nether-wraith',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'nether_wraith.png',
+        'name': 'Nether Wraith',
+        'monsterType': 'Zombie',
+        'attribute': 'DARK',
+        'level': 3,
+        'atk': 300,
+        'def': 200,
+        'desc': 'This card cannot be destroyed by battle. If this card is targeted by a Spell, Trap, or card effect: Destroy this card.'
+    },
+
+    'phantom-token': {
+        'id': 'phantom-token',
+        'type': 'monsters',
+        'subType': 'token',
+        'file': 'phantom_token.png',
+        'name': 'Phantom Token',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 1,
+        'atk': 0,
+        'def': 0,
+        'isToken': true,
+        'cannotBeTributed': true,
+        'desc': 'This card can be used as a "Phantom Token".'
+    },
+
     'trap-hole': {
         'id': 'trap-hole',
         'type': 'traps',
@@ -563,6 +635,78 @@ var cards = {
         'file': 'dragon_capture_jar.png',
         'name': 'Dragon Capture Jar',
         'desc': 'Change all face-up Dragon-Type monsters on the field to Defense Position. Dragon-Type monsters cannot change back to Attack Position.'
+    },
+
+    'arcane-disruptor': {
+        'id': 'arcane-disruptor',
+        'type': 'traps',
+        'subType': 'counter',
+        'file': 'arcane_disruptor.png',
+        'name': 'Arcane Disruptor',
+        'desc': 'When a Spell Card is activated: Discard 1 card from your hand; negate the activation of that Spell Card and remove it from play.'
+    },
+
+    'radiant-backlash': {
+        'id': 'radiant-backlash',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'radiant_backlash.png',
+        'name': 'Radiant Backlash',
+        'desc': 'Activate only when an opponent\'s monster declares an attack. Destroy all monsters in Attack Position on your opponent\'s side of the field.'
+    },
+
+    'prism-of-retribution': {
+        'id': 'prism-of-retribution',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'prism_of_retribution.png',
+        'name': 'Prism of Retribution',
+        'desc': 'When an opponent\'s monster declares an attack: Negate the attack, and if you do, inflict damage to your opponent equal to that monster\'s ATK.'
+    },
+
+    'crypt-awakening': {
+        'id': 'crypt-awakening',
+        'type': 'traps',
+        'subType': 'continuous',
+        'file': 'crypt_awakening.png',
+        'name': 'Crypt Awakening',
+        'desc': 'Target 1 monster in your Graveyard; Special Summon that target in Attack Position. When this card leaves the field, destroy that monster.'
+    },
+
+    'celestial-tithe': {
+        'id': 'celestial-tithe',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'celestial_tithe.png',
+        'name': 'Celestial Tithe',
+        'desc': 'Draw 3 cards, then send 2 cards from your hand to the Graveyard.'
+    },
+
+    'lunar-grimoire': {
+        'id': 'lunar-grimoire',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'lunar_grimoire.png',
+        'name': 'Lunar Grimoire',
+        'desc': 'Target 1 face-up monster on the field; change that target to face-down Defense Position.'
+    },
+
+    'astral-phantoms': {
+        'id': 'astral-phantoms',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'astral_phantoms.png',
+        'name': 'Astral Phantoms',
+        'desc': 'Special Summon up to 3 \'Phantom Tokens\' (Fiend/DARK/Level 1/ATK 0/DEF 0) in Defense Position. These tokens cannot be Tributed for a Tribute Summon.'
+    },
+
+    'mausoleum-of-offerings': {
+        'id': 'mausoleum-of-offerings',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'mausoleum_of_offerings.png',
+        'name': 'Mausoleum of Offerings',
+        'desc': 'During your Main Phase: The turn player can pay 1000 Life Points for each Tribute normally required to Normal Summon/Set a monster without Tributing.'
     },
 
     'yami': {

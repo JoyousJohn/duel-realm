@@ -1,5 +1,7 @@
 # Agent & IDE Configurations
 .agentrules
+AGENTS.md
+.agents/
 .commandcode/
 
 # Operating System Files

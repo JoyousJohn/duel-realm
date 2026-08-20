@@ -8,10 +8,10 @@
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     padding: 14rem 12rem;
-    width: 270rem;
-    min-width: 260rem;
-    max-width: 300rem;
-    flex: 0 0 270rem;
+    width: var(--sidebar-width, 270rem);
+    min-width: 200px;
+    max-width: 650px;
+    flex: 0 0 var(--sidebar-width, 270rem);
     box-sizing: border-box;
     overflow-y: auto;
     overflow-x: hidden;
@@ -23,6 +23,48 @@
     z-index: 10;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    position: relative;
+}
+
+/* Draggable Sidebar Right Border Resizer */
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 50;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    background: transparent;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(212, 175, 55, 0.25);
+    transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer.is-dragging::after {
+    width: 4px;
+    background: rgba(212, 175, 55, 0.9);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.7), 0 0 20px rgba(212, 175, 55, 0.35);
+}
+
+body.sidebar-is-resizing,
+body.sidebar-is-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
 }
 
 /* Custom Tactical Scrollbar */
@@ -631,26 +673,46 @@
 
 .preview-media-container {
     display: flex;
-    gap: 10rem;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 6rem;
+    width: 100%;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.preview-img-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    flex: 1 1 0;
+    min-height: 60px;
+    overflow: hidden;
+    padding: 0;
 }
 
 .preview-img-frame {
     position: relative;
-    width: 80rem;
-    min-width: 80rem;
-    height: calc(80rem * 1.45);
-    border-radius: 4rem;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    width: auto;
+    aspect-ratio: 2 / 3;
+    border-radius: 6rem;
     overflow: hidden;
-    border: 1px solid rgba(212, 175, 55, 0.4);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.85), 0 0 14px rgba(212, 175, 55, 0.25);
     background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #preview-card-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
 }
 
@@ -662,26 +724,25 @@
 }
 
 .preview-primary-meta {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 3rem;
+    gap: 5rem;
 }
 
 .preview-badge-row {
     display: flex;
     align-items: center;
-    gap: 4rem;
+    gap: 5rem;
     flex-wrap: wrap;
 }
 
 .preview-type-badge {
-    font-size: 8.5rem;
+    font-size: 11rem;
     font-weight: 800;
     letter-spacing: 0.8rem;
-    padding: 1.5rem 5rem;
-    border-radius: 3rem;
+    padding: 2.5rem 7rem;
+    border-radius: 4rem;
     text-transform: uppercase;
 }
 
@@ -704,11 +765,11 @@
 }
 
 .preview-attr-badge {
-    font-size: 8.5rem;
+    font-size: 11rem;
     font-weight: 700;
     letter-spacing: 0.6rem;
-    padding: 1.5rem 5rem;
-    border-radius: 3rem;
+    padding: 2.5rem 7rem;
+    border-radius: 4rem;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #e6edf3;
@@ -716,11 +777,11 @@
 }
 
 .preview-monster-type-badge {
-    font-size: 8.5rem;
+    font-size: 11rem;
     font-weight: 700;
     letter-spacing: 0.6rem;
-    padding: 1.5rem 5rem;
-    border-radius: 3rem;
+    padding: 2.5rem 7rem;
+    border-radius: 4rem;
     background: rgba(147, 51, 234, 0.2);
     border: 1px solid rgba(168, 85, 247, 0.45);
     color: #d8b4fe;
@@ -728,42 +789,42 @@
 }
 
 .preview-card-title {
-    margin: 2rem 0 0 0;
+    margin: 3rem 0 0 0;
     font-family: 'Cinzel', serif;
-    font-size: 13rem;
+    font-size: 17rem;
     font-weight: 800;
     letter-spacing: 0.5rem;
     color: #ffffff;
-    line-height: 1.2;
+    line-height: 1.25;
 }
 
 .preview-level-stars {
-    font-size: 9.5rem;
+    font-size: 13rem;
     font-weight: 700;
     color: #facc15;
     letter-spacing: 1rem;
 }
 
 .preview-type-tag {
-    font-size: 9.5rem;
-    font-weight: 500;
-    color: #8b949e;
+    font-size: 12.5rem;
+    font-weight: 600;
+    color: #94a3b8;
 }
 
 /* Combat Power Gauges */
 .preview-combat-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 6rem;
+    gap: 8rem;
 }
 
 .combat-stat-gauge {
-    padding: 5rem 8rem;
-    border-radius: 5rem;
+    padding: 6rem 10rem;
+    border-radius: 6rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 4rem;
+    gap: 6rem;
 }
 
 .combat-stat-gauge.atk-gauge {
@@ -781,8 +842,8 @@
 .combat-gauge-header {
     display: flex;
     align-items: center;
-    gap: 4rem;
-    font-size: 9rem;
+    gap: 5rem;
+    font-size: 12rem;
     font-weight: 800;
     letter-spacing: 1rem;
     flex-shrink: 0;
@@ -793,12 +854,12 @@
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 2rem 5rem;
+    gap: 2rem 6rem;
 }
 
 .combat-gauge-value {
     font-family: 'Inter', sans-serif;
-    font-size: 13rem;
+    font-size: 18rem;
     font-weight: 800;
     color: #ffffff;
     white-space: nowrap;
@@ -817,10 +878,10 @@
 
 .hud-stat-mod-pill {
     font-family: 'Cinzel', serif;
-    font-size: 8rem;
+    font-size: 11rem;
     font-weight: 900;
     letter-spacing: 0.5rem;
-    padding: 1rem 4.5rem;
+    padding: 1.5rem 5.5rem;
     border-radius: 3rem;
     line-height: 1.2;
     display: inline-flex;
@@ -845,16 +906,16 @@
 
 /* Lore / Effect Box */
 .preview-desc-container {
-    background: rgba(13, 17, 23, 0.7);
-    border: 1px solid rgba(240, 246, 252, 0.08);
-    border-radius: 5rem;
-    padding: 6rem 8rem;
-    max-height: 70rem;
+    background: rgba(13, 17, 23, 0.75);
+    border: 1px solid rgba(240, 246, 252, 0.1);
+    border-radius: 6rem;
+    padding: 8rem 10rem;
+    max-height: 90rem;
     overflow-y: auto;
 }
 
 .preview-desc-title {
-    font-size: 8rem;
+    font-size: 10rem;
     font-weight: 800;
     letter-spacing: 1rem;
     color: #c9a84d;
@@ -864,9 +925,50 @@
 
 .preview-desc-text {
     margin: 0;
-    font-size: 10rem;
-    line-height: 1.35;
-    color: #c9d1d9;
+    font-size: 13.5rem;
+    line-height: 1.5;
+    color: #e2e8f0;
+}
+
+/* While inspecting cards, hide duel log and fit all components cleanly */
+#info-panel.sidebar-inspecting {
+    overflow-y: hidden;
+}
+
+#info-panel.sidebar-inspecting .log-module,
+#info-panel.sidebar-inspecting #duel-log-module {
+    display: none !important;
+}
+
+#info-panel.sidebar-inspecting .scanner-module {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-inspecting .scanner-active-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8rem;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sidebar-inspecting .preview-primary-meta {
+    flex-shrink: 0;
+}
+
+.sidebar-inspecting .preview-combat-grid {
+    flex-shrink: 0;
+}
+
+.sidebar-inspecting .preview-desc-container {
+    flex: 0 1 auto;
+    max-height: 140rem;
+    overflow-y: auto;
 }
 
 /* ==========================================================================
