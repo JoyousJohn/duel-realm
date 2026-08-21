@@ -102,7 +102,7 @@ async function AIChangeMonsterPosition(zoneNum, newPosition) {
         addToFeed('Computer switches <em>' + cardDef.name + '</em> to Defense Position in zone #' + zoneNum + '.\n\n');
     }
 
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    updateStatModBadges();
     await sleep(getAnimDuration(250));
 }
 
@@ -195,12 +195,17 @@ async function AIPerformBattlePhase() {
             attackerAtk = Math.max(0, halvedBase + fieldMods.atk + equipMods.atk);
         }
 
+        // Monsters with 0 or negative ATK (such as 0-ATK tokens) cannot/should not declare attacks
+        if (attackerAtk <= 0) {
+            continue;
+        }
+
         var playerMonsters = GameState.getMonstersOnField('player');
 
         // 1. DIRECT ATTACK when player field is empty
         if (playerMonsters.length === 0) {
-            var computerMonsters = GameState.getMonstersOnField('computer');
-            if (currentAttacker.cardId === 'harpie-lady' && computerMonsters.length <= 1) {
+            var compMonstersList = GameState.getMonstersOnField('computer');
+            if (currentAttacker.cardId === 'harpie-lady' && compMonstersList.length <= 1) {
                 // Harpie Lady cannot attack directly while she is the only monster controlled
                 continue;
             }
@@ -641,6 +646,26 @@ async function AIPlaySummonEnablerSpells() {
                 }
             }
         }
+        // 5. Tribute of the Ages
+        else if (def.id === 'tribute-of-the-ages') {
+            var handMonsters = GameState.computer.hand.filter(function(c) {
+                var d = cards[c.cardId]; return d && d.type === 'monsters';
+            });
+            var hasHighLvl = handMonsters.some(function(c) {
+                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+            });
+            var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
+                var d = cards[m.card.cardId];
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !(m.card.cannotBeTributed || (d && d.cannotBeTributed));
+            });
+            if (hasHighLvl && playerFaceUp.length > 0 && getNumOfFreeZones('computer') >= 1) {
+                var zoneNum = getFirstFreeZone('computer');
+                if (zoneNum !== undefined) {
+                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getSquareElm('computer', zoneNum), def, 'slot');
+                    await sleep(getAnimDuration(300));
+                }
+            }
+        }
     }
 }
 
@@ -657,6 +682,16 @@ async function AISummonMonsterRoutine() {
 
     var fieldMonsters = GameState.getMonstersOnField('computer');
     var freeZones = getNumOfFreeZones('computer');
+
+    // Check if Tribute of the Ages is active for the computer and resolve valid opponent candidate
+    var soulTarget = (GameState.turn && GameState.turn.tributeOfTheAgesTarget && GameState.turn.tributeOfTheAgesTarget.who === 'computer') ? GameState.turn.tributeOfTheAgesTarget : null;
+    var validOppCandidate = null;
+    if (soulTarget && GameState[soulTarget.opp] && GameState[soulTarget.opp].field && GameState[soulTarget.opp].field.monsters[soulTarget.zone]) {
+        var oppInst = GameState[soulTarget.opp].field.monsters[soulTarget.zone];
+        if (oppInst && (!soulTarget.uid || oppInst.uid === soulTarget.uid) && !oppInst.faceDown && oppInst.position !== 'defense-down') {
+            validOppCandidate = { who: soulTarget.opp, zone: soulTarget.zone, card: oppInst, isOpponent: true };
+        }
+    }
 
     // Find all summonable candidates based on tribute requirements
     var summonable = [];
@@ -693,7 +728,7 @@ async function AISummonMonsterRoutine() {
         var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(mDef.level) : 0;
         var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
         var lpCost = req * 1000;
-        
+
         if (req === 0 && freeZones > 0) {
             summonable.push({ name: mName, def: mDef, reqTributes: 0, score: (mDef.atk || 0) });
         } else if (req > 0 && isMausoleum && freeZones > 0 && GameState.computer.lp > lpCost + 1000) {
@@ -709,24 +744,33 @@ async function AISummonMonsterRoutine() {
                     score: gainAtk * 1.15 - (lpCost * 0.25)
                 });
             }
-        } else if (req > 0 && fieldMonsters.length >= req) {
-            // Sort field monsters by ascending ATK to find the weakest tributes
-            // (Phantom Tokens and other cannotBeTributed monsters are excluded)
+        } else if (req > 0) {
             var tributableField = fieldMonsters.filter(function(entry) {
                 var fDef = cards[entry.card.cardId];
                 return !entry.card.cannotBeTributed && !(fDef && fDef.cannotBeTributed);
+            }).map(function(entry) {
+                return { who: 'computer', zone: entry.zone, card: entry.card, isOpponent: false };
             });
+
+            if (validOppCandidate) {
+                tributableField.push(validOppCandidate);
+            }
+
             if (tributableField.length < req) return;
+
+            // Prioritize opponent's sacrifice target first (costs 0 lost ATK for computer), then lowest ATK own monsters
             var sortedField = tributableField.slice().sort(function(a, b) {
+                if (a.isOpponent && !b.isOpponent) return -1;
+                if (!a.isOpponent && b.isOpponent) return 1;
                 return getMonsterAtk(a.card) - getMonsterAtk(b.card);
             });
             var tributes = sortedField.slice(0, req);
-            var lostAtk = tributes.reduce(function(acc, t) { return acc + getMonsterAtk(t.card); }, 0);
+            var lostAtk = tributes.reduce(function(acc, t) { return acc + (t.isOpponent ? 0 : getMonsterAtk(t.card)); }, 0);
             var gainAtk = (mDef.atk || 0);
 
-            // AI considers tribute worth it if new monster ATK exceeds the single strongest sacrificed monster or total gain is positive
-            if (gainAtk >= 2000 || gainAtk > (lostAtk * 0.8)) {
-                var score = gainAtk - (lostAtk * 0.5);
+            // AI considers tribute worth it if opponent monster is sacrificed or gain is positive
+            if (validOppCandidate || gainAtk >= 2000 || gainAtk > (lostAtk * 0.8)) {
+                var score = gainAtk - (lostAtk * 0.5) + (validOppCandidate ? 1500 : 0);
                 if (mDef.id === 'jinzoid') {
                     var playerSetTraps = 0;
                     for (var pz = 1; pz <= 6; pz++) {
@@ -734,6 +778,12 @@ async function AISummonMonsterRoutine() {
                         if (ps && ps.position === 'set') playerSetTraps++;
                     }
                     score += (playerSetTraps * 400);
+                }
+                if (mDef.id === 'aegis-seraph') {
+                    var playerDefMonsters = GameState.getMonstersOnField('player').filter(function(m) {
+                        return m.card && (m.card.position === 'defense-up' || m.card.position === 'defense-down');
+                    }).length;
+                    score += 400 + (playerDefMonsters * 300);
                 }
                 summonable.push({
                     name: mName,
@@ -780,9 +830,17 @@ async function AISummonMonsterRoutine() {
         var tributeNames = [];
         for (var t = 0; t < chosen.tributes.length; t++) {
             var tributeItem = chosen.tributes[t];
+            var tWho = tributeItem.who || 'computer';
+            var tZone = tributeItem.zone;
             var tDef = cards[tributeItem.card.cardId];
-            tributeNames.push(tDef ? tDef.name : 'a monster');
-            await destroyMonster('computer', tributeItem.zone);
+            var prefix = (tWho === 'player') ? "Player's " : "";
+            tributeNames.push(prefix + (tDef ? tDef.name : 'a monster'));
+            await destroyMonster(tWho, tZone);
+            if (tWho === 'player' && GameState.turn && GameState.turn.tributeOfTheAgesTarget) {
+                delete GameState.turn.tributeOfTheAgesTarget;
+                var pSq = getSquareElm('player', tZone);
+                if (pSq) pSq.find('.tribute-of-ages-badge').remove();
+            }
         }
 
         var discardedCount = 0;
@@ -799,7 +857,7 @@ async function AISummonMonsterRoutine() {
 
             GameState.computer.hand = infernalInst ? [infernalInst] : [];
             updateHandDisplay('computer');
-            if (typeof updateResourceCounters === 'function') updateResourceCounters();
+            updateResourceCounters();
         }
 
         var mode = AICalcMonsterPosition(chosen.name);
@@ -822,6 +880,74 @@ async function AISummonMonsterRoutine() {
         await summonMonster('computer', chosen.name, false);
     }
     await sleep(getAnimDuration(300));
+}
+
+// Tactical evaluation for equipping an equip spell to a computer monster
+function AIEvaluateEquipSpell(equipDef) {
+    if (!equipDef || equipDef.subType !== 'equip') return null;
+    var faceUpOwn = GameState.getMonstersOnField('computer').filter(function(m) {
+        return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+    });
+    if (faceUpOwn.length === 0) return null;
+
+    var playerMonsters = GameState.getMonstersOnField('player');
+    var maxPlayerAtk = 0;
+    playerMonsters.forEach(function(pm) {
+        if (pm.card && pm.card.position === 'attack') {
+            var pAtk = getMonsterAtk(pm.card);
+            if (pAtk > maxPlayerAtk) maxPlayerAtk = pAtk;
+        }
+    });
+
+    var hasSwordsProtection = hasActiveCard('computer', 'swords-of-revealing-light');
+    var hasTrapProtection = (typeof findSetTrapZone === 'function') && (
+        findSetTrapZone('computer', 'radiant-backlash') !== null ||
+        findSetTrapZone('computer', 'prism-of-retribution') !== null ||
+        findSetTrapZone('computer', 'vortex-recall') !== null
+    );
+    var hasSafeBoard = hasSwordsProtection || hasTrapProtection || playerMonsters.length === 0;
+
+    var candidates = [];
+    faceUpOwn.forEach(function(m) {
+        var mDef = cards[m.card.cardId];
+        if (!mDef) return;
+
+        // Check type/attribute restrictions if equip has them
+        if (equipDef.targetType && mDef.monsterType !== equipDef.targetType) return;
+        if (equipDef.targetAttribute && mDef.attribute !== equipDef.targetAttribute) return;
+
+        var currentAtk = getMonsterAtk(m.card);
+        var boost = equipDef.atkMod || 0;
+        var projectedAtk = currentAtk + boost;
+
+        var score = -1;
+
+        // 1. Breakthrough: Equipping allows monster to defeat a player monster it couldn't beat before
+        if (maxPlayerAtk > 0 && currentAtk < maxPlayerAtk && projectedAtk >= maxPlayerAtk) {
+            score = 2000 + projectedAtk;
+        }
+        // 2. Safe Board / Dominant Beatstick: Board is protected, or player has no monsters, or projected ATK is safely above player's strongest monster
+        else if (hasSafeBoard || projectedAtk > maxPlayerAtk + 200) {
+            score = 1000 + projectedAtk;
+        }
+        // 3. Lethal Mitigation: Player would inflict lethal damage this turn without the stat boost
+        else if (maxPlayerAtk > currentAtk && (maxPlayerAtk - currentAtk >= (GameState.computer.lp || 0))) {
+            score = 800 + projectedAtk;
+        }
+        // 4. Doomed Monster without Breakthrough or Protection:
+        // If projectedAtk < maxPlayerAtk and we have no protection, playing the equip is futile — hold it!
+        else {
+            score = -1;
+        }
+
+        if (score > 0) {
+            candidates.push({ entry: m, score: score, projectedAtk: projectedAtk });
+        }
+    });
+
+    if (candidates.length === 0) return null;
+    candidates.sort(function(a, b) { return b.score - a.score; });
+    return candidates[0].entry;
 }
 
 // Step 3: AI plays spells and sets traps dynamically with multi-pass hand re-evaluation
@@ -931,25 +1057,30 @@ async function AIPlaySpellTrapCards() {
                                 return getMonsterAtk(pm.card) >= 1000;
                             });
                         } else if (def.id === 'double-tribute-surge') {
-                            var handMonsters = (computer.hand && computer.hand.monsters) ? computer.hand.monsters.length : 0;
-                            var hasHighLvl = computer.hand && computer.hand.monsters ? computer.hand.monsters.some(function(m) {
-                                var d = cards[m]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
-                            }) : false;
-                            shouldPlay = (hasHighLvl && handMonsters >= 2) || (handMonsters >= 2 && getNumOfFreeZones('computer') >= 2);
+                            var handMonsters = GameState.computer.hand.filter(function(c) {
+                                var d = cards[c.cardId]; return d && d.type === 'monsters';
+                            });
+                            var hasHighLvl = handMonsters.some(function(c) {
+                                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            });
+                            shouldPlay = (hasHighLvl && handMonsters.length >= 2) || (handMonsters.length >= 2 && getNumOfFreeZones('computer') >= 2);
                         } else if (def.id === 'phantom-catalyst') {
                             var compMons = GameState.getMonstersOnField('computer').length;
                             var playerMons = GameState.getMonstersOnField('player').length;
-                            var hasHighLvl = computer.hand && computer.hand.monsters ? computer.hand.monsters.some(function(m) {
-                                var d = cards[m]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
-                            }) : false;
+                            var handMonsters = GameState.computer.hand.filter(function(c) {
+                                var d = cards[c.cardId]; return d && d.type === 'monsters';
+                            });
+                            var hasHighLvl = handMonsters.some(function(c) {
+                                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            });
                             shouldPlay = (hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
+                        } else if (def.id === 'gravity-tether') {
+                            shouldPlay = !hasActiveCard('computer', 'gravity-tether');
                         } else if (def.subType === 'equip') {
-                            var compFaceUp = GameState.getMonstersOnField('computer').filter(function(m) {
-                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
-                            });
-                            shouldPlay = compFaceUp.length > 0;
+                            var bestEquipTarget = AIEvaluateEquipSpell(def);
+                            shouldPlay = (bestEquipTarget !== null);
                         } else {
                             shouldPlay = true;
                         }
@@ -993,7 +1124,7 @@ async function AIPlaySpellTrapCards() {
                             shouldSet = false;
                         }
                     }
-                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'arcane-disruptor' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
+                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
                     var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', def.id) !== null);
                     if (alreadySet) {
                         shouldSet = false;

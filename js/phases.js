@@ -148,9 +148,13 @@ async function computerTurn() {
         await AIEvaluatePositionChanges();
     }
 
-    setPhase(3); // Battle Phase
-    await AIPerformBattlePhase();
-    await sleep(getAnimDuration(500));
+    if (GameState.turn && GameState.turn.battlePhaseLocked) {
+        addToFeed('[AI Tactical] Battle Phase skipped due to Tribute of the Ages.\n');
+    } else {
+        setPhase(3); // Battle Phase
+        await AIPerformBattlePhase();
+        await sleep(getAnimDuration(500));
+    }
 
     setPhase(4); // Main Phase 2
     if (typeof AIEvaluatePositionChanges === 'function') {
@@ -190,7 +194,7 @@ function updateTurn(newTurn) {
         $('#end-turn-btn-label').text('OPPONENT TURN');
     }
 
-    if (typeof updateResourceCounters === 'function') updateResourceCounters();
+    updateResourceCounters();
 } 
 
 function updatePhaseInfo() {
@@ -198,7 +202,7 @@ function updatePhaseInfo() {
         $('#game-phase').text(phases[phase].phaseName.toUpperCase());
         $('#phase-tracker .phase-step').removeClass('active');
         $('#phase-tracker .phase-step[data-phase="' + phase + '"]').addClass('active');
-        if (typeof updateActionableCards === 'function') updateActionableCards();
+        updateActionableCards();
     }
 }
 
@@ -255,7 +259,7 @@ function prepareGame() {
 
     updateLPDisplay();
     buildPlayerDeck();
-    if (typeof updateResourceCounters === 'function') updateResourceCounters();
+    updateResourceCounters();
     if (typeof BattleFX !== 'undefined') BattleFX.updateDeckVisuals();
 }
 
@@ -292,15 +296,26 @@ function endGame() {
     resetAllSquares();
 
     // Clear any lingering global selection/UI modes from the prior match
-    $('body').removeClass('tribute-selection-mode');
+    $('body').removeClass('tribute-selection-mode spell-target-selection-mode');
     if (typeof clearTributeSelectionMode === 'function') {
         clearTributeSelectionMode();
+    }
+    if (typeof clearSpellTargetSelectionMode === 'function') {
+        clearSpellTargetSelectionMode();
     }
 
     // Force-hide any modal that may have been open when the match ended
     // (fadeIn leaves an inline display style that overrides the CSS class base)
     $('.tactical-action-modal').hide();
     $('#tribute-action-bar').hide();
+    $('#spell-target-action-bar').hide();
+
+    // Clear all pending reaction and effect promise resolvers
+    if (typeof torrentialTributeResolver !== 'undefined') torrentialTributeResolver = null;
+    if (typeof arcaneDisruptorPromptResolver !== 'undefined') arcaneDisruptorPromptResolver = null;
+    if (typeof arcaneDisruptorDiscardResolver !== 'undefined') arcaneDisruptorDiscardResolver = null;
+    if (typeof abyssalScoutResolver !== 'undefined') abyssalScoutResolver = null;
+    if (typeof celestialTitheResolver !== 'undefined') celestialTitheResolver = null;
 }
 
 function addToFeed(gameMove) {
@@ -381,8 +396,14 @@ function resetAllSquares(squareElm) {
     $('.def-locked-badge').remove();
     $('.flip-effect-badge').remove();
     $('.immune-badge').remove();
+    $('.no-tribute-badge').remove();
+    $('.attack-locked-badge').remove();
+    $('.effect-ready-badge').remove();
     $('.equip-tag-badge').remove();
     $('.tribute-selected-badge').remove();
     $('.tribute-candidate-highlight').removeClass('tribute-candidate-highlight');
     $('.is-tribute-selected').removeClass('is-tribute-selected');
+    $('.spell-target-selected-badge').remove();
+    $('.spell-target-candidate').removeClass('spell-target-candidate');
+    $('.spell-target-selected').removeClass('spell-target-selected');
 }

@@ -136,7 +136,7 @@ function getMonsterAtk(instance) {
         }
     }
 
-    if (instance.cardId === "gryphon-stormlord" && typeof GameState !== "undefined" && GameState) {
+        if (instance.cardId === "gryphon-stormlord" && typeof GameState !== "undefined" && GameState) {
         if (!instance.faceDown && instance.position !== "defense-down") {
             var otherWingedBeastCount = 0;
             ["player", "computer"].forEach(function(who) {
@@ -154,6 +154,35 @@ function getMonsterAtk(instance) {
                 });
             });
             selfMod += (otherWingedBeastCount * 300);
+        }
+    }
+
+    // Gravity Tether: Opponent's monsters lose 100 ATK per Level
+    if (typeof GameState !== "undefined" && GameState) {
+        var mController = null;
+        ["player", "computer"].forEach(function(who) {
+            if (GameState[who] && GameState[who].field && GameState[who].field.monsters) {
+                for (var z = 1; z <= 6; z++) {
+                    var m = GameState[who].field.monsters[z];
+                    if (m && (m === instance || (instance.uid && m.uid === instance.uid))) {
+                        mController = who;
+                        break;
+                    }
+                }
+            }
+        });
+
+        if (mController) {
+            var oppSide = GameState.getOpponent(mController);
+            if (GameState[oppSide] && GameState[oppSide].field && GameState[oppSide].field.spells) {
+                for (var sz = 1; sz <= 6; sz++) {
+                    var sp = GameState[oppSide].field.spells[sz];
+                    if (sp && sp.cardId === "gravity-tether" && sp.position === "active") {
+                        var lvl = def.level || 1;
+                        selfMod -= (lvl * 100);
+                    }
+                }
+            }
         }
     }
 
@@ -225,11 +254,14 @@ function updateStatModBadges(previewFieldSpellId) {
             if (monsterInst && !isFaceDown) {
                 var def = cards[monsterInst.cardId];
                 var mods = isPreviewMode ? getFieldMods(def, previewFieldSpellId) : getFieldMods(def);
-                var equipMods = getEquipMods(monsterInst);
-                var tempAtk = (monsterInst.tempStatMods && typeof monsterInst.tempStatMods.atk === "number") ? monsterInst.tempStatMods.atk : 0;
-                var tempDef = (monsterInst.tempStatMods && typeof monsterInst.tempStatMods.def === "number") ? monsterInst.tempStatMods.def : 0;
-                var atkMod = mods.atk + equipMods.atk + tempAtk;
-                var defMod = mods.def + equipMods.def + tempDef;
+                var curFieldMods = getFieldMods(def);
+                var effectiveAtk = getMonsterAtk(monsterInst);
+                var baseAtk = def.atk || 0;
+                var atkMod = isPreviewMode ? (effectiveAtk - baseAtk + mods.atk - curFieldMods.atk) : (effectiveAtk - baseAtk);
+
+                var effectiveDef = getMonsterDef(monsterInst);
+                var baseDef = def.def || 0;
+                var defMod = isPreviewMode ? (effectiveDef - baseDef + mods.def - curFieldMods.def) : (effectiveDef - baseDef);
 
                 existingBadge.remove();
 
@@ -247,24 +279,24 @@ function updateStatModBadges(previewFieldSpellId) {
                         "</div>");
                         square.append(badge);
                     } else {
-                        // Asymmetric: show ATK and DEF separately
-                        if (atkMod !== 0) {
-                            var atkIsPos = atkMod > 0;
-                            var atkIcon = isPreviewMode ? "⚡" : (atkIsPos ? "▲" : "▼");
-                            var atkBadge = $("<div class=\"stat-mod-badge " + (atkIsPos ? "stat-mod-buff" : "stat-mod-debuff") + previewExtraClass + "\">" +
-                                "<span class=\"stat-mod-icon\">" + atkIcon + "</span>" +
-                                "<span class=\"stat-mod-label\">ATK " + (atkIsPos ? "+" : "") + atkMod + "</span>" +
-                            "</div>");
-                            square.append(atkBadge);
-                        }
+                        // Asymmetric: show ATK and DEF separately (DEF bottom layer, ATK top layer)
                         if (defMod !== 0) {
                             var defIsPos = defMod > 0;
                             var defIcon = isPreviewMode ? "⚡" : (defIsPos ? "▲" : "▼");
-                            var defBadge = $("<div class=\"stat-mod-badge " + (defIsPos ? "stat-mod-buff" : "stat-mod-debuff") + previewExtraClass + "\">" +
+                            var defBadge = $("<div class=\"stat-mod-badge stat-mod-def " + (defIsPos ? "stat-mod-buff" : "stat-mod-debuff") + previewExtraClass + "\">" +
                                 "<span class=\"stat-mod-icon\">" + defIcon + "</span>" +
                                 "<span class=\"stat-mod-label\">DEF " + (defIsPos ? "+" : "") + defMod + "</span>" +
                             "</div>");
                             square.append(defBadge);
+                        }
+                        if (atkMod !== 0) {
+                            var atkIsPos = atkMod > 0;
+                            var atkIcon = isPreviewMode ? "⚡" : (atkIsPos ? "▲" : "▼");
+                            var atkBadge = $("<div class=\"stat-mod-badge stat-mod-atk " + (atkIsPos ? "stat-mod-buff" : "stat-mod-debuff") + previewExtraClass + "\">" +
+                                "<span class=\"stat-mod-icon\">" + atkIcon + "</span>" +
+                                "<span class=\"stat-mod-label\">ATK " + (atkIsPos ? "+" : "") + atkMod + "</span>" +
+                            "</div>");
+                            square.append(atkBadge);
                         }
                     }
                 }
@@ -299,21 +331,21 @@ function updateStatModBadges(previewFieldSpellId) {
                         "<span class=\"stat-mod-label\">" + (isPos ? "+" : "") + atkMod + "</span>" +
                     "</div>"));
                 } else {
-                    // Asymmetric: show ATK and DEF separately
-                    if (atkMod !== 0) {
-                        var atkIsPos = atkMod > 0;
-                        var atkIcon = isPreviewMode ? "⚡" : (atkIsPos ? "▲" : "▼");
-                        $(this).append($("<div class=\"stat-mod-badge " + (atkIsPos ? "stat-mod-buff" : "stat-mod-debuff") + " stat-mod-preview" + previewExtraClass + "\">" +
-                            "<span class=\"stat-mod-icon\">" + atkIcon + "</span>" +
-                            "<span class=\"stat-mod-label\">ATK " + (atkIsPos ? "+" : "") + atkMod + "</span>" +
-                        "</div>"));
-                    }
+                    // Asymmetric: show ATK and DEF separately (DEF bottom layer, ATK top layer)
                     if (defMod !== 0) {
                         var defIsPos = defMod > 0;
                         var defIcon = isPreviewMode ? "⚡" : (defIsPos ? "▲" : "▼");
-                        $(this).append($("<div class=\"stat-mod-badge " + (defIsPos ? "stat-mod-buff" : "stat-mod-debuff") + " stat-mod-preview" + previewExtraClass + "\">" +
+                        $(this).append($("<div class=\"stat-mod-badge stat-mod-def " + (defIsPos ? "stat-mod-buff" : "stat-mod-debuff") + " stat-mod-preview" + previewExtraClass + "\">" +
                             "<span class=\"stat-mod-icon\">" + defIcon + "</span>" +
                             "<span class=\"stat-mod-label\">DEF " + (defIsPos ? "+" : "") + defMod + "</span>" +
+                        "</div>"));
+                    }
+                    if (atkMod !== 0) {
+                        var atkIsPos = atkMod > 0;
+                        var atkIcon = isPreviewMode ? "⚡" : (atkIsPos ? "▲" : "▼");
+                        $(this).append($("<div class=\"stat-mod-badge stat-mod-atk " + (atkIsPos ? "stat-mod-buff" : "stat-mod-debuff") + " stat-mod-preview" + previewExtraClass + "\">" +
+                            "<span class=\"stat-mod-icon\">" + atkIcon + "</span>" +
+                            "<span class=\"stat-mod-label\">ATK " + (atkIsPos ? "+" : "") + atkMod + "</span>" +
                         "</div>"));
                     }
                 }
@@ -331,6 +363,15 @@ function updateStatModBadges(previewFieldSpellId) {
 
     // 5. Update IMMUNE badges for monsters immune to Spell targeting
     updateImmuneBadges();
+
+    // 6. Update NO TRIBUTE badges for tokens/monsters that cannot be tributed
+    updateNoTributeBadges();
+
+    // 7. Update ATTACK LOCKED badges for monsters restricted from attacking
+    updateAttackLockedBadges();
+
+    // 8. Update EFFECT READY badges for monsters with available ignition effects
+    updateEffectReadyBadges();
 }
 
 // Update or create visual "DEF LOCKED" badges for Dragon monsters affected by Dragon Capture Jar
@@ -421,4 +462,123 @@ function updateImmuneBadges() {
             }
         }
     });
+}
+
+// Monsters and tokens that cannot be tributed for a Tribute Summon (e.g. Phantom Tokens)
+// get a "NO TRIBUTE" badge while face-up, so players immediately know they cannot be sacrificed.
+function updateNoTributeBadges() {
+    ["player", "computer"].forEach(function(who) {
+        for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+            var square = getSquareElm(who, zoneNum);
+            if (!square || !square.length) continue;
+
+            var monsterInst = (GameState && GameState[who] && GameState[who].field && GameState[who].field.monsters) ? GameState[who].field.monsters[zoneNum] : null;
+            var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
+            var existing = square.find(".no-tribute-badge");
+
+            var def = monsterInst ? cards[monsterInst.cardId] : null;
+            var cannotBeTributed = monsterInst && !isFaceDown && (monsterInst.cannotBeTributed === true || (def && def.cannotBeTributed === true));
+
+            if (cannotBeTributed) {
+                if (!existing.length) {
+                    var badge = $("<div class=\"no-tribute-badge\">" +
+                        "<span class=\"no-tribute-icon\">🛡️</span>" +
+                        "<span class=\"no-tribute-label\">NO TRIBUTE</span>" +
+                    "</div>");
+                    square.append(badge);
+                }
+            } else if (existing.length) {
+                existing.remove();
+            }
+        }
+    });
+}
+
+// Face-up Attack Position monsters that cannot declare attacks (e.g. Swords of Revealing Light,
+// Tribute of the Ages lock, Turn 1 restriction, 0 ATK, or cannotAttack flag) get an "ATTACK LOCKED" badge.
+function updateAttackLockedBadges() {
+    var isTurn1 = (typeof turnCount !== 'undefined' && turnCount === 1);
+    var sides = ["player", "computer"];
+
+    sides.forEach(function(who) {
+        var isSwordsBlocked = (typeof isAttackBlocked === 'function') && isAttackBlocked(who);
+        var isBattleLocked = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.battlePhaseLocked && GameState.turn.active === who);
+
+        for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+            var square = getSquareElm(who, zoneNum);
+            if (!square || !square.length) continue;
+
+            var monsterInst = (GameState && GameState[who] && GameState[who].field && GameState[who].field.monsters) ? GameState[who].field.monsters[zoneNum] : null;
+            var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
+            var existing = square.find(".attack-locked-badge");
+
+            if (monsterInst && !isFaceDown && monsterInst.position === 'attack') {
+                var effectiveAtk = typeof getMonsterAtk === 'function' ? getMonsterAtk(monsterInst) : (cards[monsterInst.cardId] ? cards[monsterInst.cardId].atk : 0);
+                var isLocked = isSwordsBlocked || isBattleLocked || isTurn1 || effectiveAtk <= 0 || (monsterInst.cannotAttack === true);
+
+                if (isLocked) {
+                    if (!existing.length) {
+                        var badge = $("<div class=\"attack-locked-badge\">" +
+                            "<span class=\"attack-locked-icon\">⚔️</span>" +
+                            "<span class=\"attack-locked-label\">LOCKED</span>" +
+                        "</div>");
+                        square.append(badge);
+                    }
+                    continue;
+                }
+            }
+
+            if (existing.length) {
+                existing.remove();
+            }
+        }
+    });
+}
+
+// Face-up monsters on the active player's field with available ignition effects get an "EFFECT READY" badge.
+function updateEffectReadyBadges() {
+    var isPlayerTurn = (typeof turn !== 'undefined' && turn === 0 && GameState && GameState.turn && GameState.turn.active === 'player');
+    var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+    var hasHandCards = (GameState && GameState.player && GameState.player.hand) ? (GameState.player.hand.length > 0) : false;
+
+    for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+        var square = getSquareElm("player", zoneNum);
+        if (!square || !square.length) continue;
+
+        var monsterInst = (GameState && GameState.player && GameState.player.field && GameState.player.field.monsters) ? GameState.player.field.monsters[zoneNum] : null;
+        var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
+        var existing = square.find(".effect-ready-badge");
+
+        var canUseEffect = false;
+        if (isPlayerTurn && isMainPhase && monsterInst && !isFaceDown && monsterInst.lastEffectTurn !== turnCount) {
+            var def = cards[monsterInst.cardId];
+            if (def) {
+                if (typeof def.canActivateIgnition === 'function') {
+                    canUseEffect = def.canActivateIgnition('player', zoneNum);
+                } else if (monsterInst.cardId === 'time-wizard') {
+                    canUseEffect = true;
+                } else if (monsterInst.cardId === 'harpie-lady') {
+                    canUseEffect = hasHandCards && (typeof hasSpellTrapOnField === 'function' && hasSpellTrapOnField());
+                } else if (monsterInst.cardId === 'exiled-force') {
+                    canUseEffect = GameState.getMonstersOnField('computer').length > 0;
+                } else if (monsterInst.cardId === 'gryphon-stormlord') {
+                    canUseEffect = hasHandCards && GameState.player.hand.some(function(c) { var d = cards[c.cardId]; return d && d.attribute === 'WIND'; });
+                } else if (typeof def.onIgnitionEffect === 'function') {
+                    canUseEffect = true;
+                }
+            }
+        }
+
+        if (canUseEffect) {
+            if (!existing.length) {
+                var badge = $("<div class=\"effect-ready-badge\">" +
+                    "<span class=\"effect-ready-icon\">⚡</span>" +
+                    "<span class=\"effect-ready-label\">EFFECT</span>" +
+                "</div>");
+                square.append(badge);
+            }
+        } else if (existing.length) {
+            existing.remove();
+        }
+    }
 }

@@ -191,6 +191,21 @@ var cards = {
         'def': 1200
     },
 
+    'aegis-seraph': {
+        'id': 'aegis-seraph',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'aegis_seraph.png',
+        'name': 'Aegis Seraph',
+        'monsterType': 'Fairy',
+        'attribute': 'LIGHT',
+        'level': 5,
+        'atk': 1900,
+        'def': 1400,
+        'piercing': true,
+        'desc': 'If this card attacks a Defense Position monster, inflict piercing battle damage. When this card inflicts battle damage to your opponent: Draw 1 card.'
+    },
+
     'summoned-skull': {
         'id': 'summoned-skull',
         'type': 'monsters',
@@ -481,10 +496,9 @@ var cards = {
                 return false;
             }
 
-            var target = await TargetEngine.requestTarget(who, {
-                title: 'EXILED FORCE',
-                subtitle: 'TRIBUTE THIS CARD TO TARGET 1 MONSTER ON THE FIELD TO DESTROY',
-                badge: { category: 'MONSTER EFFECT', color: '#ea580c', glowColor: 'rgba(234, 88, 12, 0.45)' },
+            var target = await requestFieldTargetChoice(who, {
+                cardName: 'Exiled Force',
+                prompt: 'TRIBUTE THIS CARD TO TARGET 1 MONSTER ON THE FIELD TO DESTROY',
                 candidates: allMonsters,
                 aiPick: function(candidates) {
                     var oppTargets = candidates.filter(function(c) { return c.side !== who; });
@@ -756,6 +770,15 @@ var cards = {
         'desc': 'When a Spell Card is activated: Discard 1 card from your hand; negate the activation of that Spell Card and remove it from play.'
     },
 
+    'arcane-ward': {
+        'id': 'arcane-ward',
+        'type': 'traps',
+        'subType': 'counter',
+        'file': 'arcane_ward.png',
+        'name': 'Arcane Ward',
+        'desc': 'When your opponent activates a Spell/Trap Card: Negate the activation, and if you do, destroy it. Your opponent cannot activate Spell/Trap Cards for the rest of this turn.'
+    },
+
     'radiant-backlash': {
         'id': 'radiant-backlash',
         'type': 'traps',
@@ -841,6 +864,35 @@ var cards = {
         'file': 'celestial_tithe.png',
         'name': 'Celestial Tithe',
         'desc': 'Draw 3 cards, then send 2 cards from your hand to the Graveyard.'
+    },
+
+    'gravity-tether': {
+        'id': 'gravity-tether',
+        'type': 'spells',
+        'subType': 'continuous',
+        'file': 'gravity_tether.png',
+        'name': 'Gravity Tether',
+        'desc': 'Each face-up monster your opponent controls loses 100 ATK for each of its Levels.'
+    },
+
+    'tribute-of-the-ages': {
+        'id': 'tribute-of-the-ages',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'tribute_of_the_ages.png',
+        'name': 'Tribute of the Ages',
+        'desc': 'Target 1 face-up monster your opponent controls; this turn, if you Tribute Summon a monster, you can Tribute that target as if you controlled it. You cannot conduct your Battle Phase the turn you activate this card.',
+        canActivate: function(who) {
+            var opp = GameState.getOpponent(who);
+            var oppMonsters = GameState.getMonstersOnField(opp).filter(function(m) {
+                var d = cards[m.card.cardId];
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !(m.card.cannotBeTributed || (d && d.cannotBeTributed));
+            });
+            return oppMonsters.length > 0 && (typeof getNumOfFreeZones === 'function' ? getNumOfFreeZones(who) > 0 : true);
+        },
+        unplayableReason: function(who) {
+            return 'Opponent controls no face-up tributable monsters.';
+        }
     },
 
     'lunar-grimoire': {
@@ -1030,10 +1082,9 @@ var cards = {
                 return true;
             }
 
-            var target = await TargetEngine.requestTarget(ctx.who, {
-                title: 'MYSTICAL SPACE TYPHOON',
-                subtitle: 'SELECT 1 SPELL OR TRAP CARD ON THE FIELD TO DESTROY',
-                badge: { category: 'QUICK-PLAY SPELL', color: '#0ea5e9', glowColor: 'rgba(14, 165, 233, 0.45)' },
+            var target = await requestFieldTargetChoice(ctx.who, {
+                cardName: ctx.def.name,
+                prompt: 'SELECT 1 SPELL OR TRAP CARD ON THE FIELD TO DESTROY',
                 candidates: allTargets,
                 aiPick: function(candidates) {
                     var oppTargets = candidates.filter(function(c) { return c.side !== ctx.who; });
@@ -1042,8 +1093,9 @@ var cards = {
             });
 
             if (!target) {
-                // Cancelled by player
-                return false;
+                addToFeed(ctx.def.name + ' was cancelled.\n');
+                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                return true;
             }
 
             var targetDef = target.def || (target.inst ? cards[target.inst.cardId] : null);
@@ -1148,21 +1200,44 @@ var cards = {
             return 'Opponent controls no face-up monsters to destroy.';
         },
         onActivate: async function(ctx) {
-            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(ctx.who) : [];
+            var who = ctx.who;
+            var opp = ctx.opp;
+            var zoneNum = ctx.zoneNum;
+            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(who) : [];
             if (faceUpOpp.length === 0) {
                 addToFeed(ctx.def.name + ' fizzles — no face-up opponent monsters.\n');
-                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                await destroySpellTrap(who, zoneNum, false);
                 return true;
             }
-            faceUpOpp.sort(function(a, b) {
-                return getMonsterAtk(a.card) - getMonsterAtk(b.card);
-            });
-            var target = faceUpOpp[0];
-            var targetDef = cards[target.card.cardId];
-            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterAtk(target.card) + ' ATK) is destroyed!\n');
+            // Find the lowest effective ATK
+            var lowestAtk = Math.min.apply(null, faceUpOpp.map(function(m) { return getMonsterAtk(m.card); }));
+            var tied = faceUpOpp.filter(function(m) { return getMonsterAtk(m.card) === lowestAtk; });
+
+            // Give each candidate a side so the on-mat picker can highlight them.
+            var candidates = tied.map(function(m) { return { side: opp, zone: m.zone, card: m.card }; });
+
+            // Tied candidates + human player: let them pick which to destroy.
+            var chosen;
+            if (candidates.length > 1 && who === 'player') {
+                chosen = await requestFieldTargetChoice(who, {
+                    cardName: ctx.def.name,
+                    prompt: 'SELECT 1 OPPONENT MONSTER TIED FOR LOWEST ATK',
+                    candidates: candidates
+                });
+                if (chosen === null) {
+                    addToFeed(ctx.def.name + ' was cancelled.\n');
+                    await destroySpellTrap(who, zoneNum, false);
+                    return true;
+                }
+            } else {
+                chosen = candidates[0];
+            }
+
+            var targetDef = cards[chosen.card.cardId];
+            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterAtk(chosen.card) + ' ATK) is destroyed!\n');
             if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
-            await destroyMonster(ctx.opp, target.zone);
-            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            await destroyMonster(opp, chosen.zone);
+            await destroySpellTrap(who, zoneNum, false);
             return true;
         },
         ai: {
@@ -1186,21 +1261,44 @@ var cards = {
             return 'Opponent controls no face-up monsters to destroy.';
         },
         onActivate: async function(ctx) {
-            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(ctx.who) : [];
+            var who = ctx.who;
+            var opp = ctx.opp;
+            var zoneNum = ctx.zoneNum;
+            var faceUpOpp = (typeof Queries !== 'undefined') ? Queries.getOpponentFaceUpMonsters(who) : [];
             if (faceUpOpp.length === 0) {
                 addToFeed(ctx.def.name + ' fizzles — no face-up opponent monsters.\n');
-                await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+                await destroySpellTrap(who, zoneNum, false);
                 return true;
             }
-            faceUpOpp.sort(function(a, b) {
-                return getMonsterDef(b.card) - getMonsterDef(a.card);
-            });
-            var target = faceUpOpp[0];
-            var targetDef = cards[target.card.cardId];
-            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterDef(target.card) + ' DEF) is destroyed!\n');
+            // Find the highest effective DEF
+            var highestDef = Math.max.apply(null, faceUpOpp.map(function(m) { return getMonsterDef(m.card); }));
+            var tied = faceUpOpp.filter(function(m) { return getMonsterDef(m.card) === highestDef; });
+
+            // Give each candidate a side so the on-mat picker can highlight them.
+            var candidates = tied.map(function(m) { return { side: opp, zone: m.zone, card: m.card }; });
+
+            // Tied candidates + human player: let them pick which to destroy.
+            var chosen;
+            if (candidates.length > 1 && who === 'player') {
+                chosen = await requestFieldTargetChoice(who, {
+                    cardName: ctx.def.name,
+                    prompt: 'SELECT 1 OPPONENT MONSTER TIED FOR HIGHEST DEF',
+                    candidates: candidates
+                });
+                if (chosen === null) {
+                    addToFeed(ctx.def.name + ' was cancelled.\n');
+                    await destroySpellTrap(who, zoneNum, false);
+                    return true;
+                }
+            } else {
+                chosen = candidates[0];
+            }
+
+            var targetDef = cards[chosen.card.cardId];
+            addToFeed(ctx.def.name + ' activated: <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> (' + getMonsterDef(chosen.card) + ' DEF) is destroyed!\n');
             if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-            await destroyMonster(ctx.opp, target.zone);
-            await destroySpellTrap(ctx.who, ctx.zoneNum, false);
+            await destroyMonster(opp, chosen.zone);
+            await destroySpellTrap(who, zoneNum, false);
             return true;
         },
         ai: {
@@ -1285,7 +1383,7 @@ var cards = {
                 }
             }
             addToFeed('<em>' + (hornDef ? hornDef.name : 'Horn of the Unicorn') + '</em> returned from the Graveyard to the top of ' + formatWho(ownerWho) + '\'s Deck!\n\n');
-            if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+            updateGraveyardZones();
             if (typeof BattleFX !== 'undefined' && typeof BattleFX.updateDeckVisuals === 'function') BattleFX.updateDeckVisuals();
         }
     },

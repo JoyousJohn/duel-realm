@@ -126,6 +126,8 @@ var TargetEngine = {
 // ---------------------------------------------------------------------------
 function initCardTriggers() {
     if (typeof EventBus === "undefined") return;
+    if (initCardTriggers._initialized) return;
+    initCardTriggers._initialized = true;
 
     EventBus.on("CARD_SENT_TO_GRAVE", async function(data) {
         if (data.suppressGraveEffect) return;

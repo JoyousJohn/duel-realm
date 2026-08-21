@@ -1317,6 +1317,87 @@ body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candida
     }
 }
 
+/* Floating On-Mat Spell Target Selection (Smashing Ground / Fissure tie-break) */
+body.spell-target-selection-mode #player-field .card-zone-square,
+body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate),
+body.spell-target-selection-mode #player-hand > .card {
+    opacity: 0.45;
+    transition: opacity 0.2s ease;
+}
+
+.card-zone-square.spell-target-candidate {
+    cursor: pointer !important;
+    position: relative;
+    z-index: 40;
+}
+
+/* During spell target selection, suppress the general actionable glow so only
+   the tied candidates stand out on the opponent's mat. */
+body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .front,
+body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .back,
+body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-front,
+body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-back,
+body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .front,
+body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .back,
+body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .card-front,
+body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .card-back {
+    border-color: inherit !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+.card-zone-square.spell-target-candidate .card-zone {
+    border-color: #f97316 !important;
+    box-shadow: 0 0 18px rgba(249, 115, 22, 0.95), inset 0 0 12px rgba(249, 115, 22, 0.5) !important;
+    animation: spellTargetPulse 1.1s ease-in-out infinite alternate !important;
+}
+
+.card-zone-square.spell-target-candidate .card-zone .front,
+.card-zone-square.spell-target-candidate .card-zone .back,
+.card-zone-square.spell-target-candidate .card-zone .card-front,
+.card-zone-square.spell-target-candidate .card-zone .card-back {
+    border-color: #f97316 !important;
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.75), inset 0 0 7px rgba(249, 115, 22, 0.4) !important;
+    animation: spellTargetPulse 1.1s ease-in-out infinite alternate !important;
+}
+
+@keyframes spellTargetPulse {
+    from {
+        box-shadow: 0 0 10px rgba(249, 115, 22, 0.6), inset 0 0 6px rgba(249, 115, 22, 0.3);
+        border-color: #c2410c !important;
+    }
+    to {
+        box-shadow: 0 0 26px rgba(249, 115, 22, 1), inset 0 0 16px rgba(249, 115, 22, 0.7);
+        border-color: #fed7aa !important;
+    }
+}
+
+.card-zone-square.spell-target-selected .card-zone {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 26px rgba(239, 68, 68, 0.98), inset 0 0 16px rgba(239, 68, 68, 0.65) !important;
+    animation: none !important;
+}
+
+.spell-target-selected-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.92) 70%, transparent 100%);
+    border: 2px solid #fee2e2;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.95), 0 0 10px #ffffff;
+    z-index: 45;
+    pointer-events: none;
+    animation: tributeBadgePop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Floating On-Mat Tribute Action Bar */
 .tribute-action-bar {
     position: fixed;

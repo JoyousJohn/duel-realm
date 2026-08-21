@@ -232,6 +232,9 @@ var BattleFX = {
                 $(squareElm).find('.def-locked-badge').remove();
                 $(squareElm).find('.flip-effect-badge').remove();
                 $(squareElm).find('.immune-badge').remove();
+                $(squareElm).find('.no-tribute-badge').remove();
+                $(squareElm).find('.attack-locked-badge').remove();
+                $(squareElm).find('.effect-ready-badge').remove();
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
@@ -293,11 +296,11 @@ var BattleFX = {
                         opacity: 0.4
                     }, animDur, animEasing, function() {
                         spiritClone.remove();
-                        if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                        updateGraveyardZones();
                         resolve();
                     });
                 } else {
-                    if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                    updateGraveyardZones();
                     resolve();
                 }
             }, getAnimDuration(400));
@@ -376,7 +379,7 @@ var BattleFX = {
                 backElm.css({
                     'transform': 'rotateY(180deg)'
                 });
-                if (typeof updateStatModBadges === 'function') updateStatModBadges();
+                updateStatModBadges();
                 resolve();
             });
         });
@@ -432,11 +435,11 @@ var BattleFX = {
                     opacity: 0.4
                 }, getAnimDuration(450), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
                     flightClone.remove();
-                    if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                    updateGraveyardZones();
                     resolve();
                 });
             } else {
-                if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                updateGraveyardZones();
                 resolve();
             }
         });
@@ -804,7 +807,7 @@ var BattleFX = {
                 if (!gyTarget || !gyTarget.length) {
                     if (targetCardElm) targetCardElm.remove();
                     if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
-                    if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                    updateGraveyardZones();
                     resolve();
                     return;
                 }
@@ -884,14 +887,14 @@ var BattleFX = {
                     }, flightDuration, 'cubic-bezier(0.22, 1, 0.36, 1)', function() {
                         flightClone.remove();
                         if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
-                        if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                        updateGraveyardZones();
                         resolve();
                     });
                 });
             } catch (err) {
                 console.error('animateCardDiscard error:', err);
                 if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
-                if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                updateGraveyardZones();
                 resolve();
             }
         });

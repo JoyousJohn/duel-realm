@@ -712,6 +712,44 @@
             </div>
         </div>
 
+        <!-- Arcane Ward Prompt Modal -->
+        <div id="arcane-ward-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveArcaneWardPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 500px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.18); border-color: rgba(168, 85, 247, 0.45);">
+                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
+                        <span class="action-header-category" style="color: #c084fc;">COUNTER TRAP ACTIVATION</span>
+                    </div>
+                    <h3 class="action-modal-card-name">ARCANE WARD</h3>
+                    <div class="action-modal-card-stats" id="aw-trigger-cause">OPPONENT ACTIVATED A SPELL/TRAP!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;" id="aw-prompt-description">
+                        Opponent activated a Spell/Trap Card. Negate its activation and destroy it?
+                    </div>
+                    <div id="aw-card-details-box" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; text-align: left;">
+                        <div style="font-size: 11px; font-weight: 800; color: #c084fc; letter-spacing: 0.8px; margin-bottom: 4px;" id="aw-card-header">ACTIVATED CARD: RAIGEKI</div>
+                        <div style="font-size: 12.5px; color: #e2e8f0; line-height: 1.45; font-style: italic;" id="aw-card-effect-text">"Destroy all monsters on your opponent's side of the field."</div>
+                    </div>
+                    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <strong>Effect:</strong> Negate & Destroy • Opponent cannot activate Spells/Traps for the rest of this turn
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #7c3aed, #4c1d95); border: 1px solid #a78bfa; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneWardPrompt(true)">
+                        🛡 ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneWardPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Abyssal Scout Deck Search Modal -->
         <div id="abyssal-scout-modal" class="tactical-action-modal" style="display: none;">
             <div class="action-modal-backdrop"></div>
@@ -1175,6 +1213,23 @@
                     <span>PAY <span id="mausoleum-cost-def">1000</span> LP (SET)</span>
                 </button>
                 <button class="tribute-bar-btn btn-cancel" onclick="cancelTributeSelection()">
+                    <span>&times; CANCEL</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating On-Mat Spell Target Selection Bar (e.g. Smashing Ground / Fissure tie-break) -->
+        <div id="spell-target-action-bar" class="tribute-action-bar" style="display: none;">
+            <div class="tribute-bar-meta">
+                <span class="tribute-bar-title" id="spell-target-bar-card-name">SMASHING GROUND</span>
+                <span class="tribute-bar-counter" id="spell-target-bar-counter">SELECT 1 MONSTER TIED FOR HIGHEST DEF (0/1)</span>
+            </div>
+            <div class="tribute-bar-actions">
+                <button class="tribute-bar-btn btn-atk" id="spell-target-btn-confirm" onclick="confirmSpellTargetSelection()" disabled>
+                    <span class="tribute-btn-icon" id="spell-target-btn-icon">💥</span>
+                    <span id="spell-target-btn-label">DESTROY</span>
+                </button>
+                <button class="tribute-bar-btn btn-cancel" onclick="cancelSpellTargetSelection()">
                     <span>&times; CANCEL</span>
                 </button>
             </div>

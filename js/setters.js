@@ -168,7 +168,7 @@ function clearAvailableZones() {
     $('#player-field .card-zone-square .card-zone.main-zone').removeClass('available-zone spell-available-zone field-available-zone');
     $('.field-zone-square').removeClass('available-zone spell-available-zone field-available-zone');
     $('.field-zone-square .card-zone.main-zone').removeClass('available-zone spell-available-zone field-available-zone');
-    if (typeof updateStatModBadges === 'function' && (typeof activeCard === 'undefined' || !activeCard || !activeCard.length)) {
+    if (typeof activeCard === 'undefined' || !activeCard || !activeCard.length) {
         updateStatModBadges();
     }
 }

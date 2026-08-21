@@ -601,6 +601,193 @@ div.card-zone.field-available-zone {
 }
 
 /* ==========================================================================
+   No-Tribute Token / Monster "NO TRIBUTE" Badge
+   ========================================================================== */
+
+.no-tribute-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(71, 85, 105, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border: 1px solid #cbd5e1;
+    color: #f1f5f9;
+    box-shadow: 0 0 10px rgba(148, 163, 184, 0.7), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 73;
+    pointer-events: none;
+    animation: noTributeBadgeGlow 2s infinite alternate ease-in-out;
+}
+
+.no-tribute-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+@keyframes noTributeBadgeGlow {
+    from {
+        box-shadow: 0 0 5px rgba(148, 163, 184, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 12px rgba(203, 213, 225, 0.85), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.1);
+    }
+}
+
+.card-zone-square[data-card-position*="defense"] .no-tribute-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, -50%);
+}
+
+/* ==========================================================================
+   Attack-Locked Monster "LOCKED" Badge (Swords of Revealing Light, Turn 1, etc.)
+   ========================================================================== */
+
+.attack-locked-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(153, 27, 27, 0.95) 100%);
+    border: 1px solid #fca5a5;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 76;
+    pointer-events: none;
+    animation: attackLockedGlow 1.8s infinite alternate ease-in-out;
+}
+
+.attack-locked-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+@keyframes attackLockedGlow {
+    from {
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(248, 113, 113, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+.card-zone-square[data-card-position*="defense"] .attack-locked-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, -50%);
+}
+
+/* ==========================================================================
+   Ignition Effect Monster "EFFECT READY" Badge (Time Wizard, Harpie Lady, etc.)
+   ========================================================================== */
+
+.effect-ready-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.95) 0%, rgba(126, 34, 206, 0.95) 100%);
+    border: 1px solid #e9d5ff;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 78;
+    pointer-events: none;
+    animation: effectReadyGlow 1.6s infinite alternate ease-in-out;
+}
+
+.effect-ready-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+@keyframes effectReadyGlow {
+    from {
+        box-shadow: 0 0 6px rgba(168, 85, 247, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(192, 132, 252, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+.card-zone-square[data-card-position*="defense"] .effect-ready-badge {
+    top: calc(50% - (var(--card-width) / 2));
+    transform: translate(-50%, -50%);
+}
+
+/* ==========================================================================
+   Hand Tribute Summon Ready "TRIBUTE" Badge
+   ========================================================================== */
+
+.hand-tribute-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%);
+    border: 1px solid #fde047;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 60;
+    pointer-events: none;
+    animation: handTributeBadgeGlow 1.6s infinite alternate ease-in-out;
+}
+
+.hand-tribute-icon {
+    font-size: 8rem;
+    line-height: 1;
+}
+
+@keyframes handTributeBadgeGlow {
+    from {
+        box-shadow: 0 0 6px rgba(245, 158, 11, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(239, 68, 68, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+/* ==========================================================================
    Equip Card "EQUIPPED" Tag (shown on the equipped monster)
    ========================================================================== */
 

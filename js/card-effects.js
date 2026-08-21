@@ -30,6 +30,139 @@ function isImmuneToSpellTargeting(monsterInst, spellController) {
     return owner !== spellController;
 }
 
+// ---------------------------------------------------------------------------
+// On-Mat Spell Target Selection (Smashing Ground / Fissure tie-break)
+// Lets the player click an opponent monster among tied candidates, mirroring
+// the on-mat tribute selection UX (highlight + floating action bar toast).
+// ---------------------------------------------------------------------------
+var pendingSpellTarget = {
+    active: false,
+    resolve: null,
+    prompt: '',
+    candidates: [],
+    selectedCand: null
+};
+
+// Generalized on-mat field picker. Returns a Promise resolving with the chosen
+// candidate object (from opts.candidates) or null if cancelled.
+//   opts: {
+//     cardName:     title in the toast bar,
+//     prompt:       instruction, e.g. 'SELECT 1 OPPONENT MONSTER ...' (bar appends ' (n/1)'),
+//     confirmLabel, confirmIcon: label + icon on the confirm button,
+//     candidates:   [{ side, zone, isField?, inst?, def?, ... }],
+//     aiPick:       (cands) -> candidate for the AI path (default: first candidate)
+//   }
+// Non-player callers resolve immediately through aiPick (no UI).
+function requestFieldTargetChoice(who, opts) {
+    if (who !== 'player') {
+        var aiList = opts.candidates.slice();
+        var pick = (typeof opts.aiPick === 'function') ? opts.aiPick(aiList) : aiList[0];
+        return Promise.resolve(pick || null);
+    }
+
+    return new Promise(function(resolve) {
+        pendingSpellTarget.active = true;
+        pendingSpellTarget.resolve = resolve;
+        pendingSpellTarget.prompt = opts.prompt || 'SELECT A TARGET';
+        pendingSpellTarget.candidates = opts.candidates || [];
+        pendingSpellTarget.selectedCand = null;
+
+        $('#spell-target-bar-card-name').text((opts.cardName || 'SPELL').toUpperCase());
+        $('#spell-target-btn-label').text(opts.confirmLabel || 'DESTROY');
+        $('#spell-target-btn-icon').text(opts.confirmIcon || '💥');
+        $('#spell-target-btn-confirm').prop('disabled', true);
+        updateSpellTargetCounter();
+
+        $('body').addClass('spell-target-selection-mode');
+        pendingSpellTarget.candidates.forEach(function(c) {
+            highlightSpellTargetSquare(c.side, c.zone, c.isField);
+        });
+
+        $('#spell-target-action-bar').fadeIn(150);
+    });
+}
+
+// Add the candidate glow to a square on either player's mat (incl. field zone).
+function highlightSpellTargetSquare(side, zone, isField) {
+    var field = (typeof getField === 'function') ? getField(side) : $('.field');
+    if (!field || !field.length) return;
+    if (isField) {
+        field.find('.field-zone-square').addClass('spell-target-candidate');
+    } else {
+        field.find('.card-zone-square[data-zone="' + zone + '"]').addClass('spell-target-candidate');
+    }
+}
+
+// Single-selection toggle when a highlighted square is clicked.
+function selectSpellTargetZone(side, zoneNum, squareElm) {
+    if (!pendingSpellTarget.active) return;
+    clearSpellTargetSelected();
+    for (var i = 0; i < pendingSpellTarget.candidates.length; i++) {
+        var c = pendingSpellTarget.candidates[i];
+        var candZone = (c.isField) ? null : c.zone;
+        var pickedZone = (squareElm.hasClass('field-zone-square')) ? null : zoneNum;
+        if (c.side === side && candZone === pickedZone) {
+            pendingSpellTarget.selectedCand = c;
+            break;
+        }
+    }
+    if (pendingSpellTarget.selectedCand) {
+        squareElm.addClass('spell-target-selected').append('<div class="spell-target-selected-badge">💥</div>');
+        $('#spell-target-btn-confirm').prop('disabled', false);
+    } else {
+        $('#spell-target-btn-confirm').prop('disabled', true);
+    }
+    updateSpellTargetCounter();
+}
+
+function confirmSpellTargetSelection() {
+    if (!pendingSpellTarget.active || pendingSpellTarget.selectedCand === null) return;
+    var resolve = pendingSpellTarget.resolve;
+    var cand = pendingSpellTarget.selectedCand;
+    clearSpellTargetSelectionMode();
+    if (resolve) resolve(cand);
+}
+
+function cancelSpellTargetSelection() {
+    if (!pendingSpellTarget.active) return;
+    var resolve = pendingSpellTarget.resolve;
+    clearSpellTargetSelectionMode();
+    if (resolve) resolve(null);
+}
+
+function updateSpellTargetCounter() {
+    var n = (pendingSpellTarget.selectedCand !== null) ? 1 : 0;
+    $('#spell-target-bar-counter').text(pendingSpellTarget.prompt + ' (' + n + '/1)');
+}
+
+function clearSpellTargetSelected() {
+    $('.card-zone-square').removeClass('spell-target-selected').find('.spell-target-selected-badge').remove();
+}
+
+function clearSpellTargetSelectionMode() {
+    pendingSpellTarget.active = false;
+    pendingSpellTarget.prompt = '';
+    pendingSpellTarget.candidates = [];
+    pendingSpellTarget.selectedCand = null;
+    pendingSpellTarget.resolve = null;
+
+    $('body').removeClass('spell-target-selection-mode');
+    $('.card-zone-square').removeClass('spell-target-candidate spell-target-selected').find('.spell-target-selected-badge').remove();
+    $('#spell-target-action-bar').fadeOut(120);
+}
+
+// Clicking any highlighted field square during spell target selection picks it.
+$(document).on('click', '.card-zone-square', function(e) {
+    if (!pendingSpellTarget.active) return;
+    e.stopPropagation();
+    e.preventDefault();
+    var isField = $(this).hasClass('field-zone-square');
+    if (!$(this).hasClass('spell-target-candidate')) return;
+    var side = ($(this).closest('#computer-field').length) ? 'computer' : 'player';
+    var zoneNum = isField ? null : parseInt($(this).attr('data-zone'));
+    selectSpellTargetZone(side, zoneNum, $(this));
+});
+
 // Resolve a face-up spell/trap card that has just activated.
 async function activateCard(who, instance, zoneNum) {
     var cardId = instance.cardId;
@@ -38,10 +171,24 @@ async function activateCard(who, instance, zoneNum) {
 
     var opp = GameState.getOpponent(who);
 
+    // Arcane Ward: Opponent cannot activate Spell/Trap Cards for the rest of this turn
+    if (GameState.turn && GameState.turn.spellTrapLocked && GameState.turn.spellTrapLockedBy === who) {
+        addToFeed('(Locked) <em>Arcane Ward</em>\'s barrier prevents ' + formatWho(who) + ' from activating Spell/Trap Cards this turn.\n\n');
+        return;
+    }
+
     // Jinzoid trap negation
     if (def.type === 'traps' && isJinzoidActive()) {
         addToFeed('(Negated) <em>Jinzoid</em>\'s continuous field negation prevents Trap Cards from activating!\n\n');
         return;
+    }
+
+    // Counter Trap Interception: Arcane Ward responds to Spell OR Trap activations
+    if (def.type === 'spells' || def.type === 'traps') {
+        var wardBlocked = await checkArcaneWardResponse(who, instance, zoneNum, def);
+        if (wardBlocked) {
+            return;
+        }
     }
 
     // Counter Trap Interception: Check Arcane Disruptor response on Spell activation
@@ -73,7 +220,7 @@ async function activateCard(who, instance, zoneNum) {
             await getCards(who, 1);
             GameState[opp].lp += 1000;
             updateLPDisplay();
-            if (typeof updateResourceCounters === 'function') updateResourceCounters();
+            updateResourceCounters();
             if (typeof BattleFX !== 'undefined') {
                 var oppSquare = getSquareElm(opp, 1);
                 if (oppSquare && oppSquare.length) {
@@ -81,6 +228,70 @@ async function activateCard(who, instance, zoneNum) {
                 }
                 BattleFX.animateLPCount(opp, GameState[opp].lp);
             }
+            await destroySpellTrap(who, zoneNum, false);
+            break;
+        }
+
+        case 'tribute-of-the-ages': {
+            addToFeed('<em>' + def.name + '</em> activated.\n');
+            var oppTributable = [];
+            var list = GameState.getMonstersOnField(opp);
+            list.forEach(function(entry) {
+                var mDef = cards[entry.card.cardId];
+                if (entry.card && !entry.card.faceDown && entry.card.position !== 'defense-down' && !(entry.card.cannotBeTributed || (mDef && mDef.cannotBeTributed))) {
+                    oppTributable.push({
+                        side: opp,
+                        zone: entry.zone,
+                        inst: entry.card,
+                        def: mDef
+                    });
+                }
+            });
+
+            if (oppTributable.length === 0) {
+                addToFeed('Opponent controls no eligible face-up monsters; Tribute of the Ages fizzles.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+
+            var chosen = await TargetEngine.requestTarget(who, {
+                title: 'TRIBUTE OF THE AGES',
+                subtitle: 'SELECT 1 OPPONENT MONSTER TO SACRIFICE THIS TURN',
+                badge: { category: 'SOUL TARGET', color: '#8b5cf6', glowColor: 'rgba(139, 92, 246, 0.45)' },
+                candidates: oppTributable,
+                aiPick: function(cands) {
+                    cands.sort(function(a, b) { return getMonsterAtk(b.inst) - getMonsterAtk(a.inst); });
+                    return cands[0];
+                }
+            });
+
+            if (!chosen) {
+                addToFeed('Tribute of the Ages was cancelled.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+
+            var targetInst = GameState[chosen.side].field.monsters[chosen.zone];
+            var targetDef = cards[targetInst.cardId];
+
+            GameState.turn.tributeOfTheAgesTarget = {
+                who: who,
+                opp: chosen.side,
+                zone: chosen.zone,
+                uid: targetInst.uid
+            };
+            GameState.turn.battlePhaseLocked = true;
+
+            var targetSq = getSquareElm(chosen.side, chosen.zone);
+            if (targetSq && targetSq.length) {
+                targetSq.find('.tribute-of-ages-badge').remove();
+                targetSq.append('<div class="tribute-of-ages-badge" title="Tribute of the Ages Target">✨ SACRIFICE</div>');
+            }
+
+            addToFeed('<em>Tribute of the Ages</em> binds <strong>' + (targetDef ? targetDef.name : 'Monster') + '</strong> on ' + formatWho(chosen.side) + '\'s field! ' + formatWho(who) + ' can Tribute it for a Tribute Summon this turn. (' + formatWho(who) + '\'s Battle Phase is skipped this turn).\n\n');
+
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+            updateActionableCards();
             await destroySpellTrap(who, zoneNum, false);
             break;
         }
@@ -379,8 +590,8 @@ async function activateCard(who, instance, zoneNum) {
                 addToFeed('<em>Essence Siphon</em>: Siphoned <strong>' + siphonedAtk + ' ATK</strong> from ' + formatWho(donorChoice.side) + '\'s <strong>' + (donorDef ? donorDef.name : 'Monster') + '</strong> and empowered ' + formatWho(recipientChoice.side) + '\'s <strong>' + (recipientDef ? recipientDef.name : 'Monster') + '</strong> (+' + siphonedAtk + ' ATK) until the End Phase!\n\n');
 
                 if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-                if (typeof updateStatModBadges === 'function') updateStatModBadges();
-                if (typeof updateActionableCards === 'function') updateActionableCards();
+                updateStatModBadges();
+                updateActionableCards();
             }
 
             await destroySpellTrap(who, zoneNum, false);
@@ -503,6 +714,16 @@ async function activateCard(who, instance, zoneNum) {
                 await destroySpellTrap(who, zoneNum, false);
                 await specialSummonMonster(who, aiTarget.cardId, aiTarget.who);
             }
+            break;
+        }
+
+        case 'gravity-tether': {
+            instance.position = 'active';
+            targetSquareStateFix(who, zoneNum, 'active');
+            addToFeed('<em>' + def.name + '</em> activated: All face-up monsters controlled by ' + formatWho(opp) + ' lose <strong>100 ATK</strong> per Level!\n\n');
+            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+            updateStatModBadges();
+            updateActionableCards();
             break;
         }
 
@@ -698,11 +919,13 @@ async function activateCard(who, instance, zoneNum) {
             if (who === 'player') {
                 openEquipTargetModal('player', zoneNum);
             } else {
-                // AI: equip to its strongest face-up monster
-                faceUpOwn.sort(function(a, b) {
-                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                });
-                var aiEquipTarget = faceUpOwn[0];
+                var aiEquipTarget = (typeof AIEvaluateEquipSpell === 'function') ? AIEvaluateEquipSpell(def) : null;
+                if (!aiEquipTarget) {
+                    faceUpOwn.sort(function(a, b) {
+                        return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                    });
+                    aiEquipTarget = faceUpOwn[0];
+                }
                 await applyEquipCard('computer', zoneNum, aiEquipTarget.zone);
             }
             break;
@@ -773,7 +996,7 @@ function getGraveyardMonsters() {
     ['player', 'computer'].forEach(function(who) {
         GameState[who].graveyard.forEach(function(inst) {
             var def = cards[inst.cardId];
-            if (def && def.type === 'monsters') {
+            if (def && def.type === 'monsters' && !def.isToken && def.subType !== 'token' && !inst.isToken) {
                 result.push({ who: who, cardId: inst.cardId });
             }
         });
@@ -1102,7 +1325,7 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         }
 
         if (who === 'player') {
-            openManEaterBugModal();
+            openManEaterBugModal(who, zoneNum);
         } else {
             // AI auto-targets strongest player monster
             var playerMonsters = GameState.getMonstersOnField('player');
@@ -1148,7 +1371,7 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         }
 
         if (who === 'player') {
-            openHaneHaneModal();
+            openHaneHaneModal(who, zoneNum);
         } else {
             // AI auto-targets strongest player monster to bounce
             var playerMonsters = GameState.getMonstersOnField('player');
@@ -1237,8 +1460,8 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
                 addToFeed('<em>' + def.name + '</em> melody echoes across the duel arena (no Dragon-Type monsters in Defense Position).\n\n');
             }
 
-            if (typeof updateActionableCards === 'function') updateActionableCards();
-            if (typeof updateStatModBadges === 'function') updateStatModBadges();
+            updateActionableCards();
+            updateStatModBadges();
         }
     } else if (monsterInst.cardId === 'spear-cretin') {
         monsterInst.spearCretinPrimed = true;
@@ -1247,7 +1470,7 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
     }
 }
 
-function openManEaterBugModal() {
+function openManEaterBugModal(sourceWho, sourceZone) {
     var grid = $('#man-eater-bug-grid');
     grid.empty();
 
@@ -1256,12 +1479,23 @@ function openManEaterBugModal() {
         ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
     ];
 
-    if (allMonsters.length === 0) {
+    // Filter out the flipped monster itself if other monsters exist
+    var candidates = allMonsters;
+    if (sourceWho && sourceZone) {
+        var otherMonsters = allMonsters.filter(function(m) {
+            return !(m.side === sourceWho && m.zone === sourceZone);
+        });
+        if (otherMonsters.length > 0) {
+            candidates = otherMonsters;
+        }
+    }
+
+    if (candidates.length === 0) {
         $('#man-eater-bug-modal').fadeOut(120);
         return;
     }
 
-    allMonsters.forEach(function(entry) {
+    candidates.forEach(function(entry) {
         var cardDef = cards[entry.card.cardId];
         if (!cardDef) return;
         var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
@@ -1313,7 +1547,7 @@ function cancelManEaterBugTarget() {
     addToFeed('Man-Eater Bug effect selection was dismissed.\n');
 }
 
-function openHaneHaneModal() {
+function openHaneHaneModal(sourceWho, sourceZone) {
     var grid = $('#hane-hane-grid');
     grid.empty();
 
@@ -1322,12 +1556,23 @@ function openHaneHaneModal() {
         ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
     ];
 
-    if (allMonsters.length === 0) {
+    // Filter out the flipped monster itself if other monsters exist
+    var candidates = allMonsters;
+    if (sourceWho && sourceZone) {
+        var otherMonsters = allMonsters.filter(function(m) {
+            return !(m.side === sourceWho && m.zone === sourceZone);
+        });
+        if (otherMonsters.length > 0) {
+            candidates = otherMonsters;
+        }
+    }
+
+    if (candidates.length === 0) {
         $('#hane-hane-modal').fadeOut(120);
         return;
     }
 
-    allMonsters.forEach(function(entry) {
+    candidates.forEach(function(entry) {
         var cardDef = cards[entry.card.cardId];
         if (!cardDef) return;
         var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
@@ -1526,7 +1771,7 @@ async function triggerAbyssalScoutSearch(who) {
         addCardToHand('player', chosenCardId, instance.uid, false);
         var chosenDef = cards[chosenCardId];
         updateHandDisplay('player');
-        if (typeof updateActionableCards === 'function') updateActionableCards();
+        updateActionableCards();
         updateResourceCounters();
 
         addToFeed('<em>Abyssal Scout</em>: Added <strong>' + (chosenDef ? chosenDef.name : 'monster') + '</strong> (ATK ' + (chosenDef ? chosenDef.atk : 0) + ') from Deck to hand!\n\n');
@@ -1971,7 +2216,7 @@ async function applyLunarGrimoireFlip(side, zoneNum) {
         });
     }
 
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    updateStatModBadges();
     addToFeed('<em>Lunar Grimoire</em> changed ' + formatWho(side) + '\'s <strong>' + (mDef ? mDef.name : 'monster') + '</strong> to face-down Defense Position!\n\n');
 }
 
@@ -2392,7 +2637,11 @@ async function applyChangeOfHeart(controllerWho, targetOppZone) {
 
     var freeZone = getFirstFreeZone(controllerWho);
     if (freeZone === undefined) {
-        addToFeed('(Change of Heart) No free zones on ' + controllerWho + '\'s field.\n\n');
+        addToFeed('(Change of Heart) No free zones on ' + controllerWho + '\'s field — effect fizzles.\n\n');
+        var fizzleZone = findSpellZoneByCard(controllerWho, 'change-of-heart');
+        if (fizzleZone !== null) {
+            await destroySpellTrap(controllerWho, fizzleZone, false);
+        }
         return;
     }
 
@@ -2752,9 +3001,18 @@ async function handleEndPhaseEffects(who) {
         });
     });
 
+    // 4. Reset turn flags (e.g. Tribute of the Ages target and battle phase lock)
+    if (GameState.turn) {
+        delete GameState.turn.tributeOfTheAgesTarget;
+        delete GameState.turn.battlePhaseLocked;
+        delete GameState.turn.spellTrapLocked;
+        delete GameState.turn.spellTrapLockedBy;
+    }
+    $('.tribute-of-ages-badge').remove();
+
     updateGraveyardZones();
     updateResourceCounters();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+    updateStatModBadges();
 }
 
 // Find the active (face-up) Swords zone on `who`'s field (or null).
@@ -2945,8 +3203,8 @@ async function executeTimeWizardEffect(who, callChoice, zoneNum) {
 
     resetActiveCardClass();
     hideAtkMenuIfVisible();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
-    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateStatModBadges();
+    updateActionableCards();
     updateResourceCounters();
 }
 
@@ -3132,8 +3390,8 @@ async function applyHarpieLadyTarget(side, zoneNum, isFieldZone) {
     pendingHarpieLadyDiscardUid = null;
     resetActiveCardClass();
     hideAtkMenuIfVisible();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
-    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateStatModBadges();
+    updateActionableCards();
     updateResourceCounters();
 }
 
@@ -3235,8 +3493,8 @@ async function applyMSTTarget(side, zoneNum, isFieldZone) {
     pendingMSTZone = null;
     resetActiveCardClass();
     hideAtkMenuIfVisible();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
-    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateStatModBadges();
+    updateActionableCards();
     updateResourceCounters();
 }
 
@@ -3399,8 +3657,8 @@ async function applyExiledForceTarget(targetSide, targetZone) {
 
     resetActiveCardClass();
     hideAtkMenuIfVisible();
-    if (typeof updateStatModBadges === 'function') updateStatModBadges();
-    if (typeof updateActionableCards === 'function') updateActionableCards();
+    updateStatModBadges();
+    updateActionableCards();
     updateResourceCounters();
 }
 
@@ -3434,10 +3692,11 @@ async function openGryphonStormlordModal(sourceZone) {
         return;
     }
 
-    var chosen = await TargetEngine.requestTarget('player', {
-        title: 'GRYPHON STORMLORD: CYCLONE BOUNCE',
-        subtitle: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
-        badge: { category: 'CYCLONE BOUNCE', color: '#10b981', glowColor: 'rgba(16, 185, 129, 0.45)' },
+    var chosen = await requestFieldTargetChoice('player', {
+        cardName: 'Gryphon Stormlord',
+        prompt: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
+        confirmLabel: 'BOUNCE',
+        confirmIcon: '🌀',
         candidates: candidates
     });
 
@@ -3751,10 +4010,11 @@ async function activateGaleSwiftblade(who, zoneNum) {
         return;
     }
 
-    var chosen = await TargetEngine.requestTarget(who, {
-        title: 'GALE SWIFTBLADE',
-        subtitle: 'SELECT 1 OPPONENT FACE-UP MONSTER TO HALVE ATK & DEF',
-        badge: { category: 'GALE SLASH', color: '#10b981', glowColor: 'rgba(16, 185, 129, 0.45)' },
+    var chosen = await requestFieldTargetChoice(who, {
+        cardName: 'Gale Swiftblade',
+        prompt: 'SELECT 1 OPPONENT FACE-UP MONSTER TO HALVE ATK & DEF',
+        confirmLabel: 'HALVE',
+        confirmIcon: '🎯',
         candidates: candidates,
         aiPick: function(list) {
             list.sort(function(a, b) {
@@ -3783,7 +4043,7 @@ async function activateGaleSwiftblade(who, zoneNum) {
 
         addToFeed(formatWho(who) + ' activates <em>Gale Swiftblade</em>: ' + formatWho(chosen.side) + '\'s <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> has its ATK & DEF halved to <strong>' + newAtk + ' ATK / ' + newDef + ' DEF</strong> until the end of the turn!\n\n');
         updateResourceCounters();
-        if (typeof updateStatModBadges === 'function') updateStatModBadges();
+        updateStatModBadges();
     }
 }
 

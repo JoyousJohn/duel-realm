@@ -334,6 +334,103 @@ async function banishSpellTrapCard(who, zoneNum, isFieldZone) {
     updateGraveyardZones();
 }
 
+var arcaneWardPromptResolver = null;
+
+function promptPlayerArcaneWard(zoneNum, targetDef) {
+    return new Promise(function(resolve) {
+        arcaneWardPromptResolver = resolve;
+
+        var cardName = targetDef ? targetDef.name : "Card";
+        var cardEffect = (targetDef && targetDef.desc) ? targetDef.desc : "No description available.";
+        var cardTypeLabel = (targetDef && targetDef.type === "traps") ? "TRAP CARD" : ((targetDef && targetDef.subType) ? targetDef.subType.toUpperCase() + " SPELL" : "SPELL CARD");
+
+        $("#aw-trigger-cause").text(cardName.toUpperCase() + " WAS ACTIVATED!");
+        $("#aw-prompt-description").html(
+            "Opponent activated <strong>" + cardName + "</strong>.<br>" +
+            "Activate your face-down <span style=\"color: #c084fc; font-weight: bold;\">Arcane Ward</span> to negate it and destroy it?"
+        );
+
+        $("#aw-card-header").text("ACTIVATED " + cardTypeLabel + ": " + cardName.toUpperCase());
+        $("#aw-card-effect-text").text("\"" + cardEffect + "\"");
+
+        $("#arcane-ward-prompt-modal").fadeIn(150);
+    });
+}
+
+function resolveArcaneWardPrompt(shouldActivate) {
+    $("#arcane-ward-prompt-modal").fadeOut(120);
+    if (typeof arcaneWardPromptResolver === "function") {
+        var res = arcaneWardPromptResolver;
+        arcaneWardPromptResolver = null;
+        res(shouldActivate);
+    }
+}
+
+async function checkArcaneWardResponse(who, instance, zoneNum, targetDef) {
+    if (typeof isJinzoidActive === "function" && isJinzoidActive()) return false;
+    if (targetDef && targetDef.id === "arcane-ward") return false;
+
+    var opp = GameState.getOpponent(who);
+    var trapZone = findSetTrapZone(opp, "arcane-ward");
+    if (trapZone === null) return false;
+
+    if (opp === "player") {
+        var shouldActivate = await promptPlayerArcaneWard(trapZone, targetDef);
+        if (!shouldActivate) return false;
+
+        var trapSquare = getSpellSquareElm("player", trapZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find("div.card-zone");
+            if (typeof trapZoneElm.flip === "function") {
+                try {
+                    trapZoneElm.flip({ trigger: "manual" });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed("Player activates Counter Trap: <strong>Arcane Ward</strong>!\n");
+        addToFeed("🛡 Arcane Ward envelops the field in a shimmering barrier, negating <em>" + targetDef.name + "</em>!\n");
+        if (typeof BattleFX !== "undefined") BattleFX.triggerScreenShake("medium");
+        await sleep(getAnimDuration(400));
+
+        await destroySpellTrap("player", trapZone, false);
+        await destroySpellTrap(who, zoneNum, targetDef.subType === "field");
+        addToFeed("<em>" + targetDef.name + "</em> was negated and destroyed!\n\n");
+        GameState.turn.spellTrapLocked = true;
+        GameState.turn.spellTrapLockedBy = who;
+        return true;
+    } else {
+        var highThreatCards = ["raigeki", "dark-hole", "change-of-heart", "pot-of-greed", "monster-reborn", "heavy-storm", "fissure", "tribute-to-the-doomed", "tribute-of-the-ages", "gravity-tether", "swords-of-revealing-light"];
+        var shouldAIActivate = (highThreatCards.indexOf(targetDef.id) !== -1) || (targetDef.type === "traps");
+
+        if (!shouldAIActivate) return false;
+
+        var trapSquare = getSpellSquareElm("computer", trapZone);
+        if (trapSquare && trapSquare.length) {
+            var trapZoneElm = trapSquare.find("div.card-zone");
+            if (typeof trapZoneElm.flip === "function") {
+                try {
+                    trapZoneElm.flip({ trigger: "manual" });
+                    trapZoneElm.flip(false);
+                } catch (e) {}
+            }
+        }
+
+        addToFeed("Computer activates Counter Trap: <strong>Arcane Ward</strong>!\n");
+        addToFeed("🛡 Computer's Arcane Ward shimmers, negating your <em>" + targetDef.name + "</em>!\n");
+        if (typeof BattleFX !== "undefined") BattleFX.triggerScreenShake("medium");
+        await sleep(getAnimDuration(400));
+
+        await destroySpellTrap("computer", trapZone, false);
+        await destroySpellTrap(who, zoneNum, targetDef.subType === "field");
+        addToFeed("Your <em>" + targetDef.name + "</em> was negated and destroyed!\n\n");
+        GameState.turn.spellTrapLocked = true;
+        GameState.turn.spellTrapLockedBy = who;
+        return true;
+    }
+}
+
 async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
     if (typeof isJinzoidActive === "function" && isJinzoidActive()) return false;
     var opp = GameState.getOpponent(who);
