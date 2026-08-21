@@ -1390,10 +1390,17 @@
 
                 <!-- Interactive Phase Progress Steps -->
                 <div class="phase-tracker-bar" id="phase-tracker">
-                    <div class="phase-step" data-phase="0" title="Draw Phase">DP</div>
-                    <div class="phase-step active" data-phase="1" title="Main Phase">MP</div>
-                    <div class="phase-step" data-phase="2" title="End Phase">EP</div>
+                    <div class="phase-step" data-phase="0" title="Draw Phase">Draw</div>
+                    <div class="phase-step active" data-phase="1" title="Main Phase">Main</div>
+                    <div class="phase-step" data-phase="2" title="End Phase">End</div>
                 </div>
+            </div>
+
+            <!-- Mobile-only compact phase indicator (full-width 3-column strip) -->
+            <div id="phase-tracker-mobile">
+                <div class="phase-step" data-phase="0" title="Draw Phase">Draw</div>
+                <div class="phase-step active" data-phase="1" title="Main Phase">Main</div>
+                <div class="phase-step" data-phase="2" title="End Phase">End</div>
             </div>
 
             <!-- Holo-Scanner Card Inspector Module -->
@@ -1520,7 +1527,8 @@
                                 <span class="banished-tab-count" id="computer-banished-count">0</span>
                             </div>
                             <div class="gy-empty-placeholder">
-                                <span>GRAVEYARD</span>
+                                <span class="gy-label-full">GRAVEYARD</span>
+                                <span class="gy-label-short">GY</span>
                             </div>
                             <div class="gy-stack-layers" style="display: none;">
                                 <div class="gy-stack-layer gy-layer-3"></div>
@@ -1718,7 +1726,8 @@
                                 <span class="banished-tab-count" id="player-banished-count">0</span>
                             </div>
                             <div class="gy-empty-placeholder">
-                                <span>GRAVEYARD</span>
+                                <span class="gy-label-full">GRAVEYARD</span>
+                                <span class="gy-label-short">GY</span>
                             </div>
                             <div class="gy-stack-layers" style="display: none;">
                                 <div class="gy-stack-layer gy-layer-3"></div>

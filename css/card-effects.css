@@ -1433,3 +1433,161 @@ body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candida
     }
 }
 
+
+/* ==========================================================================
+   Mobile Modal Compatibility — full-screen action modals must fit small
+   screens: cap panel height with internal scrolling, compress headers,
+   buttons and card grids. Placed at the end of the last-loaded stylesheet
+   so it wins cascade ties against all base modal rules.
+   ========================================================================== */
+@media (max-width: 768px) {
+    .tactical-action-modal {
+        padding: 8px;
+    }
+
+    .action-modal-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: calc(100dvh - 16px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 12rem 12rem 10rem 12rem;
+        gap: 8rem;
+        border-radius: 10rem;
+    }
+
+    /* Compress modal headers */
+    .action-modal-header {
+        gap: 3rem;
+        padding-bottom: 6rem;
+    }
+
+    .action-header-badge {
+        padding: 2rem 8rem;
+    }
+
+    .action-header-category {
+        font-size: 8.5rem;
+        letter-spacing: 1.5rem;
+    }
+
+    .action-modal-card-name {
+        font-size: 15rem;
+    }
+
+    .action-modal-card-stats {
+        font-size: 9.5rem;
+    }
+
+    /* Stance / option buttons */
+    .action-options-grid {
+        gap: 7rem;
+    }
+
+    .tactical-action-btn {
+        padding: 9rem 10rem;
+        gap: 10rem;
+    }
+
+    .stance-icon-container {
+        width: 30rem;
+        height: 30rem;
+        min-width: 30rem;
+    }
+
+    .stance-svg-icon {
+        width: 16rem;
+        height: 16rem;
+    }
+
+    .stance-badge {
+        font-size: 8rem;
+        padding: 1.5rem 5rem;
+    }
+
+    .stance-title {
+        font-size: 11.5rem;
+    }
+
+    .stance-desc {
+        font-size: 9.5rem;
+    }
+
+    /* Card grid scroll areas — cap to viewport so panels never overflow */
+    .gy-cards-scroll-container,
+    .rebirth-cards-scroll-container {
+        max-height: 42dvh;
+        min-height: 0;
+    }
+
+    .gy-cards-grid,
+    .rebirth-cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(88rem, 1fr));
+        gap: 8rem;
+    }
+
+    .gy-card-img-wrap {
+        height: 110rem;
+    }
+
+    /* System menu & settings rows */
+    .system-action-btn {
+        padding: 9rem 10rem;
+        gap: 10rem;
+    }
+
+    .sys-btn-icon {
+        width: 28rem;
+        height: 28rem;
+    }
+
+    .sys-btn-title {
+        font-size: 11rem;
+    }
+
+    .sys-btn-desc {
+        font-size: 9rem;
+    }
+
+    .system-setting-row {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 9rem 10rem;
+    }
+
+    .speed-selector-group {
+        align-self: center;
+    }
+
+    /* Footer cancel buttons */
+    .action-cancel-btn {
+        padding: 8rem 16rem;
+        font-size: 10rem;
+    }
+
+    /* Coin toss / prompt modals */
+    .coin-toss-stage {
+        padding: 14rem 10rem 10rem;
+        gap: 10rem;
+    }
+
+    .coin-3d-wrapper {
+        width: 90rem;
+        height: 90rem;
+    }
+
+    .coin-call-btn {
+        font-size: 11rem;
+        padding: 10rem 12rem;
+    }
+
+    /* Portrait: sidebar is a bottom sheet — modals cover only the board
+       area above it instead of the full screen. */
+    @media (orientation: portrait) {
+        .tactical-action-modal {
+            left: 0;
+            bottom: auto;
+            max-height: 66dvh;
+        }
+    }
+}

@@ -215,8 +215,8 @@ function updateTurn(newTurn) {
 function updatePhaseInfo() {
     if (phases[phase]) {
         $('#game-phase').text(phases[phase].phaseName.toUpperCase());
-        $('#phase-tracker .phase-step').removeClass('active');
-        $('#phase-tracker .phase-step[data-phase="' + phase + '"]').addClass('active');
+        $('#phase-tracker .phase-step, #phase-tracker-mobile .phase-step').removeClass('active');
+        $('#phase-tracker .phase-step[data-phase="' + phase + '"], #phase-tracker-mobile .phase-step[data-phase="' + phase + '"]').addClass('active');
         updateActionableCards();
     }
 }

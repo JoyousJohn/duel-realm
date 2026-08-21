@@ -186,6 +186,14 @@ img {
     margin: 0 6px;
 }
 
+/* Mobile — hand cards are already spread by default; skip the hover spread */
+@media (max-width: 768px) and (hover: none) {
+    #player-hand > div:hover,
+    #player-hand:hover > .card {
+        margin: 0 1px;
+    }
+}
+
 .card-img {
     width: 100%;
     height: 100%;
@@ -271,6 +279,15 @@ img {
     align-items: center;
     justify-content: center;
     animation: actionModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Mobile only — offset past the tactical sidebar so modals cover just
+   the board area, not the space underneath the sidebar. Tracks resizer
+   drags via the inline --sidebar-width the resizer writes. */
+@media (max-width: 768px) and (orientation: landscape) {
+    .tactical-action-modal {
+        left: var(--sidebar-width, 210rem);
+    }
 }
 
 @keyframes actionModalFadeIn {
@@ -1564,15 +1581,18 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
     box-shadow: none !important;
 }
 /* ==========================================================================
-   Compact / Mobile Landscape Screens
-   Size cards from viewport HEIGHT so the full board (2 hands + 2 fields)
-   always fits vertically; tighten gaps and flatten the 3D mat tilt.
+   Compact / Mobile Screens
+   Increase zone sizes to fill available phone screenspace and reduce the
+   empty gap between opponent / player field rows. Height-budget sizing uses
+   the 4.5 card-height budget (2 hands + 2 field rows) so the board fills
+   the mat vertically while staying inside the 7-column width budget.
    ========================================================================== */
 @media (max-height: 560px) {
     :root {
-        /* Vertical budget: ~4.5 card-heights + gaps must fit in ~92vh.
-           height = 1.5 * width  =>  width <= ~12vh. Cap at 10.5vh for safety. */
-        --card-width: min(6.2vw, 10.5vh);
+        /* ~4.5 card-heights must fit in ~92vh → width ≤ ~13.6vh.
+           Use the larger of the width/height limits so zones grow to fill
+           the mat on phones instead of leaving a central dead-zone. */
+        --card-width: min(7.2vw, 14.2vh);
     }
 
     #mat {
@@ -1580,6 +1600,8 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
         height: 98%;
         max-height: none;
         padding: 4px 0;
+        justify-content: center;
+        gap: 10px;
     }
 
     #computer-field, #player-field {
@@ -1587,7 +1609,7 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
     }
 
     .field-grid {
-        gap: 5px;
+        gap: 6px;
     }
 
     #row-wrapper {
@@ -1596,17 +1618,147 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
     }
 
     #player-hand > div, #computer-hand > div {
-        margin: 0 -18px; /* overlap hand cards more on narrow screens */
+        margin: 0 -16px; /* overlap hand cards more on narrow screens */
     }
 }
 
 /* Very short screens (e.g. phones in landscape with browser chrome) */
 @media (max-height: 400px) {
     :root {
-        --card-width: min(5.5vw, 9.5vh);
+        --card-width: min(6.8vw, 13.5vh);
     }
 
     #player-hand > div, #computer-hand > div {
-        margin: 0 -22px;
+        margin: 0 -20px;
+    }
+}
+
+/* Phone landscape — narrow width but limited height.
+   Shrink the tactical sidebar so the 7-column board can actually use the
+   full viewport width, then grow cards to fill both width and height budgets. */
+@media (max-width: 900px) and (orientation: landscape) {
+    :root {
+        /* Default mobile sidebar width — still user-resizable via the
+           resizer, which writes an inline --sidebar-width that wins. */
+        --sidebar-width: 210rem;
+    }
+
+    #info-panel.tactical-sidebar {
+        /* Remove panel chrome on all phones — child modules/indicators
+           act as the containers themselves. */
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        padding: 4px;
+        gap: 4px;
+    }
+
+    #info-panel.tactical-sidebar .sidebar-resizer {
+        display: none;
+    }
+
+    /* Spread hand cards apart by default — no hover needed to read them */
+    #player-hand > div, #computer-hand > div {
+        margin: 0 1px;
+    }
+
+    :root {
+        --card-width: min(7vw, 13.8vh);
+    }
+
+    #mat {
+        transform: none;
+        height: 98%;
+        max-height: none;
+        padding: 4px 0;
+        justify-content: center;
+        gap: clamp(8px, 1.8vh, 14px);
+    }
+
+    #computer-field, #player-field {
+        gap: 6px;
+    }
+
+    .field-grid {
+        gap: 6px;
+    }
+
+    #row-wrapper {
+        gap: 8px;
+        padding: 0 4px;
+    }
+}
+
+/* Phone portrait — rotate overlay normally blocks play, but if the user
+   dismisses it the board must still be usable. Stack the layout vertically
+   so the mat gets the full viewport width and cards can grow to fill the
+   horizontal 7-column budget. */
+@media (max-width: 768px) and (orientation: portrait) {
+    #viewport {
+        flex-direction: column-reverse;
+    }
+
+    #info-panel.tactical-sidebar {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100vw !important;
+        flex: 0 0 auto !important;
+        max-height: 32dvh;
+        /* Remove the translucent panel chrome entirely — content sits
+           flush on the page background with zero padding/margin/gap. */
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        padding: 0;
+        gap: 4px;
+        overflow-y: auto;
+    }
+
+    #info-panel.tactical-sidebar .sidebar-resizer {
+        display: none;
+    }
+
+    #mat-wrapper {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+    }
+
+    :root {
+        /* 7 slots must fit in 100vw → slot ≈ (100vw-60)/7 ≈ 47px on 390px.
+           card-width = slot/1.5 ≈ 31px ≈ 8vw. Cap by height so the 4.5-row
+           stack does not overflow the remaining ~68dvh board height. */
+        --card-width: min(8.2vw, 10vh);
+    }
+
+    #mat {
+        transform: none;
+        height: 100%;
+        max-height: 100%;
+        padding: 6px 0 2px 0;
+        justify-content: center;
+        gap: clamp(6px, 1.2vh, 12px);
+    }
+
+    #computer-field, #player-field {
+        gap: 5px;
+    }
+
+    .field-grid {
+        gap: 6px;
+    }
+
+    #row-wrapper {
+        gap: 8px;
+        padding: 0 4px;
+    }
+
+    /* Spread hand cards apart by default — no hover needed to read them */
+    #player-hand > div, #computer-hand > div {
+        margin: 0 1px;
     }
 }

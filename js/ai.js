@@ -787,7 +787,7 @@ async function AISummonMonsterRoutine() {
         }
 
         var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(mDef.level) : 0;
-        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive() && mDef.id !== 'solar-apex-tyrant';
         var lpCost = req * 1000;
 
         if (req === 0 && freeZones > 0) {
@@ -860,6 +860,17 @@ async function AISummonMonsterRoutine() {
                     // Value banish effect based on opponent's GY size
                     var playerGY = (GameState.player.graveyard) ? GameState.player.graveyard.length : 0;
                     score += 200 + (playerGY * 150);
+                }
+                if (mDef.id === 'solar-apex-tyrant') {
+                    // 3200 ATK boss — huge value when board will be solo (no -500 penalty)
+                    var compMonCount = GameState.getMonstersOnField('computer').length;
+                    // Prefer if AI can clear its own chaff first or already solo
+                    if (compMonCount === 0) score += 600;
+                    else if (compMonCount === 1) score += 350;
+                    else score -= 200; // avoid summoning into -500 penalty unless overwhelming
+                    // Bonus for opponent monsters to burn off
+                    var playerMons = GameState.getMonstersOnField('player').length;
+                    score += playerMons * 180;
                 }
                 summonable.push({
                     name: mName,
@@ -1242,7 +1253,7 @@ async function AIPlaySpellTrapCards() {
                             shouldSet = false;
                         }
                     }
-                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'eldritch-tether' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
+                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'eldritch-tether' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall' || def.id === 'eclipse-null-prism') {
                     var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', def.id) !== null);
                     if (alreadySet) {
                         shouldSet = false;

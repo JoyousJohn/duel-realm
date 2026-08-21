@@ -236,11 +236,29 @@ $(document).on('mouseleave', '.card-zone-square, .card, .rebirth-card-tile, .gy-
     hoverCardName = null;
     $('#info-panel').removeClass('sidebar-inspecting');
     $('#duel-log-module').show();
-    $('#info-stats').show();
+    // On mobile the desktop phase module is hidden via CSS; .show() would
+    // write an inline display that overrides it, so only restore on desktop.
+    if (!window.matchMedia('(max-width: 768px)').matches) {
+        $('#info-stats').show();
+    }
     $('#scanner-active').hide();
     $('#scanner-idle').show();
     $('#preview-card-img').removeAttr('src');
 });
+
+/**
+ * Mobile-only: clear the sidebar preview (no mouseleave exists on touch).
+ * Called after a card is placed/used so the inspector doesn't linger.
+ */
+function dismissMobilePreview() {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    hoverCardName = null;
+    $('#info-panel').removeClass('sidebar-inspecting');
+    $('#duel-log-module').show();
+    $('#scanner-active').hide();
+    $('#scanner-idle').show();
+    $('#preview-card-img').removeAttr('src');
+}
 
 // ---------------------------------------------------------------------------
 // Draggable Left Sidebar Resizer

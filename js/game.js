@@ -195,7 +195,7 @@ function updateActionableCards() {
                 // makes the summon affordable via LP, label the badge as an LP cost instead.
                 var mausoleumPaid = false;
                 var lpCost = 0;
-                if (cardDef.id !== 'infernal-incinerator' && typeof isMausoleumActive === 'function' && isMausoleumActive()) {
+                if (cardDef.id !== 'infernal-incinerator' && cardDef.id !== 'solar-apex-tyrant' && typeof isMausoleumActive === 'function' && isMausoleumActive()) {
                     var ownMonsterCount = (GameState && GameState.player) ? GameState.getMonstersOnField('player').filter(function(entry) {
                         var mDef = cards[entry.card.cardId];
                         return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
@@ -610,6 +610,8 @@ async function moveCard(who, source, targetSquare, mode, skipFeed, isSpecialSumm
     }
 
     await animateCardPlacement(who, source, targetSquare, faceDown, isDefense, cardName, cardType, mode);
+
+    dismissMobilePreview();
 
     await EventBus.emitAsync('MONSTER_SUMMONED', { who: who, instance: instance, zone: zoneNum, isSpecialSummon: !!isSpecialSummon });
     updateActionableCards();
@@ -1218,7 +1220,7 @@ function startOnMatTributeSelection(sourceCard, cardDef, targetSquare, reqCount)
     selectedTributeZones = [];
 
     var isInfernal = (cardDef.id === 'infernal-incinerator');
-    var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+    var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive() && cardDef.id !== 'solar-apex-tyrant';
     var lpCost = reqCount * 1000;
     var canAffordMausoleum = isMausoleum && !isInfernal && (GameState.player.lp > lpCost);
 
@@ -1603,6 +1605,8 @@ async function playNonMonsterCard(who, source, targetSquare, cardDef, zoneKind) 
     if (cardDef.type === 'spells') {
         await activateCard(who, instance, zoneNum);
     }
+
+    dismissMobilePreview();
 }
 
 function changePositionSelected(position) {
@@ -1759,6 +1763,21 @@ async function triggerTitanLpGain(titanWho, destroyedDef, gainSquare) {
         BattleFX.animateLPCount(titanWho, GameState[titanWho].lp, true);
     }
     addToFeed('<em>Titan of the Obsidian Peak</em> absorbs energy: ' + formatWho(titanWho) + ' gains <strong>' + absorbedAtk + ' LP</strong>!\n\n');
+}
+
+// Solar Apex Tyrant: Inflict 400 damage when it destroys a monster by battle
+async function triggerSolarApexBurn(tyrantWho, tyrantSquare) {
+    var opp = GameState.getOpponent(tyrantWho);
+    var dmg = 400;
+    GameState[opp].lp = Math.max(0, GameState[opp].lp - dmg);
+    updateResourceCounters();
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.spawnFloatingDamage(tyrantSquare, dmg, 'burn');
+        BattleFX.animateLPCount(opp, GameState[opp].lp);
+        BattleFX.triggerScreenShake('light');
+    }
+    EventBus.emit('LP_CHANGED', { who: opp, lp: GameState[opp].lp, damage: dmg });
+    addToFeed('<em>Solar Apex Tyrant</em> sears the field: ' + formatWho(opp) + ' takes <strong>400</strong> burn damage!\n\n');
 }
 
 // Aegis Seraph: Draw 1 card when inflicting battle damage to the opponent
@@ -1951,6 +1970,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
                 if (attackerInst.cardId === 'titan-of-the-obsidian-peak') {
                     await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
                 }
+                // Solar Apex Tyrant: 400 burn when it destroys a monster by battle
+                if (attackerInst.cardId === 'solar-apex-tyrant') {
+                    await triggerSolarApexBurn(attackerWho, attackerSquare);
+                }
 
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
                     await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
@@ -1978,6 +2001,13 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
                 await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
             } else if (defenderInst.cardId === 'titan-of-the-obsidian-peak') {
                 await triggerTitanLpGain(defenderWho, attackerDef, defenderSquare);
+            }
+            // Solar Apex Tyrant: 400 burn on double KO (both tyrants burn if both destroy)
+            if (attackerInst.cardId === 'solar-apex-tyrant') {
+                await triggerSolarApexBurn(attackerWho, attackerSquare);
+            }
+            if (defenderInst.cardId === 'solar-apex-tyrant') {
+                await triggerSolarApexBurn(defenderWho, defenderSquare);
             }
 
             if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
@@ -2010,6 +2040,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
                 // Titan of the Obsidian Peak: Gain LP when attacked and the attacker is destroyed
                 if (defenderInst.cardId === 'titan-of-the-obsidian-peak') {
                     await triggerTitanLpGain(defenderWho, attackerDef, defenderSquare);
+                }
+                // Solar Apex Tyrant: 400 burn when it destroys attacker
+                if (defenderInst.cardId === 'solar-apex-tyrant') {
+                    await triggerSolarApexBurn(defenderWho, defenderSquare);
                 }
 
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
@@ -2050,6 +2084,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
                 // Titan of the Obsidian Peak: Gain LP equal to destroyed monster's original ATK
                 if (attackerInst.cardId === 'titan-of-the-obsidian-peak') {
                     await triggerTitanLpGain(attackerWho, defenderDef, attackerSquare);
+                }
+                // Solar Apex Tyrant: 400 burn when it destroys DEF monster
+                if (attackerInst.cardId === 'solar-apex-tyrant') {
+                    await triggerSolarApexBurn(attackerWho, attackerSquare);
                 }
 
                 if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
@@ -2339,6 +2377,10 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position, orig
     position = position || 'attack';
     var def = cards[cardId];
     if (!def || def.type !== 'monsters') return false;
+    if (def.cannotBeSpecialSummoned) {
+        addToFeed('<em>' + def.name + '</em> cannot be Special Summoned.\n\n');
+        return false;
+    }
 
     if (sourceWho === undefined) sourceWho = targetWho;
 
@@ -2607,6 +2649,10 @@ async function specialSummonMonsterFromDeck(who, cardId, position) {
     var isDefense = position.startsWith('defense');
     var def = cards[cardId];
     if (!def || def.type !== 'monsters') return false;
+    if (def.cannotBeSpecialSummoned) {
+        addToFeed('<em>' + def.name + '</em> cannot be Special Summoned.\n\n');
+        return false;
+    }
 
     var freeZone = getFirstFreeZone(who);
     if (freeZone === undefined) {

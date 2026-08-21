@@ -170,3 +170,67 @@
     color: #6e7681;
     letter-spacing: 1px;
 }
+
+/* Mobile — title on left, actions on right (instead of stacked) */
+@media (max-width: 768px) {
+    .homescreen-content {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        max-width: 96vw;
+        width: 96vw;
+        gap: 16px;
+        padding: 0 16px;
+    }
+
+    .homescreen-logo-wrapper {
+        margin-bottom: 0;
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .homescreen-subtitle {
+        font-size: 11rem;
+        letter-spacing: 3px;
+        margin-bottom: 6px;
+    }
+
+    .homescreen-title {
+        font-size: 38rem;
+        letter-spacing: 3px;
+        line-height: 0.95;
+    }
+
+    .homescreen-menu {
+        flex: 0 0 150px;
+        max-width: 150px;
+        min-width: 130px;
+        gap: 10px;
+    }
+
+    .homescreen-btn {
+        padding: 12px 14px;
+        font-size: 12rem;
+        letter-spacing: 1.5px;
+    }
+}
+
+@media (max-width: 480px) {
+    .homescreen-title {
+        font-size: 32rem;
+        letter-spacing: 2px;
+    }
+
+    .homescreen-subtitle {
+        font-size: 10rem;
+        letter-spacing: 2px;
+    }
+
+    .homescreen-menu {
+        flex-basis: 132px;
+        max-width: 132px;
+        min-width: 120px;
+    }
+}

@@ -128,3 +128,14 @@ img[src="#"] {
     transform: translateY(-16px) scale(1.67);
     z-index: 10 !important;
 }
+
+/* Mobile — minimal lift on touch "hover" so cards stay anchored to the hand */
+@media (max-width: 768px) and (hover: none) {
+    #player-hand:hover > .card {
+        transform: scale(1.08);
+    }
+
+    #player-hand > .card:hover {
+        transform: translateY(-2px) scale(1.15);
+    }
+}

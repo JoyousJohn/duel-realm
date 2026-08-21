@@ -692,6 +692,21 @@ var cards = {
         'desc': 'During your opponent\'s Battle Step: You can discard this card from your hand; battle damage from that attack becomes 0.'
     },
 
+    'solar-apex-tyrant': {
+        'id': 'solar-apex-tyrant',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'solar_apex_tyrant.png',
+        'name': 'Solar Apex Tyrant',
+        'monsterType': 'Dragon',
+        'attribute': 'LIGHT',
+        'level': 8,
+        'atk': 3200,
+        'def': 1900,
+        'cannotBeSpecialSummoned': true,
+        'desc': 'Cannot be Special Summoned. Must be Tribute Summoned with 2 Tributes. If you control another monster, this card loses 500 ATK. If this card destroys a monster by battle: Inflict 400 damage to your opponent.'
+    },
+
     'dragon-piper': {
         'id': 'dragon-piper',
         'type': 'monsters',
@@ -836,7 +851,7 @@ var cards = {
                 if (eligibleTributes >= req) return true;
                 var lp = GameState[who].lp;
                 var lpCost = req * 1000;
-                if ((typeof isMausoleumActive === 'function') && isMausoleumActive() && lp > lpCost + 1000 && freeSlots > 0) return true;
+                if (d.id !== 'solar-apex-tyrant' && (typeof isMausoleumActive === 'function') && isMausoleumActive() && lp > lpCost + 1000 && freeSlots > 0) return true;
                 return false;
             });
         },
@@ -865,7 +880,7 @@ var cards = {
                 }).length;
                 if (eligibleTributes >= req) return true;
                 var lpCost = req * 1000;
-                if ((typeof isMausoleumActive === 'function') && isMausoleumActive() && GameState[who].lp > lpCost + 1000) return true;
+                if (d.id !== 'solar-apex-tyrant' && (typeof isMausoleumActive === 'function') && isMausoleumActive() && GameState[who].lp > lpCost + 1000) return true;
                 return false;
             });
             if (!summonable) return 'No monsters in hand can be Normal Summoned (need tributes or Mausoleum).';
@@ -943,6 +958,15 @@ var cards = {
         'file': 'prism_of_retribution.png',
         'name': 'Prism of Retribution',
         'desc': 'When an opponent\'s monster declares an attack: Negate the attack, and if you do, inflict damage to your opponent equal to that monster\'s ATK.'
+    },
+
+    'eclipse-null-prism': {
+        'id': 'eclipse-null-prism',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'eclipse_null_prism.png',
+        'name': 'Eclipse Null Prism',
+        'desc': 'When your opponent Normal or Special Summons a monster with 3000 or more ATK: Negate its effects and destroy it. If you do, your opponent discards 1 random card.'
     },
 
     'crypt-awakening': {

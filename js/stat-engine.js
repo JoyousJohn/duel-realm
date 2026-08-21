@@ -173,6 +173,28 @@ function getMonsterAtk(instance) {
         }
     }
 
+    // Solar Apex Tyrant: -500 ATK if controller controls another monster
+    if (instance.cardId === "solar-apex-tyrant" && typeof GameState !== "undefined" && GameState) {
+        if (!instance.faceDown && instance.position !== "defense-down") {
+            var tyrantController = null;
+            ["player", "computer"].forEach(function(who) {
+                if (GameState[who] && GameState[who].field && GameState[who].field.monsters) {
+                    for (var z = 1; z <= 6; z++) {
+                        var m = GameState[who].field.monsters[z];
+                        if (m && (m === instance || (instance.uid && m.uid === instance.uid))) {
+                            tyrantController = who;
+                            break;
+                        }
+                    }
+                }
+            });
+            if (tyrantController) {
+                var ownCount = GameState.getMonstersOnField(tyrantController).length;
+                if (ownCount > 1) selfMod -= 500;
+            }
+        }
+    }
+
     // Gravity Tether: Opponent's monsters lose 100 ATK per Level
     if (typeof GameState !== "undefined" && GameState) {
         var mController = null;

@@ -302,6 +302,7 @@ function getGraveyardMonsters() {
         GameState[who].graveyard.forEach(function(inst) {
             var def = cards[inst.cardId];
             if (def && def.type === 'monsters' && !def.isToken && def.subType !== 'token' && !inst.isToken) {
+                if (def.cannotBeSpecialSummoned) return;
                 result.push({ who: who, cardId: inst.cardId });
             }
         });

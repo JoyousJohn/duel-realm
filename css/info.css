@@ -157,7 +157,7 @@ body.sidebar-is-resizing * {
 
 .sidebar-turn-badge {
     font-family: 'Inter', system-ui, sans-serif;
-    font-size: 10.5rem;
+    font-size: 9rem;
     font-weight: 800;
     letter-spacing: 0.8rem;
     padding: 3rem 10rem;
@@ -204,8 +204,8 @@ body.sidebar-is-resizing * {
 }
 
 .sidebar-system-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(240, 246, 252, 0.15);
+    background: transparent;
+    border: none;
     border-radius: 6rem;
     padding: 4rem 6rem;
     color: #8b949e;
@@ -217,8 +217,8 @@ body.sidebar-is-resizing * {
 }
 
 .sidebar-system-btn:hover {
-    background: rgba(212, 175, 55, 0.2);
-    border-color: #d4af37;
+    background: transparent;
+    border-color: transparent;
     color: #ffffff;
     transform: rotate(30deg);
 }
@@ -542,6 +542,13 @@ body.sidebar-is-resizing * {
     text-align: center;
 }
 
+/* Mobile-only phase strip — hidden on desktop.
+   The (max-width: 768px) overrides live at the END of this file so they
+   win the cascade against all base rules regardless of specificity ties. */
+#phase-tracker-mobile {
+    display: none;
+}
+
 .phase-display-label {
     font-size: 9rem;
     font-weight: 700;
@@ -573,7 +580,7 @@ body.sidebar-is-resizing * {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 22rem;
+    padding: 2rem 0;
     font-size: 9rem;
     font-weight: 800;
     letter-spacing: 0.5rem;
@@ -1087,7 +1094,7 @@ body.sidebar-is-resizing * {
 
 .log-title {
     font-family: 'Cinzel', serif;
-    font-size: 10rem;
+    font-size: 8.5rem;
     font-weight: 700;
     letter-spacing: 1.2rem;
     color: #c9a84d;
@@ -1105,7 +1112,7 @@ body.sidebar-is-resizing * {
 
 .combat-feed-stream {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    font-size: 10rem;
+    font-size: 8.5rem;
     line-height: 1.5;
     color: #94a3b8;
     overflow-y: auto;
@@ -1194,4 +1201,125 @@ body.sidebar-is-resizing * {
     border-radius: 20rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(212, 175, 55, 0.25);
     backdrop-filter: blur(10px);
+}
+/* ==========================================================================
+   Mobile Overrides — kept at the END of the file so they win the cascade
+   against all base rules (equal-specificity ties resolve to last match).
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* Hide the desktop phase module entirely; the dedicated mobile
+       strip (#phase-tracker-mobile) replaces it. */
+    #info-stats.phase-module {
+        display: none;
+    }
+
+    /* Full-width 3-column phase indicator strip */
+    #phase-tracker-mobile {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        width: 100%;
+    }
+
+    #phase-tracker-mobile .phase-step {
+        width: 100%;
+        font-size: 9rem;
+        border-radius: 8rem;
+    }
+
+    /* Hide the tactical scanner entirely until a card is explicitly
+       previewed (tap-to-preview) — no idle reticle state on touch. */
+    #preview-card.scanner-module {
+        display: none;
+    }
+
+    #info-panel.sidebar-inspecting #preview-card.scanner-module {
+        display: flex;
+    }
+
+    /* Strip the command module frame — the END TURN button itself
+       becomes the full-width element. */
+    #btn-panel.command-module {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        gap: 0;
+    }
+
+    .command-btn {
+        padding: 2rem 0;
+        font-size: 9rem;
+    }
+
+    .command-btn .btn-icon svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    #player-lp,
+    #opponent-lp {
+        font-size: 7rem;
+    }
+
+    /* While a card is being previewed, hide the turn header and phase
+       strip so the card image is the first element at the top. */
+    #info-panel.sidebar-inspecting .sidebar-header,
+    #info-panel.sidebar-inspecting #phase-tracker-mobile {
+        display: none;
+    }
+
+    #info-panel.tactical-sidebar {
+        gap: 7rem;
+        padding: 8rem 10rem;
+    }
+
+    .feed-turn-separator {
+        font-size: 8rem;
+        margin: 8rem 0;
+    }
+
+    /* Compact card-preview text while inspecting */
+    .preview-card-title {
+        font-size: 13rem;
+    }
+
+    .preview-type-badge,
+    .preview-attr-badge,
+    .preview-monster-type-badge {
+        font-size: 9rem;
+    }
+
+    .preview-level-stars {
+        font-size: 10rem;
+    }
+
+    .preview-type-tag {
+        font-size: 10rem;
+    }
+
+    .combat-gauge-header {
+        font-size: 9.5rem;
+    }
+
+    /* Monster stat bubbles: icon + value only, drop the ATK/DEF label */
+    #preview-combat-stats .combat-gauge-header span {
+        display: none;
+    }
+
+    .combat-gauge-value {
+        font-size: 14rem;
+    }
+
+    .hud-stat-mod-pill {
+        font-size: 9rem;
+    }
+
+    .preview-desc-title {
+        font-size: 8.5rem;
+    }
+
+    .preview-desc-text {
+        font-size: 11rem;
+    }
 }

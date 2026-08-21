@@ -57,6 +57,69 @@ EventBus.on("MONSTER_SUMMONED", async function(data) {
         }
     }
 
+    // Eclipse Null Prism: Triggers on Normal or Special Summon of face-up monster with 3000+ ATK
+    if (instance.position !== "defense-down" && !instance.faceDown) {
+        var prismZone = findSetTrapZone(opponent, "eclipse-null-prism");
+        if (prismZone !== null) {
+            var prismAtk = (typeof getMonsterAtk === "function") ? getMonsterAtk(instance) : (def.atk || 0);
+            if (prismAtk >= 3000) {
+                var prismDef = cards["eclipse-null-prism"];
+                var prismSquare = getSpellSquareElm(opponent, prismZone);
+
+                // Reveal trap face-up
+                if (prismSquare && prismSquare.length) {
+                    var pZone = prismSquare.find("div.card-zone");
+                    if (typeof pZone.flip === "function") {
+                        try {
+                            pZone.flip({ trigger: "manual" });
+                            pZone.flip(false);
+                        } catch (e) {}
+                    }
+                }
+
+                addToFeed(prismDef.name + " activates against " + def.name + " (ATK " + prismAtk + ") — negating and destroying it!\n");
+                if (typeof BattleFX !== "undefined") {
+                    BattleFX.triggerScreenShake("medium");
+                }
+
+                await sleep(getAnimDuration(400));
+                await destroySpellTrap(opponent, prismZone, false);
+
+                // Check monster still on field before destroying (not already removed by prior trap)
+                var stillOnField = GameState[summonerWho] && GameState[summonerWho].field && GameState[summonerWho].field.monsters[data.zone];
+                if (stillOnField && stillOnField.uid === instance.uid) {
+                    await destroyMonster(summonerWho, data.zone);
+                    addToFeed("Eclipse Null Prism destroyed " + def.name + "!\n");
+
+                    // Opponent (summoner) discards 1 random card if they have cards in hand
+                    var oppHand = GameState[summonerWho] && GameState[summonerWho].hand;
+                    if (oppHand && oppHand.length > 0) {
+                        var rIdx = Math.floor(Math.random() * oppHand.length);
+                        var discarded = oppHand.splice(rIdx, 1)[0];
+                        var dDef = cards[discarded.cardId];
+                        GameState[summonerWho].graveyard.push(discarded);
+                        if (typeof notifyUmbraHeraldGraveyardSend === "function") {
+                            notifyUmbraHeraldGraveyardSend(summonerWho, discarded);
+                        }
+                        updateHandDisplay(summonerWho);
+                        updateGraveyardZones();
+                        updateResourceCounters();
+                        addToFeed(formatWho(summonerWho) + " discards <strong>" + (dDef ? dDef.name : "a card") + "</strong> to the Graveyard!\n\n");
+                    } else {
+                        addToFeed(formatWho(summonerWho) + " has no cards to discard.\n\n");
+                    }
+                } else {
+                    addToFeed(def.name + " was already removed from the field.\n\n");
+                }
+
+                if (typeof BattleFX !== "undefined" && typeof BattleFX.cancelTargetSelection === "function") {
+                    BattleFX.cancelTargetSelection();
+                }
+                return;
+            }
+        }
+    }
+
     // Torrential Tribute response window
     // Triggers when any monster is Summoned face-up (Normal, Tribute, Special, or Flip Summon)
     if (instance.position !== "defense-down" && !instance.faceDown) {

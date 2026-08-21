@@ -246,7 +246,7 @@ function isCardCurrentlyPlayable(cardDef) {
             return eligibleTributes.length > 0;
         }
         var reqTributes = getRequiredTributes(cardDef.level);
-        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive() && cardDef.id !== 'solar-apex-tyrant';
         var lpCost = reqTributes * 1000;
         var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
 
@@ -362,7 +362,7 @@ function getCardUnplayableReason(cardDef) {
             return '';
         }
         var reqTributes = getRequiredTributes(cardDef.level);
-        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive();
+        var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive() && cardDef.id !== 'solar-apex-tyrant';
         var lpCost = reqTributes * 1000;
         var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
 
