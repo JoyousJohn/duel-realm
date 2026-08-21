@@ -357,12 +357,12 @@ var cards = {
         'desc': 'FLIP: Target 1 monster on the field; destroy that target.'
     },
 
-    'hane-hane': {
-        'id': 'hane-hane',
+    'zephyr-imp': {
+        'id': 'zephyr-imp',
         'type': 'monsters',
         'subType': 'effect',
-        'file': 'hane_hane.png',
-        'name': 'Hane-Hane',
+        'file': 'zephyr_imp.png',
+        'name': 'Zephyr Imp',
         'monsterType': 'Beast',
         'attribute': 'EARTH',
         'level': 2,
@@ -537,6 +537,17 @@ var cards = {
         'def': 400,
         'hasIgnitionEffect': true,
         'desc': 'Once per turn: You can target 1 face-up monster your opponent controls; halve its ATK and DEF until the end of this turn.',
+        canActivateIgnition: function(who, zoneNum) {
+            var opp = (typeof GameState !== 'undefined' && GameState) ? GameState.getOpponent(who) : null;
+            if (!opp || !GameState[opp]) return false;
+            var oppMonsters = GameState.getMonstersOnField(opp);
+            return oppMonsters.some(function(entry) {
+                var m = entry.card;
+                var isFaceUp = m && !m.faceDown && m.position !== 'defense-down';
+                var isImmune = (typeof isImmuneToSpellTargeting === 'function') && isImmuneToSpellTargeting(m, who);
+                return isFaceUp && !isImmune;
+            });
+        },
         onIgnitionEffect: async function(who, zoneNum) {
             if (typeof activateGaleSwiftblade === 'function') {
                 await activateGaleSwiftblade(who, zoneNum);

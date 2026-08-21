@@ -160,6 +160,8 @@ async function activateCard(who, instance, zoneNum) {
     // Arcane Ward: Opponent cannot activate Spell/Trap Cards for the rest of this turn
     if (GameState.turn && GameState.turn.spellTrapLocked && GameState.turn.spellTrapLockedBy === who) {
         addToFeed('(Locked) <em>Arcane Ward</em>\'s barrier prevents ' + formatWho(who) + ' from activating Spell/Trap Cards this turn.\n\n');
+        // Clean up from field if prematurely placed
+        await destroySpellTrap(who, zoneNum, false);
         return;
     }
 
@@ -560,10 +562,11 @@ async function activateCard(who, instance, zoneNum) {
                 break;
             }
 
-            var donorChoice = await TargetEngine.requestTarget(who, {
-                title: 'ESSENCE SIPHON • STEP 1/2',
-                subtitle: 'SELECT 1 FACE-UP MONSTER WHOSE ATK WILL BE HALVED',
-                badge: { category: 'DRAIN SOURCE', color: '#f43f5e', glowColor: 'rgba(244, 63, 94, 0.45)' },
+            var donorChoice = await requestFieldTargetChoice(who, {
+                cardName: 'ESSENCE SIPHON (1/2)',
+                prompt: 'SELECT 1 FACE-UP MONSTER TO DRAIN ATK FROM',
+                confirmLabel: 'DRAIN ATK',
+                confirmIcon: '🩸',
                 candidates: allMonsters,
                 aiPick: function(cands) {
                     var oppCands = cands.filter(function(c) { return c.side !== who; });
@@ -586,10 +589,11 @@ async function activateCard(who, instance, zoneNum) {
                 return !(c.side === donorChoice.side && c.zone === donorChoice.zone);
             });
 
-            var recipientChoice = await TargetEngine.requestTarget(who, {
-                title: 'ESSENCE SIPHON • STEP 2/2',
-                subtitle: 'SELECT 1 FACE-UP MONSTER TO RECEIVE THE SIPHONED ATK',
-                badge: { category: 'EMPOWERED TARGET', color: '#10b981', glowColor: 'rgba(16, 185, 129, 0.45)' },
+            var recipientChoice = await requestFieldTargetChoice(who, {
+                cardName: 'ESSENCE SIPHON (2/2)',
+                prompt: 'SELECT 1 FACE-UP MONSTER TO RECEIVE ATK',
+                confirmLabel: 'EMPOWER',
+                confirmIcon: '✨',
                 candidates: remainingCandidates,
                 aiPick: function(cands) {
                     var ownCands = cands.filter(function(c) { return c.side === who; });
@@ -1432,7 +1436,7 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
         await destroyMonster(chosen.side, chosen.zone);
 
-    } else if (monsterInst.cardId === 'hane-hane') {
+    } else if (monsterInst.cardId === 'zephyr-imp') {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
 
@@ -1451,7 +1455,7 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         }
 
         var chosen = await requestFieldTargetChoice(who, {
-            cardName: 'HANE-HANE',
+            cardName: 'ZEPHYR IMP',
             prompt: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
             confirmLabel: 'BOUNCE',
             confirmIcon: '🪶',
@@ -1469,12 +1473,12 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         });
 
         if (!chosen) {
-            addToFeed('Hane-Hane effect was cancelled.\n');
+            addToFeed('Zephyr Imp effect was cancelled.\n');
             return;
         }
 
         var targetDef = chosen.def || (chosen.inst ? cards[chosen.inst.cardId] : (chosen.card ? cards[chosen.card.cardId] : null));
-        addToFeed('<em>Hane-Hane</em> returned <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> on ' + formatWho(chosen.side) + '\'s field to hand!\n');
+        addToFeed('<em>Zephyr Imp</em> returned <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> on ' + formatWho(chosen.side) + '\'s field to hand!\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
         await returnMonsterToHand(chosen.side, chosen.zone);
 
@@ -1544,160 +1548,6 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT primed: When this card is sent to the Graveyard, both players can Special Summon 1 monster from their respective Graveyards!\n\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
     }
-}
-
-function openManEaterBugModal(sourceWho, sourceZone) {
-    var grid = $('#man-eater-bug-grid');
-    grid.empty();
-
-    var allMonsters = [
-        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
-        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
-    ];
-
-    // Filter out the flipped monster itself if other monsters exist
-    var candidates = allMonsters;
-    if (sourceWho && sourceZone) {
-        var otherMonsters = allMonsters.filter(function(m) {
-            return !(m.side === sourceWho && m.zone === sourceZone);
-        });
-        if (otherMonsters.length > 0) {
-            candidates = otherMonsters;
-        }
-    }
-
-    if (candidates.length === 0) {
-        $('#man-eater-bug-modal').fadeOut(120);
-        return;
-    }
-
-    candidates.forEach(function(entry) {
-        var cardDef = cards[entry.card.cardId];
-        if (!cardDef) return;
-        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
-        var isOpp = entry.side === 'computer';
-        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
-        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
-
-        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
-        var displayName = isFaceDown ? '???' : cardDef.name;
-        var statsHtml = isFaceDown
-            ? '<span class="rebirth-tile-stats">Face-Down</span>'
-            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
-
-        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
-            '<div class="rebirth-card-preview-frame">' +
-                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
-                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
-            '</div>' +
-            '<div class="rebirth-tile-meta">' +
-                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
-                statsHtml +
-            '</div>' +
-        '</div>');
-
-        tile.on('click', (function(side, zone) {
-            return function() {
-                applyManEaterBugTarget(side, zone);
-            };
-        })(entry.side, entry.zone));
-
-        grid.append(tile);
-    });
-
-    $('#man-eater-bug-modal').fadeIn(150);
-}
-
-async function applyManEaterBugTarget(targetWho, targetZone) {
-    $('#man-eater-bug-modal').fadeOut(120);
-
-    var targetInst = GameState[targetWho].field.monsters[targetZone];
-    var targetDef = targetInst ? cards[targetInst.cardId] : null;
-    addToFeed('<em>Man-Eater Bug</em> destroyed <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong>!\n');
-    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-    await destroyMonster(targetWho, targetZone);
-}
-
-function cancelManEaterBugTarget() {
-    $('#man-eater-bug-modal').fadeOut(120);
-    addToFeed('Man-Eater Bug effect selection was dismissed.\n');
-}
-
-function openHaneHaneModal(sourceWho, sourceZone) {
-    var grid = $('#hane-hane-grid');
-    grid.empty();
-
-    var allMonsters = [
-        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
-        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
-    ];
-
-    // Filter out the flipped monster itself if other monsters exist
-    var candidates = allMonsters;
-    if (sourceWho && sourceZone) {
-        var otherMonsters = allMonsters.filter(function(m) {
-            return !(m.side === sourceWho && m.zone === sourceZone);
-        });
-        if (otherMonsters.length > 0) {
-            candidates = otherMonsters;
-        }
-    }
-
-    if (candidates.length === 0) {
-        $('#hane-hane-modal').fadeOut(120);
-        return;
-    }
-
-    candidates.forEach(function(entry) {
-        var cardDef = cards[entry.card.cardId];
-        if (!cardDef) return;
-        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
-        var isOpp = entry.side === 'computer';
-        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
-        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
-
-        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
-        var displayName = isFaceDown ? '???' : cardDef.name;
-        var statsHtml = isFaceDown
-            ? '<span class="rebirth-tile-stats">Face-Down</span>'
-            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
-
-        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
-            '<div class="rebirth-card-preview-frame">' +
-                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
-                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
-            '</div>' +
-            '<div class="rebirth-tile-meta">' +
-                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
-                statsHtml +
-            '</div>' +
-        '</div>');
-
-        tile.on('click', (function(side, zone) {
-            return function() {
-                applyHaneHaneTarget(side, zone);
-            };
-        })(entry.side, entry.zone));
-
-        grid.append(tile);
-    });
-
-    $('#hane-hane-modal').fadeIn(150);
-}
-
-async function applyHaneHaneTarget(targetWho, targetZone) {
-    $('#hane-hane-modal').fadeOut(120);
-
-    var targetInst = GameState[targetWho].field.monsters[targetZone];
-    var targetDef = targetInst ? cards[targetInst.cardId] : null;
-    addToFeed('<em>Hane-Hane</em> returned <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> to hand!\n');
-    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-    await returnMonsterToHand(targetWho, targetZone);
-}
-
-function cancelHaneHaneTarget() {
-    $('#hane-hane-modal').fadeOut(120);
-    addToFeed('Hane-Hane effect selection was dismissed.\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -1926,11 +1776,6 @@ function promptPlayerCelestialTitheDiscards() {
     return new Promise(function(resolve) {
         celestialTitheResolver = resolve;
         celestialTitheSelectedUids = [];
-        $('#celestial-tithe-counter').text('SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (0/2)');
-        $('#celestial-tithe-confirm-btn').hide();
-
-        var grid = $('#celestial-tithe-grid');
-        grid.empty();
 
         var hand = GameState.player.hand;
         if (!hand || hand.length <= 2) {
@@ -1940,63 +1785,70 @@ function promptPlayerCelestialTitheDiscards() {
             return;
         }
 
-        hand.forEach(function(inst) {
-            var cardDef = cards[inst.cardId];
-            if (!cardDef) return;
+        $('#ct-toast-counter').text('SELECT 2 CARDS FROM YOUR HAND TO DISCARD (0/2)');
+        $('#ct-toast-confirm-btn').hide();
+        $('#celestial-tithe-action-bar').stop(true, true).fadeIn(150);
 
-            var typeBadge = cardDef.type === 'monsters'
-                ? 'LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0)
-                : (cardDef.subType ? cardDef.subType.toUpperCase() + ' ' : '') + cardDef.type.slice(0, -1).toUpperCase();
-
-            var tile = $('<div class="rebirth-card-tile target-trap-tile" data-uid="' + inst.uid + '" style="cursor: pointer;">' +
-                '<div class="rebirth-card-preview-frame">' +
-                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
-                    '<span class="target-owner-tag tag-player">HAND</span>' +
-                '</div>' +
-                '<div class="rebirth-tile-meta">' +
-                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
-                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
-                '</div>' +
-            '</div>');
-
-            tile.on('click', function() {
-                var uid = inst.uid;
-                var idx = celestialTitheSelectedUids.indexOf(uid);
-                if (idx !== -1) {
-                    celestialTitheSelectedUids.splice(idx, 1);
-                    tile.removeClass('selected-tribute-tile');
-                } else {
-                    if (celestialTitheSelectedUids.length < 2) {
-                        celestialTitheSelectedUids.push(uid);
-                        tile.addClass('selected-tribute-tile');
-                    }
-                }
-
-                var count = celestialTitheSelectedUids.length;
-                $('#celestial-tithe-counter').text('SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (' + count + '/2)');
-                if (count === 2) {
-                    $('#celestial-tithe-confirm-btn').show();
-                } else {
-                    $('#celestial-tithe-confirm-btn').hide();
-                }
-            });
-
-            grid.append(tile);
+        $('body').addClass('counter-trap-discard-mode');
+        $('#player-hand > .card').each(function() {
+            $(this).addClass('counter-trap-discard-candidate');
+            var cardRelative = $(this).find('.card-relative, .card-front').first();
+            if (cardRelative.length && !cardRelative.find('.monster-destruct-preview-overlay').length) {
+                var overlay = $('<div class="monster-destruct-preview-overlay">' +
+                    '<div class="monster-destruct-x"></div>' +
+                '</div>');
+                cardRelative.append(overlay);
+            }
         });
 
-        $('#celestial-tithe-modal').fadeIn(150);
+        // Click handler to toggle up to 2 cards in hand for Celestial Tithe
+        $('#player-hand').off('click.ct_discard').on('click.ct_discard', '> .card.counter-trap-discard-candidate', function(e) {
+            e.stopPropagation();
+            var uid = $(this).attr('data-uid');
+            var idx = celestialTitheSelectedUids.indexOf(uid);
+
+            if (idx !== -1) {
+                // Deselect
+                celestialTitheSelectedUids.splice(idx, 1);
+                $(this).removeClass('active-card');
+                $(this).find('.monster-destruct-preview-overlay').removeClass('force-show-destruct-x');
+            } else {
+                // Select up to 2
+                if (celestialTitheSelectedUids.length < 2) {
+                    celestialTitheSelectedUids.push(uid);
+                    $(this).addClass('active-card');
+                    $(this).find('.monster-destruct-preview-overlay').addClass('force-show-destruct-x');
+                }
+            }
+
+            var count = celestialTitheSelectedUids.length;
+            $('#ct-toast-counter').text('SELECT 2 CARDS FROM YOUR HAND TO DISCARD (' + count + '/2)');
+            if (count === 2) {
+                $('#ct-toast-confirm-btn').show();
+            } else {
+                $('#ct-toast-confirm-btn').hide();
+            }
+        });
     });
 }
 
 function confirmCelestialTitheDiscards() {
     if (celestialTitheSelectedUids.length !== 2) return;
-    $('#celestial-tithe-modal').fadeOut(120);
+    cleanupCelestialTitheUI();
     applyCelestialTitheDiscards(celestialTitheSelectedUids);
     if (typeof celestialTitheResolver === 'function') {
         var r = celestialTitheResolver;
         celestialTitheResolver = null;
         r();
     }
+}
+
+function cleanupCelestialTitheUI() {
+    $('body').removeClass('counter-trap-discard-mode');
+    $('#player-hand > .card').removeClass('counter-trap-discard-candidate active-card');
+    $('.monster-destruct-preview-overlay').removeClass('force-show-destruct-x');
+    $('#player-hand').off('click.ct_discard');
+    $('#celestial-tithe-action-bar').stop(true, true).fadeOut(120);
 }
 
 function applyCelestialTitheDiscards(uids) {
@@ -2420,7 +2272,7 @@ async function checkVortexRecallAttackResponse(attackerWho, attackerZone, defend
     var attackerDef = cards[attackerInst.cardId];
 
     if (defenderWho === 'player') {
-        var shouldActivate = await promptPlayerVortexRecallAttack(vrZone, attackerDef);
+        var shouldActivate = await promptPlayerVortexRecallAttack(vrZone, attackerDef, attackerZone);
         if (!shouldActivate) return false;
 
         var trapSquare = getSpellSquareElm('player', vrZone);
@@ -2484,22 +2336,39 @@ async function checkVortexRecallAttackResponse(attackerWho, attackerZone, defend
     }
 }
 
-function promptPlayerVortexRecallAttack(zoneNum, attackerDef) {
+function promptPlayerVortexRecallAttack(zoneNum, attackerDef, attackerZone) {
     return new Promise(function(resolve) {
         vortexRecallPromptResolver = resolve;
 
-        $('#vr-trigger-cause').text((attackerDef ? attackerDef.name : 'OPPONENT') + ' DECLARED AN ATTACK!');
-        $('#vr-prompt-description').html(
-            'Opponent declared an attack with <strong>' + (attackerDef ? attackerDef.name : 'Monster') + '</strong>.<br>' +
-            'Activate your face-down <strong style="color: #c084fc;">Vortex Recall</strong> to return a monster on the field to the owner\'s hand?'
-        );
+        // Clean up any lingering preview marks or highlights
+        $('.monster-destruct-preview-overlay').remove();
+        $('.counter-trap-source-highlight').removeClass('counter-trap-source-highlight');
+        $('.counter-trap-target-highlight').removeClass('counter-trap-target-highlight');
 
-        $('#vortex-recall-prompt-modal').fadeIn(150);
+        // 1. Highlight player's Vortex Recall (Trap source) in purple
+        var playerTrapSq = getSpellSquareElm('player', zoneNum);
+        if (playerTrapSq && playerTrapSq.length) {
+            playerTrapSq.addClass('counter-trap-source-highlight');
+        }
+
+        // 2. Highlight attacking enemy monster
+        if (typeof attackerZone !== 'undefined' && attackerZone !== null) {
+            var targetSq = getSquareElm('computer', attackerZone);
+            if (targetSq && targetSq.length) {
+                targetSq.addClass('counter-trap-target-highlight');
+            }
+        }
+
+        var causeText = (attackerDef ? attackerDef.name.toUpperCase() : 'OPPONENT') + ' DECLARED AN ATTACK — ACTIVATE VORTEX RECALL?';
+        $('#vr-toast-cause').text(causeText);
+        $('#vortex-recall-action-bar').stop(true, true).fadeIn(150);
     });
 }
 
 function resolveVortexRecallPrompt(shouldActivate) {
-    $('#vortex-recall-prompt-modal').fadeOut(120);
+    $('#vortex-recall-action-bar').stop(true, true).fadeOut(120);
+    $('.counter-trap-source-highlight').removeClass('counter-trap-source-highlight');
+    $('.counter-trap-target-highlight').removeClass('counter-trap-target-highlight');
     if (typeof vortexRecallPromptResolver === 'function') {
         var res = vortexRecallPromptResolver;
         vortexRecallPromptResolver = null;
@@ -3955,24 +3824,43 @@ function promptPlayerVanguardsAccord(sourceWho, sourceZone) {
             var stats = 'LVL ' + (cardDef.level || 1) + ' • ATK ' + cardDef.atk + ' / DEF ' + cardDef.def;
             var countBadge = (counts[cardId] > 1) ? (' <span class="tag-player">x' + counts[cardId] + '</span>') : '';
 
-            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+            var tile = $('<div class="rebirth-card-tile target-trap-tile">' +
                 '<div class="rebirth-card-preview-frame">' +
                     '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
                 '</div>' +
                 '<div class="rebirth-tile-meta">' +
                     '<h4 class="rebirth-tile-name">' + cardDef.name + countBadge + '</h4>' +
                     '<span class="rebirth-tile-stats">' + stats + '</span>' +
+                    '<div class="rebirth-tile-actions">' +
+                        '<button class="rebirth-action-btn btn-summon-atk"><span>⚔ ATK</span></button>' +
+                        '<button class="rebirth-action-btn btn-summon-def"><span>🛡 DEF</span></button>' +
+                    '</div>' +
                 '</div>' +
             '</div>');
 
-            tile.on('click', async function() {
+            var executeSummon = async function(position) {
                 $('#vanguards-accord-modal').fadeOut(120);
-                await specialSummonMonsterFromDeck('player', cardId, 'attack');
+                await specialSummonMonsterFromDeck('player', cardId, position);
                 if (typeof vanguardsAccordResolver === 'function') {
                     var r = vanguardsAccordResolver;
                     vanguardsAccordResolver = null;
                     r();
                 }
+            };
+
+            tile.find('.btn-summon-atk').on('click', function(e) {
+                e.stopPropagation();
+                executeSummon('attack');
+            });
+
+            tile.find('.btn-summon-def').on('click', function(e) {
+                e.stopPropagation();
+                executeSummon('defense-up');
+            });
+
+            // Clicking the card frame itself defaults to Attack Position
+            tile.find('.rebirth-card-preview-frame, .rebirth-tile-name, .rebirth-tile-stats').on('click', function() {
+                executeSummon('attack');
             });
 
             grid.append(tile);

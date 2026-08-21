@@ -248,6 +248,60 @@ div.card-zone.field-available-zone {
     color: #facc15;
 }
 
+.rebirth-tile-actions {
+    display: flex;
+    gap: 4rem;
+    margin-top: 4rem;
+}
+
+.rebirth-action-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem;
+    padding: 3.5rem 6rem;
+    font-family: 'Cinzel', serif;
+    font-size: 8.5rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    border-radius: 4rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+}
+
+.rebirth-action-btn.btn-summon-atk {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(185, 28, 28, 0.4) 100%);
+    border-color: rgba(239, 68, 68, 0.6);
+    color: #fecaca;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
+}
+
+.rebirth-action-btn.btn-summon-atk:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.85) 0%, rgba(220, 38, 38, 0.95) 100%);
+    border-color: #fca5a5;
+    color: #ffffff;
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.65);
+}
+
+.rebirth-action-btn.btn-summon-def {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(29, 78, 216, 0.4) 100%);
+    border-color: rgba(59, 130, 246, 0.6);
+    color: #bfdbfe;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.25);
+}
+
+.rebirth-action-btn.btn-summon-def:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(37, 99, 235, 0.95) 100%);
+    border-color: #93c5fd;
+    color: #ffffff;
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.65);
+}
+
 /* ==========================================================================
    Swords of Revealing Light Turn Counter Badge
    ========================================================================== */
@@ -961,31 +1015,66 @@ div.card-zone.field-available-zone {
     }
 }
 
-/* In-Hand Stat Modifier Preview (Muted / Washed-Out Style) */
+/* In-Hand Stat Modifier Preview */
 #player-hand .stat-mod-badge.stat-mod-preview {
-    opacity: 0.82;
-    transform: translate(-50%, 50%) scale(0.92);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    opacity: 0.95;
+    transform: translate(-50%, 50%) scale(0.95);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
     animation: none !important;
+    filter: none !important;
+    overflow: hidden;
+    position: absolute;
 }
 
 #player-hand .stat-mod-badge.stat-mod-preview.stat-mod-buff {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.5) 0%, rgba(5, 150, 105, 0.5) 100%);
-    border: 1px solid rgba(167, 243, 208, 0.5);
-    color: #d1fae5;
-    box-shadow: 0 0 5px rgba(16, 185, 129, 0.25);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.9) 0%, rgba(5, 150, 105, 0.9) 100%);
+    border: 1px solid rgba(167, 243, 208, 0.9);
+    color: #ecfdf5;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
 }
 
 #player-hand .stat-mod-badge.stat-mod-preview.stat-mod-debuff {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.5) 0%, rgba(185, 28, 28, 0.5) 100%);
-    border: 1px solid rgba(254, 202, 202, 0.5);
-    color: #fee2e2;
-    box-shadow: 0 0 5px rgba(239, 68, 68, 0.25);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%);
+    border: 1px solid rgba(254, 202, 202, 0.9);
+    color: #fef2f2;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
 }
 
 #player-hand > .card:hover .stat-mod-badge.stat-mod-preview {
     opacity: 1;
-    transform: translate(-50%, 50%) scale(1);
+    transform: translate(-50%, 50%) scale(1.05);
+}
+
+/* Holographic Shimmer Sweep for all Preview Badges */
+.stat-mod-badge.stat-mod-preview::after,
+.stat-mod-badge.stat-mod-field-preview::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 30%,
+        rgba(255, 255, 255, 0.75) 50%,
+        rgba(56, 189, 248, 0.65) 70%,
+        transparent 100%
+    );
+    transform: skewX(-25deg);
+    animation: holoBadgeShimmer 2.2s infinite ease-in-out;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+@keyframes holoBadgeShimmer {
+    0% {
+        left: -150%;
+    }
+    45%, 100% {
+        left: 200%;
+    }
 }
 
 /* Stack separate ATK/DEF preview badges on hand cards */
@@ -1008,30 +1097,32 @@ div.card-zone.field-available-zone {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     animation: statFieldPreviewPulse 1.3s infinite alternate ease-in-out !important;
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.7), 0 2px 6px rgba(0, 0, 0, 0.7) !important;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.85), 0 2px 6px rgba(0, 0, 0, 0.7) !important;
     z-index: 80;
+    overflow: hidden;
+    position: absolute;
 }
 
 .stat-mod-badge.stat-mod-field-preview.stat-mod-buff {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.9) 0%, rgba(5, 150, 105, 0.9) 100%) !important;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.92) 0%, rgba(5, 150, 105, 0.92) 100%) !important;
     border-color: #6ee7b7 !important;
     color: #ecfdf5 !important;
 }
 
 .stat-mod-badge.stat-mod-field-preview.stat-mod-debuff {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%) !important;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.92) 0%, rgba(185, 28, 28, 0.92) 100%) !important;
     border-color: #fca5a5 !important;
     color: #fef2f2 !important;
 }
 
 @keyframes statFieldPreviewPulse {
     from {
-        transform: translate(-50%, 50%) scale(0.94);
-        box-shadow: 0 0 6px rgba(56, 189, 248, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5);
+        transform: translate(-50%, 50%) scale(0.95);
+        box-shadow: 0 0 8px rgba(56, 189, 248, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5);
     }
     to {
         transform: translate(-50%, 50%) scale(1.06);
-        box-shadow: 0 0 16px rgba(56, 189, 248, 0.95), 0 0 10px rgba(254, 240, 138, 0.6);
+        box-shadow: 0 0 18px rgba(56, 189, 248, 1), 0 0 12px rgba(254, 240, 138, 0.7);
         filter: brightness(1.2);
     }
 }
@@ -1159,3 +1250,186 @@ div.card-zone.field-available-zone {
 .banished-modal-panel .action-header-category {
     color: #e9d5ff !important;
 }
+
+/* Translucent Red X Monster Destruction Preview Overlay */
+.monster-destruct-preview-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: destructXFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.monster-destruct-x {
+    width: 68%;
+    height: 68%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 10rem rgba(239, 68, 68, 0.85)) drop-shadow(0 0 20rem rgba(220, 38, 38, 0.6));
+}
+
+.monster-destruct-x::before,
+.monster-destruct-x::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 14%;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.88), rgba(255, 100, 100, 0.95), rgba(239, 68, 68, 0.88));
+    border-radius: 4rem;
+    box-shadow: 0 0 12rem rgba(239, 68, 68, 0.9), inset 0 0 4rem rgba(255, 255, 255, 0.6);
+}
+
+.monster-destruct-x::before {
+    transform: rotate(45deg);
+}
+
+.monster-destruct-x::after {
+    transform: rotate(-45deg);
+}
+
+@keyframes destructXFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Translucent Green Checkmark Target Preview Overlay (Lunar Grimoire, etc.) */
+.monster-target-preview-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: destructXFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.monster-target-checkmark {
+    width: 60%;
+    height: 60%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 10rem rgba(16, 185, 129, 0.9)) drop-shadow(0 0 20rem rgba(5, 150, 105, 0.7));
+}
+
+.monster-target-checkmark::before {
+    content: '';
+    position: absolute;
+    width: 32%;
+    height: 14%;
+    background: linear-gradient(90deg, #10b981, #6ee7b7);
+    border-radius: 4rem;
+    box-shadow: 0 0 12rem rgba(16, 185, 129, 0.95), inset 0 0 4rem rgba(255, 255, 255, 0.7);
+    top: 56%;
+    left: 18%;
+    transform: rotate(45deg);
+    transform-origin: left bottom;
+}
+
+.monster-target-checkmark::after {
+    content: '';
+    position: absolute;
+    width: 70%;
+    height: 14%;
+    background: linear-gradient(90deg, #6ee7b7, #10b981);
+    border-radius: 4rem;
+    box-shadow: 0 0 12rem rgba(16, 185, 129, 0.95), inset 0 0 4rem rgba(255, 255, 255, 0.7);
+    top: 60%;
+    left: 36%;
+    transform: rotate(-50deg);
+    transform-origin: left bottom;
+}
+
+/* Counter Trap Interception Highlights (Arcane Disruptor / Arcane Ward) */
+.card-zone-square.counter-trap-source-highlight .card-zone {
+    border-color: #ec4899 !important;
+    box-shadow: 0 0 20rem rgba(236, 72, 153, 0.95), inset 0 0 12rem rgba(236, 72, 153, 0.5) !important;
+    animation: counterTrapPulse 1.2s ease-in-out infinite alternate !important;
+}
+
+.card-zone-square.counter-trap-target-highlight .card-zone {
+    border-color: #f43f5e !important;
+    box-shadow: 0 0 22rem rgba(244, 63, 94, 0.95), inset 0 0 14rem rgba(244, 63, 94, 0.5) !important;
+    animation: counterTrapPulse 1.2s ease-in-out infinite alternate !important;
+}
+
+@keyframes counterTrapPulse {
+    from {
+        box-shadow: 0 0 10rem rgba(236, 72, 153, 0.6), inset 0 0 6rem rgba(236, 72, 153, 0.3);
+        border-color: #db2777 !important;
+    }
+    to {
+        box-shadow: 0 0 26rem rgba(236, 72, 153, 1), inset 0 0 16rem rgba(236, 72, 153, 0.65);
+        border-color: #fbcfe8 !important;
+    }
+}
+
+/* On-Mat Hand Discard Mode for Counter Traps */
+body.counter-trap-discard-mode #player-field .card-zone-square:not(.counter-trap-source-highlight):not(.counter-trap-target-highlight),
+body.counter-trap-discard-mode #computer-field .card-zone-square:not(.counter-trap-source-highlight):not(.counter-trap-target-highlight) {
+    opacity: 0.42;
+    filter: grayscale(85%);
+    transition: opacity 0.22s ease, filter 0.22s ease;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate {
+    cursor: pointer !important;
+    filter: none !important;
+    opacity: 1 !important;
+    animation: discardHandCardPulse 1.4s ease-in-out infinite alternate !important;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate .card-front {
+    border-color: #f472b6 !important;
+    box-shadow: 0 0 16px 4px rgba(236, 72, 153, 0.85), inset 0 0 8px rgba(236, 72, 153, 0.4) !important;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate:hover .card-front {
+    border-color: #fbcfe8 !important;
+    box-shadow: 0 0 22px 6px rgba(236, 72, 153, 1), inset 0 0 12px rgba(236, 72, 153, 0.6) !important;
+    transform: translateY(-6px) scale(1.05);
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate .monster-destruct-preview-overlay {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate:hover .monster-destruct-preview-overlay,
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate .monster-destruct-preview-overlay.force-show-destruct-x {
+    opacity: 1;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.active-card {
+    transform: translateY(-10px) scale(1.06) !important;
+    z-index: 50 !important;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.active-card .card-front {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 24px 6px rgba(239, 68, 68, 0.95), inset 0 0 12px rgba(239, 68, 68, 0.6) !important;
+}
+
+@keyframes discardHandCardPulse {
+    from {
+        box-shadow: 0 0 10px 2px rgba(236, 72, 153, 0.5);
+    }
+    to {
+        box-shadow: 0 0 20px 5px rgba(236, 72, 153, 0.95);
+    }
+}
+

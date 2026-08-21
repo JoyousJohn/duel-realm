@@ -263,13 +263,30 @@ function setPhase(newPhase) {
     updatePhaseInfo();
 }
 
+var turnPopupTimeout = null;
+
 function showPopup(text) {
-    $('#turn-popup > span').text(text);
-    $('#turn-popup').fadeIn();
-    setTimeout(function(){ $('#turn-popup').fadeOut(); }, 1000);
+    if (turnPopupTimeout) {
+        clearTimeout(turnPopupTimeout);
+        turnPopupTimeout = null;
+    }
+    var popup = $('#turn-popup');
+    popup.stop(true, true);
+    popup.find('> span').text(text);
+    popup.css('opacity', 0).show().fadeTo(getAnimDuration(200), 1);
+    turnPopupTimeout = setTimeout(function() {
+        popup.fadeOut(getAnimDuration(300), function() {
+            turnPopupTimeout = null;
+        });
+    }, getAnimDuration(1100));
 }
 
 function endGame() {
+    if (turnPopupTimeout) {
+        clearTimeout(turnPopupTimeout);
+        turnPopupTimeout = null;
+    }
+    $('#turn-popup').stop(true, true).hide();
     $('#viewport').hide();
     if (typeof randomizeTitleScreenCards === 'function') randomizeTitleScreenCards();
     $('#homescreen').show(); 
@@ -303,11 +320,16 @@ function endGame() {
     $('.tactical-action-modal').hide();
     $('#tribute-action-bar').hide();
     $('#spell-target-action-bar').hide();
+    $('#torrential-tribute-action-bar').hide();
+    $('#arcane-disruptor-action-bar').hide();
+    $('#vortex-recall-action-bar').hide();
+    $('#celestial-tithe-action-bar').hide();
 
     // Clear all pending reaction and effect promise resolvers
     if (typeof torrentialTributeResolver !== 'undefined') torrentialTributeResolver = null;
     if (typeof arcaneDisruptorPromptResolver !== 'undefined') arcaneDisruptorPromptResolver = null;
     if (typeof arcaneDisruptorDiscardResolver !== 'undefined') arcaneDisruptorDiscardResolver = null;
+    if (typeof vortexRecallPromptResolver !== 'undefined') vortexRecallPromptResolver = null;
     if (typeof abyssalScoutResolver !== 'undefined') abyssalScoutResolver = null;
     if (typeof celestialTitheResolver !== 'undefined') celestialTitheResolver = null;
 }
@@ -394,6 +416,8 @@ function resetAllSquares(squareElm) {
     $('.attack-locked-badge').remove();
     $('.effect-ready-badge').remove();
     $('.tributable-bound-badge').remove();
+    $('.monster-destruct-preview-overlay').remove();
+    $('.monster-target-preview-overlay').remove();
     $('.equip-tag-badge').remove();
     $('.tribute-selected-badge').remove();
     $('.tribute-candidate-highlight').removeClass('tribute-candidate-highlight');

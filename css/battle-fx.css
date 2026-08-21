@@ -248,19 +248,19 @@
 @keyframes floatingDamagePop {
     0% {
         opacity: 0;
-        transform: translate3d(0, 10rem, 0) scale(0.6);
+        transform: translate3d(-50%, 10rem, 0) scale(0.6);
     }
     20% {
         opacity: 1;
-        transform: translate3d(0, -18rem, 0) scale(1.25);
+        transform: translate3d(-50%, -18rem, 0) scale(1.25);
     }
     50% {
         opacity: 1;
-        transform: translate3d(0, -32rem, 0) scale(1.05);
+        transform: translate3d(-50%, -32rem, 0) scale(1.05);
     }
     100% {
         opacity: 0;
-        transform: translate3d(0, -54rem, 0) scale(0.9);
+        transform: translate3d(-50%, -54rem, 0) scale(0.9);
     }
 }
 
@@ -343,7 +343,7 @@
     inset: 0;
     border-radius: 0;
     background-image: url('../cards/card_back_2.png');
-    background-size: cover;
+    background-size: 100% 100%;
     background-position: center;
     border: 1px solid rgba(0, 0, 0, 0.6);
     pointer-events: none;
@@ -373,7 +373,7 @@
     inset: 0;
     border-radius: 0;
     background-image: url('../cards/card_back_2.png');
-    background-size: cover;
+    background-size: 100% 100%;
     background-position: center;
     border: 1px solid rgba(212, 175, 55, 0.4);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
@@ -544,7 +544,7 @@
 .gy-top-card-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: fill;
     display: block;
     filter: brightness(0.92) contrast(1.05);
 }

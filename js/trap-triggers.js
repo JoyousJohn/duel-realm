@@ -127,22 +127,33 @@ function promptPlayerTorrentialTribute(zoneNum, summonedDef) {
     return new Promise(function(resolve) {
         torrentialTributeResolver = resolve;
 
-        var playerMonstersCount = GameState.getMonstersOnField("player").length;
-        var compMonstersCount = GameState.getMonstersOnField("computer").length;
+        // Render translucent red X's over all monsters that will be destroyed (including face-down defense)
+        $('.monster-destruct-preview-overlay').remove();
+        ['player', 'computer'].forEach(function(who) {
+            var monsters = GameState.getMonstersOnField(who);
+            monsters.forEach(function(entry) {
+                var square = getSquareElm(who, entry.zone);
+                if (square && square.length) {
+                    var zone = square.find('div.card-zone.main-zone');
+                    if (zone.length && !zone.find('.monster-destruct-preview-overlay').length) {
+                        var overlay = $('<div class="monster-destruct-preview-overlay">' +
+                            '<div class="monster-destruct-x"></div>' +
+                        '</div>');
+                        zone.append(overlay);
+                    }
+                }
+            });
+        });
 
-        $("#tt-trigger-cause").text((summonedDef ? summonedDef.name.toUpperCase() : "A MONSTER") + " WAS SUMMONED");
-        $("#tt-modal-casualty-preview").html(
-            "<strong>Predicted Casualties:</strong> " +
-            "<span style=\"color: #93c5fd; margin-right: 8px;\">Your Monsters: " + playerMonstersCount + "</span> • " +
-            "<span style=\"color: #f87171; margin-left: 8px;\">Opponent Monsters: " + compMonstersCount + "</span>"
-        );
-
-        $("#torrential-tribute-modal").fadeIn(150);
+        var causeText = (summonedDef ? summonedDef.name.toUpperCase() : 'A MONSTER') + ' WAS SUMMONED — DESTROY ALL MONSTERS?';
+        $('#tt-toast-cause').text(causeText);
+        $('#torrential-tribute-action-bar').stop(true, true).fadeIn(150);
     });
 }
 
 function resolveTorrentialTributePrompt(shouldActivate) {
-    $("#torrential-tribute-modal").fadeOut(120);
+    $('#torrential-tribute-action-bar').stop(true, true).fadeOut(120);
+    $('.monster-destruct-preview-overlay').remove();
     if (typeof torrentialTributeResolver === "function") {
         var res = torrentialTributeResolver;
         torrentialTributeResolver = null;
@@ -210,29 +221,48 @@ async function executeTorrentialTribute(who, zoneNum) {
 var arcaneDisruptorPromptResolver = null;
 var arcaneDisruptorDiscardResolver = null;
 
-function promptPlayerArcaneDisruptor(zoneNum, spellDef) {
+function promptPlayerArcaneDisruptor(zoneNum, spellDef, who, spellZoneNum) {
     return new Promise(function(resolve) {
         arcaneDisruptorPromptResolver = resolve;
 
-        var spellName = spellDef ? spellDef.name : "Spell Card";
-        var spellEffect = (spellDef && spellDef.desc) ? spellDef.desc : "No description available.";
-        var spellTypeLabel = (spellDef && spellDef.subType) ? spellDef.subType.toUpperCase() + " SPELL" : "SPELL CARD";
+        // Clean up any lingering preview marks or highlights
+        $('.monster-destruct-preview-overlay').remove();
+        $('.counter-trap-source-highlight').removeClass('counter-trap-source-highlight');
+        $('.counter-trap-target-highlight').removeClass('counter-trap-target-highlight');
 
-        $("#ad-trigger-cause").text(spellName.toUpperCase() + " WAS ACTIVATED!");
-        $("#ad-prompt-description").html(
-            "Opponent activated <strong>" + spellName + "</strong>.<br>" +
-            "Activate your face-down <span style=\"color: #f472b6; font-weight: bold;\">Arcane Disruptor</span> to negate it and remove it from play? (Requires 1 discard)"
-        );
+        // 1. Highlight player's Arcane Disruptor (Counter Trap source)
+        var playerTrapSq = getSpellSquareElm('player', zoneNum);
+        if (playerTrapSq && playerTrapSq.length) {
+            playerTrapSq.addClass('counter-trap-source-highlight');
+        }
 
-        $("#ad-spell-header").text("ACTIVATED " + spellTypeLabel + ": " + spellName.toUpperCase());
-        $("#ad-spell-effect-text").text("\"" + spellEffect + "\"");
+        // 2. Highlight opponent's activated Spell square and place a Red X on it
+        var targetSq = (spellDef && spellDef.subType === 'field')
+            ? getFieldZoneElm(who)
+            : getSpellSquareElm(who, spellZoneNum);
 
-        $("#arcane-disruptor-prompt-modal").fadeIn(150);
+        if (targetSq && targetSq.length) {
+            targetSq.addClass('counter-trap-target-highlight');
+            var zone = targetSq.find('div.card-zone');
+            if (zone.length && !zone.find('.monster-destruct-preview-overlay').length) {
+                var overlay = $('<div class="monster-destruct-preview-overlay">' +
+                    '<div class="monster-destruct-x"></div>' +
+                '</div>');
+                zone.append(overlay);
+            }
+        }
+
+        var spellName = spellDef ? spellDef.name : 'Spell Card';
+        $('#ad-toast-cause').text('OPPONENT ACTIVATED ' + spellName.toUpperCase() + ' — DISCARD 1 TO NEGATE & BANISH?');
+        $('#arcane-disruptor-action-bar').stop(true, true).fadeIn(150);
     });
 }
 
 function resolveArcaneDisruptorPrompt(shouldActivate) {
-    $("#arcane-disruptor-prompt-modal").fadeOut(120);
+    $('#arcane-disruptor-action-bar').stop(true, true).fadeOut(120);
+    $('.monster-destruct-preview-overlay').remove();
+    $('.counter-trap-source-highlight').removeClass('counter-trap-source-highlight');
+    $('.counter-trap-target-highlight').removeClass('counter-trap-target-highlight');
     if (typeof arcaneDisruptorPromptResolver === "function") {
         var res = arcaneDisruptorPromptResolver;
         arcaneDisruptorPromptResolver = null;
@@ -243,8 +273,6 @@ function resolveArcaneDisruptorPrompt(shouldActivate) {
 function promptPlayerArcaneDisruptorDiscard() {
     return new Promise(function(resolve) {
         arcaneDisruptorDiscardResolver = resolve;
-        var grid = $("#arcane-disruptor-discard-grid");
-        grid.empty();
 
         var hand = GameState.player.hand;
         if (!hand || hand.length === 0) {
@@ -252,44 +280,57 @@ function promptPlayerArcaneDisruptorDiscard() {
             return;
         }
 
-        hand.forEach(function(inst) {
-            var cardDef = cards[inst.cardId];
-            if (!cardDef) return;
+        // Update action bar to discard mode
+        $('#ad-toast-cause').html('<span style="color: #f472b6; font-weight: bold;">SELECT 1 CARD FROM YOUR HAND</span> TO DISCARD');
+        $('#arcane-disruptor-action-bar .tribute-bar-actions').html(
+            '<button class="tribute-bar-btn btn-cancel" onclick="cancelArcaneDisruptorDiscard()">' +
+                '<span>&times; CANCEL</span>' +
+            '</button>'
+        );
+        $('#arcane-disruptor-action-bar').stop(true, true).fadeIn(150);
 
-            var typeBadge = cardDef.type === "monsters"
-                ? "LVL " + (cardDef.level || 1) + " • ATK " + (cardDef.atk || 0) + " / DEF " + (cardDef.def || 0)
-                : (cardDef.subType ? cardDef.subType.toUpperCase() + " " : "") + cardDef.type.slice(0, -1).toUpperCase();
-
-            var tile = $("<div class=\"rebirth-card-tile target-trap-tile\" style=\"cursor: pointer;\">" +
-                "<div class=\"rebirth-card-preview-frame\">" +
-                    "<img src=\"cards/" + cardDef.file + "\" alt=\"" + cardDef.name + "\" class=\"rebirth-thumb-img\">" +
-                    "<span class=\"target-owner-tag tag-player\">HAND</span>" +
-                "</div>" +
-                "<div class=\"rebirth-tile-meta\">" +
-                    "<h4 class=\"rebirth-tile-name\">" + cardDef.name + "</h4>" +
-                    "<span class=\"rebirth-tile-stats\">" + typeBadge + "</span>" +
-                "</div>" +
-            "</div>");
-
-            tile.on("click", function() {
-                $("#arcane-disruptor-discard-modal").fadeOut(120);
-                if (typeof arcaneDisruptorDiscardResolver === "function") {
-                    var r = arcaneDisruptorDiscardResolver;
-                    arcaneDisruptorDiscardResolver = null;
-                    r({ uid: inst.uid, cardId: inst.cardId });
-                }
-            });
-
-            grid.append(tile);
+        $('body').addClass('counter-trap-discard-mode');
+        $('#player-hand > .card').each(function() {
+            $(this).addClass('counter-trap-discard-candidate');
+            var cardRelative = $(this).find('.card-relative, .card-front').first();
+            if (cardRelative.length && !cardRelative.find('.monster-destruct-preview-overlay').length) {
+                var overlay = $('<div class="monster-destruct-preview-overlay">' +
+                    '<div class="monster-destruct-x"></div>' +
+                '</div>');
+                cardRelative.append(overlay);
+            }
         });
 
-        $("#arcane-disruptor-discard-modal").fadeIn(150);
+        // One-time click handler on hand cards during discard selection
+        $('#player-hand').off('click.ad_discard').on('click.ad_discard', '> .card.counter-trap-discard-candidate', function(e) {
+            e.stopPropagation();
+            var uid = $(this).attr('data-uid');
+            var cardId = $(this).attr('data-card-name');
+
+            cleanupArcaneDisruptorDiscardUI();
+
+            if (typeof arcaneDisruptorDiscardResolver === 'function') {
+                var r = arcaneDisruptorDiscardResolver;
+                arcaneDisruptorDiscardResolver = null;
+                r({ uid: uid, cardId: cardId });
+            }
+        });
     });
 }
 
+function cleanupArcaneDisruptorDiscardUI() {
+    $('body').removeClass('counter-trap-discard-mode');
+    $('#player-hand > .card').removeClass('counter-trap-discard-candidate');
+    $('#player-hand').off('click.ad_discard');
+    $('#arcane-disruptor-action-bar').stop(true, true).fadeOut(120);
+}
+
 function cancelArcaneDisruptorDiscard() {
-    $("#arcane-disruptor-discard-modal").fadeOut(120);
-    if (typeof arcaneDisruptorDiscardResolver === "function") {
+    cleanupArcaneDisruptorDiscardUI();
+    $('.monster-destruct-preview-overlay').remove();
+    $('.counter-trap-source-highlight').removeClass('counter-trap-source-highlight');
+    $('.counter-trap-target-highlight').removeClass('counter-trap-target-highlight');
+    if (typeof arcaneDisruptorDiscardResolver === 'function') {
         var r = arcaneDisruptorDiscardResolver;
         arcaneDisruptorDiscardResolver = null;
         r(null);
@@ -441,7 +482,7 @@ async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
     if (!GameState[opp].hand || GameState[opp].hand.length === 0) return false;
 
     if (opp === "player") {
-        var shouldActivate = await promptPlayerArcaneDisruptor(trapZone, spellDef);
+        var shouldActivate = await promptPlayerArcaneDisruptor(trapZone, spellDef, who, zoneNum);
         if (!shouldActivate) return false;
 
         var discardCard = await promptPlayerArcaneDisruptorDiscard();

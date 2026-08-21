@@ -596,121 +596,13 @@
             </div>
         </div>
 
-        <!-- Hane-Hane Target Selection Modal -->
-        <div id="hane-hane-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="cancelHaneHaneTarget()"></div>
-            <div class="action-modal-panel rebirth-modal-panel">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(234, 179, 8, 0.4) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(234, 179, 8, 0.15); border-color: rgba(234, 179, 8, 0.4);">
-                        <span class="action-pulse-dot" style="background: #eab308; box-shadow: 0 0 8px #eab308;"></span>
-                        <span class="action-header-category" style="color: #facc15;">FLIP EFFECT ACTIVATION</span>
-                    </div>
-                    <h3 class="action-modal-card-name">HANE-HANE</h3>
-                    <div class="action-modal-card-stats">SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND</div>
-                </div>
-                <div class="rebirth-cards-scroll-container">
-                    <div id="hane-hane-grid" class="rebirth-cards-grid"></div>
-                </div>
-                <div class="action-modal-footer">
-                    <button class="action-cancel-btn" onclick="cancelHaneHaneTarget()"><span>&times; CANCEL</span></button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Torrential Tribute Activation Prompt Modal -->
-        <div id="torrential-tribute-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="resolveTorrentialTributePrompt(false)"></div>
-            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(14, 165, 233, 0.5) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(14, 165, 233, 0.18); border-color: rgba(14, 165, 233, 0.45);">
-                        <span class="action-pulse-dot" style="background: #0ea5e9; box-shadow: 0 0 8px #0ea5e9;"></span>
-                        <span class="action-header-category" style="color: #38bdf8;">TRAP ACTIVATION WINDOW</span>
-                    </div>
-                    <h3 class="action-modal-card-name">TORRENTIAL TRIBUTE</h3>
-                    <div class="action-modal-card-stats" id="tt-trigger-cause">A MONSTER WAS SUMMONED!</div>
-                </div>
 
-                <div style="padding: 16px 20px; text-align: center;">
-                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
-                        A monster was Summoned to the arena. Do you want to activate your face-down <strong style="color: #38bdf8;">Torrential Tribute</strong> to destroy <em>all monsters</em> on the field?
-                    </div>
-                    <div id="tt-modal-casualty-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
-                        <!-- Dynamically filled: casualty summary -->
-                    </div>
-                </div>
 
-                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
-                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #0284c7, #0369a1); border: 1px solid #38bdf8; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveTorrentialTributePrompt(true)">
-                        🌊 ACTIVATE TRAP
-                    </button>
-                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveTorrentialTributePrompt(false)">
-                        <span>&times; PASS</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Arcane Disruptor Prompt Modal -->
-        <div id="arcane-disruptor-prompt-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="resolveArcaneDisruptorPrompt(false)"></div>
-            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 500px;">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.18); border-color: rgba(236, 72, 153, 0.45);">
-                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
-                        <span class="action-header-category" style="color: #f472b6;">COUNTER TRAP ACTIVATION</span>
-                    </div>
-                    <h3 class="action-modal-card-name">ARCANE DISRUPTOR</h3>
-                    <div class="action-modal-card-stats" id="ad-trigger-cause">OPPONENT ACTIVATED A SPELL!</div>
-                </div>
 
-                <div style="padding: 16px 20px; text-align: center;">
-                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;" id="ad-prompt-description">
-                        Opponent activated a Spell Card. Discard 1 card from hand to negate its activation and remove it from play?
-                    </div>
-                    <div id="ad-spell-details-box" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; text-align: left;">
-                        <div style="font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 0.8px; margin-bottom: 4px;" id="ad-spell-header">ACTIVATED SPELL: RAIGEKI</div>
-                        <div style="font-size: 12.5px; color: #e2e8f0; line-height: 1.45; font-style: italic;" id="ad-spell-effect-text">"Destroy all monsters on your opponent's side of the field."</div>
-                    </div>
-                    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(244, 114, 182, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
-                        <strong>Cost:</strong> 1 Discard from Hand • <strong>Effect:</strong> Negate & Banish Spell Card
-                    </div>
-                </div>
 
-                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
-                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #db2777, #9d174d); border: 1px solid #f472b6; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneDisruptorPrompt(true)">
-                        ⚡ ACTIVATE TRAP
-                    </button>
-                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveArcaneDisruptorPrompt(false)">
-                        <span>&times; PASS</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Arcane Disruptor Discard Selection Modal -->
-        <div id="arcane-disruptor-discard-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="cancelArcaneDisruptorDiscard()"></div>
-            <div class="action-modal-panel rebirth-modal-panel">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(236, 72, 153, 0.4) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4);">
-                        <span class="action-pulse-dot" style="background: #ec4899; box-shadow: 0 0 8px #ec4899;"></span>
-                        <span class="action-header-category" style="color: #f472b6;">ACTIVATION COST</span>
-                    </div>
-                    <h3 class="action-modal-card-name">ARCANE DISRUPTOR</h3>
-                    <div class="action-modal-card-stats">SELECT 1 CARD FROM YOUR HAND TO DISCARD</div>
-                </div>
-                <div class="rebirth-cards-scroll-container">
-                    <div id="arcane-disruptor-discard-grid" class="rebirth-cards-grid"></div>
-                </div>
-                <div class="action-modal-footer">
-                    <button class="action-cancel-btn" onclick="cancelArcaneDisruptorDiscard()"><span>&times; CANCEL</span></button>
-                </div>
-            </div>
-        </div>
 
         <!-- Arcane Ward Prompt Modal -->
         <div id="arcane-ward-prompt-modal" class="tactical-action-modal" style="display: none;">
@@ -772,29 +664,7 @@
             </div>
         </div>
 
-        <!-- Celestial Tithe Discard Modal -->
-        <div id="celestial-tithe-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop"></div>
-            <div class="action-modal-panel rebirth-modal-panel">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(52, 211, 153, 0.4) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.4);">
-                        <span class="action-pulse-dot" style="background: #34d399; box-shadow: 0 0 8px #34d399;"></span>
-                        <span class="action-header-category" style="color: #6ee7b7;">CELESTIAL TITHE • DISCARD 2 CARDS</span>
-                    </div>
-                    <h3 class="action-modal-card-name">CELESTIAL TITHE</h3>
-                    <div class="action-modal-card-stats" id="celestial-tithe-counter">SELECT 2 CARDS FROM YOUR HAND TO SEND TO GRAVEYARD (0/2)</div>
-                </div>
-                <div class="rebirth-cards-scroll-container">
-                    <div id="celestial-tithe-grid" class="rebirth-cards-grid"></div>
-                </div>
-                <div class="action-modal-footer">
-                    <button id="celestial-tithe-confirm-btn" class="tactical-action-btn" style="background: linear-gradient(135deg, #059669, #047857); border: 1px solid #34d399; color: #fff; padding: 10px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none;" onclick="confirmCelestialTitheDiscards()">
-                        ✓ DISCARD SELECTED CARDS
-                    </button>
-                </div>
-            </div>
-        </div>
+
 
         <!-- Radiant Backlash Prompt Modal -->
         <div id="radiant-backlash-prompt-modal" class="tactical-action-modal" style="display: none;">
@@ -908,58 +778,7 @@
             </div>
         </div>
 
-        <!-- Vortex Recall Target Selection Modal -->
-        <div id="vortex-recall-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="cancelVortexRecallTarget()"></div>
-            <div class="action-modal-panel rebirth-modal-panel">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4);">
-                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
-                        <span class="action-header-category" style="color: #c084fc;">VORTEX RECALL • BOUNCE MONSTER</span>
-                    </div>
-                    <h3 class="action-modal-card-name">VORTEX RECALL</h3>
-                    <div class="action-modal-card-stats">SELECT 1 MONSTER ON THE FIELD TO RETURN TO THE OWNER'S HAND</div>
-                </div>
-                <div class="rebirth-cards-scroll-container">
-                    <div id="vortex-recall-grid" class="rebirth-cards-grid"></div>
-                </div>
-                <div class="action-modal-footer">
-                    <button class="action-cancel-btn" onclick="cancelVortexRecallTarget()"><span>&times; CANCEL</span></button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Vortex Recall Attack Response Prompt Modal -->
-        <div id="vortex-recall-prompt-modal" class="tactical-action-modal" style="display: none;">
-            <div class="action-modal-backdrop" onclick="resolveVortexRecallPrompt(false)"></div>
-            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
-                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.5) 0%, transparent 70%);"></div>
-                <div class="action-modal-header">
-                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.18); border-color: rgba(168, 85, 247, 0.45);">
-                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
-                        <span class="action-header-category" style="color: #c084fc;">TACTICAL TRAP</span>
-                    </div>
-                    <h3 class="action-modal-card-name">VORTEX RECALL</h3>
-                    <div class="action-modal-card-stats" id="vr-trigger-cause">OPPONENT DECLARED AN ATTACK!</div>
-                </div>
-
-                <div style="padding: 16px 20px; text-align: center;">
-                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;" id="vr-prompt-description">
-                        Opponent declared an attack. Activate your face-down <strong style="color: #c084fc;">Vortex Recall</strong> to return a monster on the field to the owner's hand?
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
-                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #7e22ce, #a855f7); border: 1px solid #c084fc; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveVortexRecallPrompt(true)">
-                        🌀 ACTIVATE TRAP
-                    </button>
-                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveVortexRecallPrompt(false)">
-                        <span>&times; PASS</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <!-- Vanguard's Accord Deck Selection Modal -->
         <div id="vanguards-accord-modal" class="tactical-action-modal" style="display: none;">
@@ -1231,6 +1050,71 @@
                 </button>
                 <button class="tribute-bar-btn btn-cancel" onclick="cancelSpellTargetSelection()">
                     <span>&times; CANCEL</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating On-Mat Torrential Tribute Toast Action Bar -->
+        <div id="torrential-tribute-action-bar" class="tribute-action-bar" style="display: none; border-color: rgba(14, 165, 233, 0.85); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 24px rgba(14, 165, 233, 0.4);">
+            <div class="tribute-bar-meta">
+                <span class="tribute-bar-title" style="color: #38bdf8;">TORRENTIAL TRIBUTE</span>
+                <span class="tribute-bar-counter" id="tt-toast-cause" style="color: #cbd5e1;">A MONSTER WAS SUMMONED!</span>
+            </div>
+            <div class="tribute-bar-actions">
+                <button class="tribute-bar-btn btn-atk" style="background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); border-color: #38bdf8; box-shadow: 0 3px 10px rgba(2, 132, 199, 0.45);" onclick="resolveTorrentialTributePrompt(true)">
+                    <span class="tribute-btn-icon">🌊</span>
+                    <span>ACTIVATE TRAP</span>
+                </button>
+                <button class="tribute-bar-btn btn-cancel" onclick="resolveTorrentialTributePrompt(false)">
+                    <span>&times; PASS</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating On-Mat Arcane Disruptor Toast Action Bar -->
+        <div id="arcane-disruptor-action-bar" class="tribute-action-bar" style="display: none; border-color: rgba(236, 72, 153, 0.85); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 24px rgba(236, 72, 153, 0.4);">
+            <div class="tribute-bar-meta">
+                <span class="tribute-bar-title" style="color: #f472b6;">ARCANE DISRUPTOR</span>
+                <span class="tribute-bar-counter" id="ad-toast-cause" style="color: #cbd5e1;">OPPONENT ACTIVATED A SPELL!</span>
+            </div>
+            <div class="tribute-bar-actions">
+                <button class="tribute-bar-btn btn-atk" style="background: linear-gradient(180deg, #db2777 0%, #9d174d 100%); border-color: #f472b6; box-shadow: 0 3px 10px rgba(219, 39, 119, 0.45);" onclick="resolveArcaneDisruptorPrompt(true)">
+                    <span class="tribute-btn-icon">⚡</span>
+                    <span>DISCARD & NEGATE</span>
+                </button>
+                <button class="tribute-bar-btn btn-cancel" onclick="resolveArcaneDisruptorPrompt(false)">
+                    <span>&times; PASS</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating On-Mat Vortex Recall Toast Action Bar -->
+        <div id="vortex-recall-action-bar" class="tribute-action-bar" style="display: none; border-color: rgba(168, 85, 247, 0.85); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 24px rgba(168, 85, 247, 0.4);">
+            <div class="tribute-bar-meta">
+                <span class="tribute-bar-title" style="color: #c084fc;">VORTEX RECALL</span>
+                <span class="tribute-bar-counter" id="vr-toast-cause" style="color: #cbd5e1;">OPPONENT DECLARED AN ATTACK!</span>
+            </div>
+            <div class="tribute-bar-actions">
+                <button class="tribute-bar-btn btn-atk" style="background: linear-gradient(180deg, #9333ea 0%, #6b21a8 100%); border-color: #c084fc; box-shadow: 0 3px 10px rgba(147, 51, 234, 0.45);" onclick="resolveVortexRecallPrompt(true)">
+                    <span class="tribute-btn-icon">🌀</span>
+                    <span>ACTIVATE TRAP</span>
+                </button>
+                <button class="tribute-bar-btn btn-cancel" onclick="resolveVortexRecallPrompt(false)">
+                    <span>&times; PASS</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating On-Mat Celestial Tithe Toast Action Bar -->
+        <div id="celestial-tithe-action-bar" class="tribute-action-bar" style="display: none; border-color: rgba(52, 211, 153, 0.85); box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 24px rgba(52, 211, 153, 0.4);">
+            <div class="tribute-bar-meta">
+                <span class="tribute-bar-title" style="color: #6ee7b7;">CELESTIAL TITHE</span>
+                <span class="tribute-bar-counter" id="ct-toast-counter" style="color: #cbd5e1;">SELECT 2 CARDS FROM HAND TO DISCARD (0/2)</span>
+            </div>
+            <div class="tribute-bar-actions">
+                <button id="ct-toast-confirm-btn" class="tribute-bar-btn btn-atk" style="background: linear-gradient(180deg, #059669 0%, #047857 100%); border-color: #6ee7b7; box-shadow: 0 3px 10px rgba(5, 150, 105, 0.45); display: none;" onclick="confirmCelestialTitheDiscards()">
+                    <span class="tribute-btn-icon">✨</span>
+                    <span>DISCARD 2 CARDS</span>
                 </button>
             </div>
         </div>

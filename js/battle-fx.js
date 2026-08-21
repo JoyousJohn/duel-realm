@@ -155,7 +155,7 @@ var BattleFX = {
         }
 
         var floatElm = $('<div class="floating-damage-number ' + extraClass + '">' + label + '</div>').css({
-            left: cx - 40,
+            left: cx,
             top: cy
         });
 
@@ -208,13 +208,14 @@ var BattleFX = {
     /**
      * Animate Monster Destruction (Shatter effect into Graveyard)
      */
-    animateMonsterDestruction: function(squareElm) {
+    animateMonsterDestruction: function(squareElm, targetOwner) {
         var self = this;
         return new Promise(function(resolve) {
             var zone = $(squareElm).find('div.card-zone');
-            var isPlayer = $(squareElm).closest('#player-field').length > 0;
-            var who = isPlayer ? 'player' : 'computer';
-            var gyZone = $('#' + who + '-graveyard-zone');
+            var isPlayerField = $(squareElm).closest('#player-field').length > 0;
+            var fieldWho = isPlayerField ? 'player' : 'computer';
+            var ownerWho = targetOwner || fieldWho;
+            var gyZone = $('#' + ownerWho + '-graveyard-zone');
 
             var position = $(squareElm).attr('data-card-position');
             var isFaceDown = (position === 'defense-down');
@@ -244,6 +245,7 @@ var BattleFX = {
                 $(squareElm).find('.attack-locked-badge').remove();
                 $(squareElm).find('.effect-ready-badge').remove();
                 $(squareElm).find('.tributable-bound-badge').remove();
+                $(squareElm).find('.monster-destruct-preview-overlay').remove();
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
@@ -428,18 +430,21 @@ var BattleFX = {
             zone.removeData('transform');
             zone.css('opacity', 0).show().fadeTo(getAnimDuration(420), 1);
 
-            if (imgSrc && gyOffset) {
-                var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + sourceOffset.top + 'px; left: ' + sourceOffset.left + 'px; filter: brightness(1.1);">' +
+            var sourceCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(zone) : null;
+            var gyCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(gyZone) : null;
+
+            if (imgSrc && sourceCoord && gyCoord) {
+                var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + sourceCoord.top + 'px; left: ' + sourceCoord.left + 'px; filter: brightness(1.1);">' +
                     '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
                         '<div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>' +
                     '</div>' +
                 '</div>');
 
-                $('body').append(flightClone);
+                $('#mat').append(flightClone);
 
                 flightClone.transition({
-                    top: gyOffset.top,
-                    left: gyOffset.left,
+                    top: gyCoord.top,
+                    left: gyCoord.left,
                     scale: 0.95,
                     opacity: 0.4
                 }, getAnimDuration(450), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
@@ -494,12 +499,15 @@ var BattleFX = {
 
             toZone.css({ 'visibility': 'hidden', 'opacity': '0' });
 
-            if (fromOffset && toOffset) {
+            var fromCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(fromZone) : null;
+            var toCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(toZone) : null;
+
+            if (fromCoord && toCoord) {
                 var faceContent = isFaceDown 
                     ? '<div class="card-back"></div>' 
                     : '<div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>';
 
-                var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + cardWidth + 'px; height: ' + cardHeight + 'px; top: ' + fromOffset.top + 'px; left: ' + fromOffset.left + 'px; filter: drop-shadow(0 0 16px rgba(212, 175, 55, 0.9)) brightness(1.1);">' +
+                var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + cardWidth + 'px; height: ' + cardHeight + 'px; top: ' + fromCoord.top + 'px; left: ' + fromCoord.left + 'px; filter: drop-shadow(0 0 16px rgba(212, 175, 55, 0.9)) brightness(1.1);">' +
                     '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
                         faceContent +
                     '</div>' +
@@ -509,14 +517,14 @@ var BattleFX = {
                     flightClone.css('transform', 'rotate(90deg)');
                 }
 
-                $('body').append(flightClone);
+                $('#mat').append(flightClone);
 
                 flightClone.transition({
-                    top: toOffset.top,
-                    left: toOffset.left,
+                    top: toCoord.top,
+                    left: toCoord.left,
                     rotate: isDefense ? '90deg' : '0deg',
                     scale: 1.05
-                }, getAnimDuration(480), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                }, getAnimDuration(520), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
                     flightClone.remove();
                     resolve();
                 });

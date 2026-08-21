@@ -157,6 +157,9 @@ function updateCardImage(squareElm) {
     } else {
         target.find('img').removeAttr('src').hide();
     }
+    if (typeof refreshPreviewIfHovering === 'function') {
+        refreshPreviewIfHovering(target);
+    }
 }
 
 function clearHand(who) {
@@ -183,6 +186,7 @@ function showAvailableZones() {
 
 // Highlight the correct target zones depending on the selected hand card
 function showAvailableZonesForCard(cardDef) {
+    clearAvailableZones();
     if (!cardDef) return;
 
     if (cardDef.type === 'monsters') {
@@ -208,6 +212,13 @@ function showAvailableZonesForCard(cardDef) {
 // (boolean) True if the player's hand card can currently be played somewhere
 function isCardCurrentlyPlayable(cardDef) {
     if (!cardDef) return false;
+
+    // Arcane Ward turn lock: prevents activating Spell/Trap cards
+    if (cardDef.type !== 'monsters') {
+        if (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.spellTrapLocked && GameState.turn.spellTrapLockedBy === 'player') {
+            return false;
+        }
+    }
 
     // Declarative Unified Registry Resolution
     if (typeof cardDef.canActivate === 'function') {
@@ -303,6 +314,13 @@ function isCardCurrentlyPlayable(cardDef) {
 // Get descriptive reason why card cannot be played
 function getCardUnplayableReason(cardDef) {
     if (!cardDef) return 'Invalid card.';
+
+    // Arcane Ward lock check
+    if (cardDef.type !== 'monsters') {
+        if (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.spellTrapLocked && GameState.turn.spellTrapLockedBy === 'player') {
+            return "Arcane Ward's barrier prevents you from activating Spell/Trap Cards this turn.";
+        }
+    }
 
     // Declarative Unified Registry Resolution
     if (typeof cardDef.unplayableReason === 'function') {

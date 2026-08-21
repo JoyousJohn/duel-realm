@@ -7,7 +7,7 @@ function AICalcMonsterPosition(monsterName) {
     const def = getMonsterDef({ cardId: monsterName });
 
     // FLIP effect monsters should always be Set in defense-down
-    if (monsterName === 'man-eater-bug' || monsterName === 'hane-hane' || monsterName === 'dragon-piper') {
+    if (monsterName === 'man-eater-bug' || monsterName === 'zephyr-imp' || monsterName === 'dragon-piper') {
         return 'defense-down';
     }
 
@@ -916,7 +916,7 @@ async function AISummonMonsterRoutine() {
 function AIEvaluateEquipSpell(equipDef) {
     if (!equipDef || equipDef.subType !== 'equip') return null;
     var faceUpOwn = GameState.getMonstersOnField('computer').filter(function(m) {
-        return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+        return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, 'computer') : true);
     });
     if (faceUpOwn.length === 0) return null;
 
@@ -1007,7 +1007,7 @@ async function AIPlaySpellTrapCards() {
                     if (GameState.isFieldZoneEmpty('computer')) {
                         var playerFieldInst = GameState.player.field.fieldZone;
                         var isIdenticalActive = (playerFieldInst && playerFieldInst.cardId === def.id);
-                        if (!isIdenticalActive) {
+                        if (!isIdenticalActive && shouldAIPlayFieldSpell(def)) {
                             shouldPlay = true;
                             zoneKind = 'field';
                             targetSquare = getFieldZoneElm('computer');
@@ -1040,23 +1040,45 @@ async function AIPlaySpellTrapCards() {
                             if (GameState.player.field.fieldZone) hasPlayerST = true;
                             shouldPlay = hasPlayerST;
                         } else if (def.id === 'heavy-storm') {
-                            var compST = 0;
-                            var playerST = 0;
-                            for (var z = 1; z <= 6; z++) {
-                                if (GameState.computer.field.spells[z]) compST++;
-                                if (GameState.player.field.spells[z]) playerST++;
+                            var compSTCount = 0;
+                            for (var z1 = 1; z1 <= 6; z1++) {
+                                if (GameState.computer.field.spells[z1]) compSTCount++;
                             }
-                            if (GameState.player.field.fieldZone) playerST++;
-                            var playerSwords = hasActiveCard('player', 'swords-of-revealing-light');
-                            var playerJar = (typeof isDragonLocked === 'function') && isDragonLocked();
-                            shouldPlay = (playerST > 0 && (playerST > compST || playerSwords || playerJar));
-                        } else if (def.id === 'fissure' || def.id === 'smashing-ground') {
-                            var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
-                                return m.card && !m.card.faceDown && !isImmuneToSpellTargeting(m.card, 'computer');
+                            if (GameState.computer.field.fieldZone) compSTCount++;
+
+                            var playerSTCount = 0;
+                            for (var z2 = 1; z2 <= 6; z2++) {
+                                if (GameState.player.field.spells[z2]) playerSTCount++;
+                            }
+                            if (GameState.player.field.fieldZone) playerSTCount++;
+
+                            shouldPlay = playerSTCount > 0 && (compSTCount === 0 || playerSTCount > compSTCount);
+                        } else if (def.id === 'fissure') {
+                            var playerMonsters = GameState.getMonstersOnField('player');
+                            var targetablePlayerMonsters = playerMonsters.filter(function(m) {
+                                return !isImmuneToSpellTargeting(m.card, 'computer');
                             });
-                            shouldPlay = playerFaceUp.length > 0;
+                            shouldPlay = targetablePlayerMonsters.length > 0;
+                        } else if (def.id === 'tribute-to-the-doomed') {
+                            var monstersOnField = Queries.getAllMonsters();
+                            var targetableMonsters = monstersOnField.filter(function(m) {
+                                return !isImmuneToSpellTargeting(m.card, 'computer');
+                            });
+                            var hasDiscardCandidate = GameState.computer.hand.length >= 2;
+                            shouldPlay = targetableMonsters.length > 0 && hasDiscardCandidate;
                         } else if (def.id === 'monster-reborn') {
-                            shouldPlay = (getFirstFreeZone('computer') !== undefined) && (getGraveyardMonsters().length > 0);
+                            var targetableGY = (typeof getGraveyardMonsters === 'function') ? getGraveyardMonsters() : [];
+                            shouldPlay = targetableGY.length > 0 && getFirstFreeZone('computer') !== undefined;
+                        } else if (def.id === 'mausoleum-of-offerings') {
+                            var playerMons = GameState.getMonstersOnField('player').length;
+                            var compMons = GameState.getMonstersOnField('computer').length;
+                            var handMonsters = GameState.computer.hand.filter(function(c) {
+                                var d = cards[c.cardId]; return d && d.type === 'monsters';
+                            });
+                            var hasHighLvl = handMonsters.some(function(c) {
+                                var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            });
+                            shouldPlay = (hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'vanguards-accord') {
                             var compCount = GameState.getMonstersOnField('computer').length;
                             var compDeck = (GameState.computer && GameState.computer.deck) ? GameState.computer.deck : [];
@@ -1104,6 +1126,17 @@ async function AIPlaySpellTrapCards() {
                                 var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
                             });
                             shouldPlay = (hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined);
+                        } else if (def.id === 'tribute-of-the-ages') {
+                            var opp = GameState.getOpponent('computer');
+                            var oppMonsters = GameState.getMonstersOnField(opp).filter(function(m) {
+                                var d = cards[m.card.cardId];
+                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !(m.card.cannotBeTributed || (d && d.cannotBeTributed)) && !isImmuneToSpellTargeting(m.card, 'computer');
+                            });
+                            var hasTributeMonsterInHand = GameState.computer.hand.some(function(c) {
+                                var d = cards[c.cardId];
+                                return d && d.type === 'monsters' && (d.level >= 5 || d.id === 'infernal-incinerator');
+                            });
+                            shouldPlay = (oppMonsters.length > 0 && hasTributeMonsterInHand && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
                         } else if (def.id === 'gravity-tether') {
@@ -1112,20 +1145,28 @@ async function AIPlaySpellTrapCards() {
                             var bestEquipTarget = AIEvaluateEquipSpell(def);
                             shouldPlay = (bestEquipTarget !== null);
                         } else {
-                            shouldPlay = true;
+                            // Only default to true if the card actually meets its activation condition
+                            shouldPlay = (typeof def.canActivate !== 'function') || def.canActivate('computer');
                         }
                     }
+                }
+
+                // Double check that activation condition is strictly met
+                if (shouldPlay && typeof def.canActivate === 'function' && !def.canActivate('computer')) {
+                    shouldPlay = false;
                 }
 
                 if (shouldPlay) {
                     var zoneNum = zoneKind === 'field' ? null : getFirstFreeZone('computer');
                     if (zoneNum === undefined && zoneKind !== 'field') continue;
 
-                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), targetSquare || getSquareElm('computer', zoneNum), def, zoneKind);
-                    playedAny = true;
-                    cardPlayedThisPass = true;
-                    await sleep(getAnimDuration(300));
-                    break;
+                    var success = await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), targetSquare || getSquareElm('computer', zoneNum), def, zoneKind);
+                    if (success !== false) {
+                        playedAny = true;
+                        cardPlayedThisPass = true;
+                        await sleep(getAnimDuration(300));
+                        break;
+                    }
                 }
 
             } else if (def.type === 'traps') {
@@ -1214,4 +1255,83 @@ async function AIPlaySpellTrapCards() {
     if (playedAny) {
         updateResourceCounters();
     }
+}
+
+/**
+ * Tactical evaluation of whether the AI should activate a Field Spell.
+ * Ensures the AI doesn't activate field spells that disproportionately empower the player
+ * or waste Mausoleum of Offerings without high-level tribute monsters.
+ */
+function shouldAIPlayFieldSpell(fieldDef) {
+    if (!fieldDef) return false;
+
+    // 1. Mausoleum of Offerings: only play if AI has a high-level monster in hand and sufficient LP
+    if (fieldDef.id === 'mausoleum-of-offerings') {
+        var compLP = GameState.computer.lp;
+        var hasTributeMonsterInHand = GameState.computer.hand.some(function(c) {
+            var d = cards[c.cardId];
+            if (!d || d.type !== 'monsters') return false;
+            var reqTributes = (typeof getRequiredTributes === 'function') ? getRequiredTributes(d.level) : 0;
+            return reqTributes > 0 && compLP > (reqTributes * 1000);
+        });
+        return hasTributeMonsterInHand;
+    }
+
+    // 2. Stat-altering Field Spells: calculate net ATK differential
+    var compMonsters = GameState.getMonstersOnField('computer');
+    var playerMonsters = GameState.getMonstersOnField('player');
+
+    // Also factor in monsters in AI's hand that could be summoned
+    var compHandMonsters = GameState.computer.hand.filter(function(c) {
+        var d = cards[c.cardId];
+        return d && d.type === 'monsters';
+    });
+
+    var compBenefit = 0;
+    compMonsters.forEach(function(m) {
+        var mDef = cards[m.card.cardId];
+        if (mDef) {
+            var simMods = getFieldMods(mDef, fieldDef.id);
+            var curMods = getFieldMods(mDef);
+            compBenefit += (simMods.atk - curMods.atk);
+        }
+    });
+    compHandMonsters.forEach(function(c) {
+        var mDef = cards[c.cardId];
+        if (mDef) {
+            var simMods = getFieldMods(mDef, fieldDef.id);
+            var curMods = getFieldMods(mDef);
+            compBenefit += Math.floor((simMods.atk - curMods.atk) * 0.6); // Weight hand monsters moderately
+        }
+    });
+
+    var playerBenefit = 0;
+    playerMonsters.forEach(function(m) {
+        var isFaceUp = m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+        if (isFaceUp) {
+            var mDef = cards[m.card.cardId];
+            if (mDef) {
+                var simMods = getFieldMods(mDef, fieldDef.id);
+                var curMods = getFieldMods(mDef);
+                playerBenefit += (simMods.atk - curMods.atk);
+            }
+        }
+    });
+
+    // 1. Never play if player gets any positive ATK boost while AI gets 0 or negative boost
+    if (playerBenefit > 0 && compBenefit <= 0) {
+        return false;
+    }
+
+    // 2. Never play if player's gain exceeds AI's gain
+    if (playerBenefit >= compBenefit && playerBenefit > 0) {
+        return false;
+    }
+
+    // 3. If AI has 0 gain and no hand monsters that benefit, do not play
+    if (compBenefit <= 0) {
+        return false;
+    }
+
+    return true;
 }

@@ -1490,13 +1490,19 @@ async function playNonMonsterCard(who, source, targetSquare, cardDef, zoneKind) 
         } else {
             addToFeed('(Action) <em>' + cardDef.name + '</em> cannot be placed there.\n\n');
         }
-        return;
+        return false;
+    }
+
+    if (who === 'player' && typeof isCardCurrentlyPlayable === 'function' && !isCardCurrentlyPlayable(cardDef)) {
+        var reason = (typeof getCardUnplayableReason === 'function') ? getCardUnplayableReason(cardDef) : 'Conditions to activate this card are not met.';
+        addToFeed('(Action) Cannot play <em>' + cardDef.name + '</em>: ' + reason + '\n\n');
+        return false;
     }
 
     if (typeof cardDef.canActivate === 'function' && !cardDef.canActivate(who)) {
         var reason = (typeof cardDef.unplayableReason === 'function') ? cardDef.unplayableReason(who) : 'Conditions to activate this card are not met.';
         addToFeed('(Action) Cannot play <em>' + cardDef.name + '</em>: ' + reason + '\n\n');
-        return;
+        return false;
     }
 
     resetActiveCardClass();
@@ -2385,23 +2391,24 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position, orig
     } else {
         // Spirit-flight animation from graveyard to monster zone
         var gyZone = $('#' + sourceWho + '-graveyard-zone');
-        var gyOffset = gyZone.length ? gyZone.offset() : null;
-        var targetOffset = zone.offset();
-        if (gyOffset && targetOffset) {
+        var gyCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(gyZone) : null;
+        var targetCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(zone) : null;
+        if (gyCoord && targetCoord) {
             var isHiddenFlight = (position === 'defense-down');
             var flightFace = isHiddenFlight
                 ? '<div class="card-back"></div>'
                 : '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>';
-            var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + gyOffset.top + 'px; left: ' + gyOffset.left + 'px;">' +
+            var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + gyCoord.top + 'px; left: ' + gyCoord.left + 'px;">' +
                 '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
                     flightFace +
                 '</div>' +
             '</div>');
-            $('body').append(flightClone);
+            $('#mat').append(flightClone);
             await new Promise(function(resolve) {
                 flightClone.transition({
-                    top: targetOffset.top,
-                    left: targetOffset.left,
+                    top: targetCoord.top,
+                    left: targetCoord.left,
+                    rotate: (position && position.startsWith('defense')) ? '90deg' : '0deg',
                     scale: 1
                 }, getAnimDuration(420), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
                     flightClone.remove();
@@ -2557,21 +2564,21 @@ async function specialSummonMonsterFromDeck(who, cardId, position) {
     zone.find('.front, .back').removeAttr('style');
     zone.find('.front, .back').removeData('transform');
 
-    // Flight animation from deck zone to field zone
+    // Flight animation from deck zone to field zone in 3D perspective space
     var deckZoneElm = $('#' + who + '-deck-zone');
-    var deckOffset = deckZoneElm.length ? deckZoneElm.offset() : null;
-    var targetOffset = zone.offset();
-    if (deckOffset && targetOffset) {
-        var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + deckOffset.top + 'px; left: ' + deckOffset.left + 'px;">' +
+    var deckCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(deckZoneElm) : null;
+    var targetCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(zone) : null;
+    if (deckCoord && targetCoord) {
+        var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + deckCoord.top + 'px; left: ' + deckCoord.left + 'px;">' +
             '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
                 '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
             '</div>' +
         '</div>');
-        $('body').append(flightClone);
+        $('#mat').append(flightClone);
         await new Promise(function(resolve) {
             flightClone.transition({
-                top: targetOffset.top,
-                left: targetOffset.left,
+                top: targetCoord.top,
+                left: targetCoord.left,
                 rotate: isDefense ? '90deg' : '0deg',
                 scale: 1
             }, getAnimDuration(420), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {

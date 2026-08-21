@@ -16,16 +16,24 @@ function getFieldMods(monsterDef, overridePlayerFieldId) {
     var atkMod = 0;
     var defMod = 0;
     var bothSides = ["player", "computer"];
+    var fieldsToEvaluate = [];
 
+    // Collect currently active field spells on both sides
     for (var s = 0; s < bothSides.length; s++) {
         var who = bothSides[s];
-        var fieldId = null;
-        if (who === "player" && overridePlayerFieldId !== undefined) {
-            fieldId = overridePlayerFieldId;
-        } else {
-            var fieldInst = (typeof GameState !== "undefined" && GameState && GameState[who] && GameState[who].field) ? GameState[who].field.fieldZone : null;
-            if (fieldInst) fieldId = fieldInst.cardId;
+        var fieldInst = (typeof GameState !== "undefined" && GameState && GameState[who] && GameState[who].field) ? GameState[who].field.fieldZone : null;
+        if (fieldInst && fieldInst.cardId) {
+            fieldsToEvaluate.push(fieldInst.cardId);
         }
+    }
+
+    // If previewing a field spell from hand, stack it on top of existing active field spells
+    if (typeof overridePlayerFieldId === "string" && overridePlayerFieldId.length > 0) {
+        fieldsToEvaluate.push(overridePlayerFieldId);
+    }
+
+    for (var i = 0; i < fieldsToEvaluate.length; i++) {
+        var fieldId = fieldsToEvaluate[i];
         if (!fieldId) continue;
 
         if (fieldId === "yami") {
@@ -375,6 +383,9 @@ function updateStatModBadges(previewFieldSpellId) {
 
     // 9. Update TRIBUTABLE badges for opponent monsters bound by Tribute of the Ages
     updateTributeBoundBadges();
+
+    // 10. Update Destruction Preview Red X Marks when mass removal cards are selected
+    updateDestructionPreviewMarks();
 }
 
 // Update or create visual "DEF LOCKED" badges for Dragon monsters affected by Dragon Capture Jar
@@ -415,7 +426,7 @@ function updateDefLockedBadges() {
 // controller knows the monster is a flip monster waiting to be triggered.
 // Only shown for the human player's own monsters — showing it on the AI's
 // face-down monsters would leak that they are flip monsters.
-var FLIP_EFFECT_MONSTERS = ["man-eater-bug", "hane-hane", "dragon-piper", "spear-cretin"];
+var FLIP_EFFECT_MONSTERS = ["man-eater-bug", "zephyr-imp", "dragon-piper", "spear-cretin"];
 
 function updateFlipBadges() {
     for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
@@ -612,6 +623,104 @@ function updateTributeBoundBadges() {
                 }
             } else if (existing.length) {
                 existing.remove();
+            }
+        }
+    });
+}
+
+// Renders translucent red X destruction preview overlays over revealed/face-up monsters
+// that would be destroyed if the currently selected hand card is activated.
+function updateDestructionPreviewMarks() {
+    var activeHandCard = (typeof activeCard !== 'undefined' && activeCard && activeCard.length && activeCard.closest('#player-hand').length > 0) ? activeCard : null;
+    var cardId = activeHandCard ? activeHandCard.attr('data-card-name') : null;
+    var cardDef = cardId ? getCardDef(cardId) : null;
+
+    // First remove all existing destruction preview marks and target checkmarks
+    $('.monster-destruct-preview-overlay, .monster-target-preview-overlay').remove();
+
+    if (!cardDef || typeof GameState === 'undefined' || !GameState) return;
+
+    var targetsToMark = []; // Array of { who, zone }
+    var isGreenCheck = false;
+
+    if (cardDef.id === 'lunar-grimoire') {
+        // Lunar Grimoire can target any face-up Attack or face-up Defense monster (except tokens and spell-immune)
+        isGreenCheck = true;
+        ['player', 'computer'].forEach(function(who) {
+            var monsters = GameState.getMonstersOnField(who);
+            monsters.forEach(function(entry) {
+                var m = entry.card;
+                var d = m ? cards[m.cardId] : null;
+                var isToken = m && (m.isToken || (d && (d.isToken || d.subType === 'token')));
+                var isFaceUp = m && !m.faceDown && m.position !== 'defense-down';
+                var isImmune = (typeof isImmuneToSpellTargeting === 'function') && isImmuneToSpellTargeting(m, 'player');
+                if (isFaceUp && !isToken && !isImmune) {
+                    targetsToMark.push({ who: who, zone: entry.zone });
+                }
+            });
+        });
+    } else if (cardDef.id === 'dark-hole') {
+        // Dark Hole destroys all monsters on both fields (face-up and face-down defense)
+        ['player', 'computer'].forEach(function(who) {
+            var monsters = GameState.getMonstersOnField(who);
+            monsters.forEach(function(entry) {
+                targetsToMark.push({ who: who, zone: entry.zone });
+            });
+        });
+    } else if (cardDef.id === 'raigeki') {
+        // Raigeki destroys all opponent monsters that are revealed/visible to the player
+        var oppMonsters = GameState.getMonstersOnField('computer');
+        oppMonsters.forEach(function(entry) {
+            var isFaceDown = entry.card && (entry.card.position === 'defense-down' || entry.card.faceDown);
+            if (!isFaceDown) {
+                targetsToMark.push({ who: 'computer', zone: entry.zone });
+            }
+        });
+    } else if (cardDef.id === 'fissure') {
+        // Fissure destroys the face-up opponent monster with the lowest ATK
+        var faceUpOpp = GameState.getMonstersOnField('computer').filter(function(m) {
+            return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, 'player') : true);
+        });
+        if (faceUpOpp.length > 0) {
+            faceUpOpp.sort(function(a, b) {
+                var atkA = (typeof getMonsterAtk === 'function') ? getMonsterAtk(a.card) : (cards[a.card.cardId] ? cards[a.card.cardId].atk || 0 : 0);
+                var atkB = (typeof getMonsterAtk === 'function') ? getMonsterAtk(b.card) : (cards[b.card.cardId] ? cards[b.card.cardId].atk || 0 : 0);
+                return atkA - atkB;
+            });
+            targetsToMark.push({ who: 'computer', zone: faceUpOpp[0].zone });
+        }
+    } else if (cardDef.id === 'smashing-ground') {
+        // Smashing Ground destroys the face-up opponent monster with the highest DEF
+        var faceUpOpp = GameState.getMonstersOnField('computer').filter(function(m) {
+            return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, 'player') : true);
+        });
+        if (faceUpOpp.length > 0) {
+            faceUpOpp.sort(function(a, b) {
+                var defA = (typeof getMonsterDef === 'function') ? getMonsterDef(a.card) : (cards[a.card.cardId] ? cards[a.card.cardId].def || 0 : 0);
+                var defB = (typeof getMonsterDef === 'function') ? getMonsterDef(b.card) : (cards[b.card.cardId] ? cards[b.card.cardId].def || 0 : 0);
+                return defB - defA;
+            });
+            targetsToMark.push({ who: 'computer', zone: faceUpOpp[0].zone });
+        }
+    }
+
+    // Render red X or green checkmark overlays on the matched squares
+    targetsToMark.forEach(function(target) {
+        var square = getSquareElm(target.who, target.zone);
+        if (square && square.length) {
+            var zone = square.find('div.card-zone.main-zone');
+            if (zone.length) {
+                if (isGreenCheck && !zone.find('.monster-target-preview-overlay').length) {
+                    var checkOverlay = $('<div class="monster-target-preview-overlay">' +
+                        '<div class="monster-target-checkmark"></div>' +
+                    '</div>');
+                    zone.append(checkOverlay);
+                } else if (!isGreenCheck && !zone.find('.monster-destruct-preview-overlay').length) {
+                    var overlay = $('<div class="monster-destruct-preview-overlay">' +
+                        '<div class="monster-destruct-x"></div>' +
+                    '</div>');
+                    zone.append(overlay);
+                }
             }
         }
     });

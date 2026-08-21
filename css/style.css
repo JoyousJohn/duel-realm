@@ -1,7 +1,16 @@
 :root {
-    --card-width: clamp(74px, 6.2vw, 94px);
-    --card-height: calc(var(--card-width) * 1.45);
+    --card-width: clamp(4vw, 6.2vw, 9vw);
+    --card-height: calc(var(--card-width) * 1.5);
     --card-aspect-ratio: calc(var(--card-height) / var(--card-width));
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: fixed;
 }
 
 * {
@@ -38,8 +47,7 @@ img {
 }
 
 #mat {
-    width: 95%;
-    max-width: 1040px;
+    width: 100%;
     height: 92%;
     max-height: 94vh;
     display: flex;
@@ -223,10 +231,18 @@ img {
 }
 
 /* Hand cards with no available action are de-emphasized with full grayscale
-   and nudged down smoothly below the actionable row */
+   and nudged down smoothly below the actionable row.
+   Apply grayscale only to the card artwork/container, leaving HUD badges crisp & full color. */
 #player-hand > .card.card-not-actionable {
-    filter: grayscale(1);
     top: 10px;
+}
+
+#player-hand > .card.card-not-actionable .card-front,
+#player-hand > .card.card-not-actionable .card-img,
+#player-hand > .card.card-not-actionable .front,
+#player-hand > .card.card-not-actionable .back {
+    filter: grayscale(1);
+    opacity: 0.72;
 }
 
 @keyframes actionableBreathing {
@@ -1225,21 +1241,26 @@ img {
    On-Mat Tribute Summon Selection Styles (Modern Tactical UX)
    ========================================================================== */
 
-body.tribute-selection-mode #opponent-field,
-body.tribute-selection-mode #player-field .card-zone-square.spell-zone-square {
-    opacity: 0.55;
-    transition: opacity 0.2s ease;
+body.tribute-selection-mode #computer-field,
+body.tribute-selection-mode #player-field .card-zone-square.spell-zone-square,
+body.tribute-selection-mode #player-hand > .card:not(.active-card) {
+    opacity: 0.45;
+    filter: grayscale(85%);
+    transition: opacity 0.22s ease, filter 0.22s ease;
 }
 
 body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candidate-highlight):not(.available-drop-zone) {
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
+    opacity: 0.4;
+    filter: grayscale(85%);
+    transition: opacity 0.22s ease, filter 0.22s ease;
 }
 
 .card-zone-square.tribute-candidate-highlight {
     cursor: pointer !important;
     position: relative;
     z-index: 40;
+    opacity: 1 !important;
+    filter: none !important;
 }
 
 /* During tribute selection, suppress the general blue actionable glow on the
@@ -1401,7 +1422,8 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
 /* Floating On-Mat Tribute Action Bar */
 .tribute-action-bar {
     position: fixed;
-    bottom: 24px;
+    top: 24px;
+    bottom: auto;
     left: 50%;
     transform: translateX(-50%);
     z-index: 250;
@@ -1415,13 +1437,13 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
     border: 1.5px solid rgba(212, 175, 55, 0.7);
     border-radius: 40px;
     box-shadow: 0 14px 38px rgba(0, 0, 0, 0.92), 0 0 22px rgba(212, 175, 55, 0.35);
-    animation: tributeBarSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: tributeBarSlideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes tributeBarSlideUp {
+@keyframes tributeBarSlideDown {
     from {
         opacity: 0;
-        transform: translate(-50%, 20px);
+        transform: translate(-50%, -20px);
     }
     to {
         opacity: 1;

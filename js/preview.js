@@ -1,47 +1,55 @@
 var hoverCardName;
 
-$(document).on('mouseenter', '.card-zone-square, .card', function() {
-    var square = $(this).closest('.card-zone-square');
-    var isOpponentField = $(this).closest('#computer-field').length > 0;
-    var isOpponentHand = $(this).closest('#computer-hand').length > 0;
+// Populate the sidebar preview for a given card square (or card element).
+// Returns true if the preview was populated.
+function populatePreviewForElement(elm) {
+    var $elm = $(elm);
+    var square = $elm.closest('.card-zone-square');
+    var isOpponentField = $elm.closest('#computer-field').length > 0;
+    var isOpponentHand = $elm.closest('#computer-hand').length > 0;
 
     if (isOpponentHand) {
-        hoverCardName = null;
-        $('#info-panel').removeClass('sidebar-inspecting');
-        $('#duel-log-module').show();
-        $('#info-stats').show();
-        $('#scanner-active').hide();
-        $('#scanner-idle').show();
-        $('#preview-card-img').removeAttr('src');
-        return;
+        return false;
     }
 
     if (isOpponentField) {
-        var pos = $(this).attr('data-card-position') || (square.length ? square.attr('data-card-position') : '');
+        var pos = $elm.attr('data-card-position') || (square.length ? square.attr('data-card-position') : '');
         var zoneNum = square.length ? parseInt(square.attr('data-zone')) : null;
-
-        // Check GameState as well to guarantee face-down cards are completely hidden
         var monsterInst = (zoneNum && GameState && GameState.computer && GameState.computer.field && GameState.computer.field.monsters) ? GameState.computer.field.monsters[zoneNum] : null;
         var spellInst = (zoneNum && GameState && GameState.computer && GameState.computer.field && GameState.computer.field.spells) ? GameState.computer.field.spells[zoneNum] : null;
 
-        var isFaceDown = (pos === 'defense-down' || pos === 'set' || (pos && pos.indexOf('down') > -1) || 
-                          (monsterInst && (monsterInst.position === 'defense-down' || monsterInst.faceDown)) || 
+        var isFaceDown = (pos === 'defense-down' || pos === 'set' || (pos && pos.indexOf('down') > -1) ||
+                          (monsterInst && (monsterInst.position === 'defense-down' || monsterInst.faceDown)) ||
                           (spellInst && (spellInst.position === 'set' || spellInst.faceDown)));
 
         if (isFaceDown) {
-            hoverCardName = null;
-            $('#info-panel').removeClass('sidebar-inspecting');
-            $('#duel-log-module').show();
-            $('#info-stats').show();
-            $('#scanner-active').hide();
-            $('#scanner-idle').show();
-            $('#preview-card-img').removeAttr('src');
-            return;
+            return false;
         }
     }
 
-    var cardName = $(this).attr('data-card-name') || (square.length ? square.attr('data-card-name') : '');
-    if (!cardName || !cards[cardName]) { return; }
+    // Extract card identifier across on-mat cards, hand cards, and modal tiles
+    var cardName = $elm.attr('data-card-name') ||
+                   $elm.attr('data-target-card') ||
+                   (square.length ? square.attr('data-card-name') : '');
+
+    // Fallback: extract from img src if card name isn't directly on container
+    if (!cardName) {
+        var imgSrc = $elm.find('img').attr('src');
+        if (imgSrc) {
+            var m = imgSrc.match(/\/([^\/]+)\.png$/i);
+            if (m && m[1]) {
+                var fileName = m[1] + '.png';
+                for (var key in cards) {
+                    if (cards[key].file === fileName) {
+                        cardName = key;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!cardName || !cards[cardName]) { return false; }
 
     hoverCardName = cardName;
 
@@ -193,9 +201,38 @@ $(document).on('mouseenter', '.card-zone-square, .card', function() {
     $('#info-stats').hide();
     $('#scanner-idle').hide();
     $('#scanner-active').show();
+
+    return true;
+}
+
+// Track real-time mouse position across the screen
+var currentMousePos = { x: -1, y: -1 };
+$(document).on('mousemove', function(e) {
+    currentMousePos.x = e.clientX;
+    currentMousePos.y = e.clientY;
 });
 
-$(document).on('mouseleave', '.card-zone-square, .card', function() {
+// If the mouse cursor is currently positioned over the given square, populate the sidebar preview.
+// Used after a card is animated/placed into a slot whose hover state pre-dates the card landing.
+function refreshPreviewIfHovering(squareElm) {
+    if (!squareElm || !squareElm.length) return;
+    if (currentMousePos.x < 0 || currentMousePos.y < 0) return;
+
+    var elmAtPoint = document.elementFromPoint(currentMousePos.x, currentMousePos.y);
+    if (elmAtPoint) {
+        var $hovered = $(elmAtPoint);
+        var isInside = $hovered.closest(squareElm).length > 0;
+        if (isInside) {
+            populatePreviewForElement(squareElm);
+        }
+    }
+}
+
+$(document).on('mouseenter', '.card-zone-square, .card, .rebirth-card-tile, .gy-card-tile, [data-target-card], [data-card-name]', function() {
+    populatePreviewForElement(this);
+});
+
+$(document).on('mouseleave', '.card-zone-square, .card, .rebirth-card-tile, .gy-card-tile, [data-target-card], [data-card-name]', function() {
     hoverCardName = null;
     $('#info-panel').removeClass('sidebar-inspecting');
     $('#duel-log-module').show();
