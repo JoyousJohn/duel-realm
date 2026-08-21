@@ -1317,8 +1317,8 @@ body.tribute-selection-mode #player-field .card-zone-square:not(.tribute-candida
     }
 }
 
-/* Floating On-Mat Spell Target Selection (Smashing Ground / Fissure tie-break) */
-body.spell-target-selection-mode #player-field .card-zone-square,
+/* Floating On-Mat Spell Target Selection (MST, Smashing Ground, Fissure, etc.) */
+body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-target-candidate),
 body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate),
 body.spell-target-selection-mode #player-hand > .card {
     opacity: 0.45;
@@ -1329,18 +1329,18 @@ body.spell-target-selection-mode #player-hand > .card {
     cursor: pointer !important;
     position: relative;
     z-index: 40;
+    opacity: 1 !important;
 }
 
-/* During spell target selection, suppress the general actionable glow so only
-   the tied candidates stand out on the opponent's mat. */
+/* During spell target selection, suppress the general actionable glow on non-candidates */
 body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .front,
 body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .back,
 body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-front,
 body.spell-target-selection-mode #computer-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-back,
-body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .front,
-body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .back,
-body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .card-front,
-body.spell-target-selection-mode #player-field .card-zone-square .card-actionable .card-back {
+body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-target-candidate) .card-actionable .front,
+body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-target-candidate) .card-actionable .back,
+body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-front,
+body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-target-candidate) .card-actionable .card-back {
     border-color: inherit !important;
     box-shadow: none !important;
     animation: none !important;

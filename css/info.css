@@ -562,8 +562,9 @@ body.sidebar-is-resizing * {
 
 /* Phase Tracker Step Pills */
 .phase-tracker-bar {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 4rem;
     padding-top: 4rem;
 }

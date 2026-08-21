@@ -7,7 +7,7 @@ A classic tactical Trading Card Game (TCG) simulator running natively in the bro
 ## 🎮 Features
 
 * **Authentic TCG Mechanics:**
-  * Strict phase flow: *Draw Phase*, *Standby Phase*, *Main Phase 1*, *Battle Phase*, *Main Phase 2*, and *End Phase*.
+  * Streamlined phase flow: *Draw Phase*, *Main Phase* (summoning, spell/trap activation, and battling all resolve within a single main phase), and *End Phase*.
   * **Tribute Summoning System:** Level 1–4 monsters require 0 Tributes, Level 5–6 require 1 Tribute, and Level 7+ require 2 Tributes.
   * **Normal Summon vs. Set:** Normal Summons enter face-up in Attack Position; Normal Sets enter face-down in Defense Position.
   * **Card Types & Sub-Types:** Monsters (Normal, Effect, Flip), Spells (Normal, Continuous, Equip, Field, Quick-Play), and Traps (Normal, Continuous).

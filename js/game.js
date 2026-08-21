@@ -117,7 +117,7 @@ function updateHandDisplay(who) {
  */
 function updateActionableCards() {
     var isPlayerTurn = (typeof turn !== 'undefined' && turn === 0 && GameState && GameState.turn && GameState.turn.active === 'player');
-    var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+    var isMainPhase = (typeof phase !== 'undefined' && phase === 1);
 
     // 1. Scan On-Field Monsters
     $('#player-field .card-zone-square[data-zone]').each(function() {
@@ -183,17 +183,37 @@ function updateActionableCards() {
 
         // Check if this monster is a Tribute Summon ready to be summoned
         var isTributeReady = false;
+        var tributeCount = 0;
+        var tributeLabel = '';
         if (canPlayFromHand && cardDef.type === 'monsters' && isPlayable) {
             var reqTributes = (typeof getRequiredTributes === 'function') ? getRequiredTributes(cardDef.level) : 0;
             if (cardDef.id === 'infernal-incinerator' || reqTributes > 0) {
                 isTributeReady = true;
+                tributeCount = (cardDef.id === 'infernal-incinerator') ? 1 : reqTributes;
+
+                // If we don't have enough tributable monsters but Mausoleum of Offerings
+                // makes the summon affordable via LP, label the badge as an LP cost instead.
+                var mausoleumPaid = false;
+                var lpCost = 0;
+                if (cardDef.id !== 'infernal-incinerator' && typeof isMausoleumActive === 'function' && isMausoleumActive()) {
+                    var ownMonsterCount = (GameState && GameState.player) ? GameState.getMonstersOnField('player').filter(function(entry) {
+                        var mDef = cards[entry.card.cardId];
+                        return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
+                    }).length : 0;
+                    lpCost = reqTributes * 1000;
+                    if (ownMonsterCount < reqTributes && GameState.player && GameState.player.lp > lpCost) {
+                        mausoleumPaid = true;
+                    }
+                }
+
+                tributeLabel = mausoleumPaid ? '(' + (lpCost / 1000) + 'K LP)' : '(' + tributeCount + ')';
             }
         }
 
         var existingTributeBadge = $(this).find('.hand-tribute-badge');
         if (isTributeReady) {
             if (!existingTributeBadge.length) {
-                $(this).append('<div class="hand-tribute-badge"><span class="hand-tribute-icon">🔥</span><span class="hand-tribute-label">TRIBUTE</span></div>');
+                $(this).append('<div class="hand-tribute-badge"><span class="hand-tribute-icon">🔥</span><span class="hand-tribute-label">TRIBUTE ' + tributeLabel + '</span></div>');
             }
         } else {
             existingTributeBadge.remove();
@@ -988,7 +1008,7 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
         btnEffect.hide();
         btnToAttack.prop('disabled', false).removeClass('is-locked').find('span').text('TO ATTACK');
 
-        var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+        var isMainPhase = (typeof phase !== 'undefined' && phase === 1);
         var hasHandCards = (GameState && GameState.player && GameState.player.hand) ? (GameState.player.hand.length > 0) : false;
         var canUseEffect = false;
         var effectBtnText = 'ACTIVATE EFFECT';
@@ -1065,10 +1085,10 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
     } else if (isPlayerField && !squareIsEmpty && (cardType === 'spells' || cardType === 'traps')) {
         const zoneNum = parseInt($(this).attr('data-zone'));
         const spellInst = (GameState && GameState.player && GameState.player.field && GameState.player.field.spells) ? GameState.player.field.spells[zoneNum] : null;
-        var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+        var isMainPhase = (typeof phase !== 'undefined' && phase === 1);
         var cardDef = spellInst ? cards[spellInst.cardId] : null;
 
-        if (isMainPhase && spellInst && cardDef && (cardDef.id === 'vortex-recall' || cardDef.id === 'crypt-awakening' || cardDef.id === 'mystical-space-typhoon' || cardDef.id === 'dragon-capture-jar')) {
+        if (isMainPhase && spellInst && cardDef && (cardDef.id === 'vortex-recall' || cardDef.id === 'crypt-awakening' || cardDef.id === 'eldritch-tether' || cardDef.id === 'mystical-space-typhoon' || cardDef.id === 'dragon-capture-jar')) {
             var ctxBar = $('#card-context-actions');
             $('#ctx-btn-defense').hide();
             $('#ctx-btn-to-attack').hide();
@@ -1473,15 +1493,10 @@ async function playNonMonsterCard(who, source, targetSquare, cardDef, zoneKind) 
         return;
     }
 
-    if (cardDef.id === 'change-of-heart') {
-        var opp = GameState.getOpponent(who);
-        var oppMonsters = GameState.getMonstersOnField(opp);
-        var freeZones = getAvailableSquaresElms(who).length;
-        if (oppMonsters.length === 0 || freeZones < 2) {
-            var reason = (oppMonsters.length === 0) ? 'Opponent controls no monsters.' : 'No space on your field to hold the opponent monster.';
-            addToFeed('(Action) Cannot play <em>' + cardDef.name + '</em>. ' + reason + '\n\n');
-            return;
-        }
+    if (typeof cardDef.canActivate === 'function' && !cardDef.canActivate(who)) {
+        var reason = (typeof cardDef.unplayableReason === 'function') ? cardDef.unplayableReason(who) : 'Conditions to activate this card are not met.';
+        addToFeed('(Action) Cannot play <em>' + cardDef.name + '</em>: ' + reason + '\n\n');
+        return;
     }
 
     resetActiveCardClass();
@@ -1574,6 +1589,12 @@ function changePositionSelected(position) {
     if (GameState.player.field.monsters[zoneNum]) {
         GameState.player.field.monsters[zoneNum].position = position;
         GameState.player.field.monsters[zoneNum].turnPosChanged = turnCount;
+        GameState.player.field.monsters[zoneNum].faceDown = (position === 'defense-down');
+    }
+
+    // Clean up FLIP badge immediately if changing to face-up
+    if (position !== 'defense-down') {
+        parentSquare.find('.flip-effect-badge').remove();
     }
 
     var turnDuration = getAnimDuration(380);
@@ -1639,7 +1660,9 @@ function activateSelectedMonsterEffect() {
     } else if (monsterInst.cardId === 'harpie-lady') {
         openHarpieLadyDiscardModal(zoneNum);
     } else if (monsterInst.cardId === 'exiled-force') {
-        openExiledForceTargetModal(zoneNum);
+        if (def && typeof def.onIgnitionEffect === 'function') {
+            def.onIgnitionEffect('player', zoneNum);
+        }
     } else if (monsterInst.cardId === 'gryphon-stormlord') {
         openGryphonStormlordModal(zoneNum);
     }
@@ -1682,7 +1705,7 @@ async function triggerTitanLpGain(titanWho, destroyedDef, gainSquare) {
     updateResourceCounters();
     if (typeof BattleFX !== 'undefined') {
         BattleFX.spawnFloatingDamage(gainSquare, absorbedAtk, 'heal');
-        BattleFX.animateLPCount(titanWho, GameState[titanWho].lp);
+        BattleFX.animateLPCount(titanWho, GameState[titanWho].lp, true);
     }
     addToFeed('<em>Titan of the Obsidian Peak</em> absorbs energy: ' + formatWho(titanWho) + ' gains <strong>' + absorbedAtk + ' LP</strong>!\n\n');
 }
@@ -1753,9 +1776,6 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     var attackerSquare = getSquareElm(attackerWho, attackerZone);
     attackerInst.hasAttacked = true;
 
-    // Set Battle Phase on HUD Tracker
-    setPhase(3); // BP - Battle Phase
-
     if (defenderZone === 'direct' || defenderZone === null || defenderZone === undefined) {
         // DIRECT ATTACK
         var damage = attackerAtk;
@@ -1793,9 +1813,6 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             directAttack: true
         });
 
-        if (attackerWho === 'player' && GameState.player.lp > 0 && GameState.computer.lp > 0) {
-            setPhase(4); // M2 - Main Phase 2
-        }
         updateResourceCounters();
         return;
     }
@@ -1822,7 +1839,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     // Flip face-up if attacked while face-down (Damage Step Reveal)
     if (defenderInst.position === 'defense-down') {
         defenderInst.position = 'defense-up';
+        defenderInst.faceDown = false;
         defenderSquare.attr('data-card-position', 'defense-up');
+        defenderSquare.find('.flip-effect-badge').remove();
         addToFeed(defenderDef.name + ' was flipped face-up!\n');
         if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateFlipReveal === 'function') {
             await BattleFX.animateFlipReveal(defenderSquare);
@@ -1998,9 +2017,6 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         await returnMonsterToHand(attackerWho, attackerZone);
     }
 
-    if (attackerWho === 'player' && GameState.player.lp > 0 && GameState.computer.lp > 0) {
-        setPhase(4); // M2 - Main Phase 2
-    }
     updateResourceCounters();
 }
 
@@ -2013,7 +2029,7 @@ var Actions = {
         var square = getSquareElm(who, zoneNum);
         if (!square || !square.length) return;
 
-        square.find('.borrowed-monster-badge, .def-locked-badge, .flip-effect-badge, .stat-mod-badge, .equip-tag-badge, .immune-badge, .no-tribute-badge, .attack-locked-badge, .effect-ready-badge, .action-badge').remove();
+        square.find('.borrowed-monster-badge, .def-locked-badge, .flip-effect-badge, .stat-mod-badge, .equip-tag-badge, .immune-badge, .no-tribute-badge, .attack-locked-badge, .effect-ready-badge, .tributable-bound-badge, .action-badge').remove();
         square.removeClass('available-zone spell-available-zone field-available-zone active-attacker-zone');
 
         square.attr('data-card-type', '');
@@ -2195,10 +2211,14 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
             updateStatModBadges();
         }
 
-        // Continuous Trap binding (Crypt Awakening): If trap leaves field, destroy bound monster
-        if (spellInst.boundMonsterUid) {
-            var bMonUid = spellInst.boundMonsterUid;
-            spellInst.boundMonsterUid = null;
+        var bMonUid = spellInst.boundMonsterUid;
+        spellInst.boundMonsterUid = null;
+
+        delete GameState[who].field.spells[zoneNum];
+        GameState[who].graveyard.push(spellInst);
+
+        // Continuous Trap binding (Crypt Awakening / Eldritch Tether): If trap leaves field, destroy bound monster
+        if (bMonUid) {
             var bMonZone = null;
             for (var mz = 1; mz <= 6; mz++) {
                 if (GameState[who].field.monsters[mz] && GameState[who].field.monsters[mz].uid === bMonUid) {
@@ -2210,9 +2230,6 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
                 await destroyMonster(who, bMonZone);
             }
         }
-
-        GameState[who].graveyard.push(spellInst);
-        delete GameState[who].field.spells[zoneNum];
 
         var square = getSpellSquareElm(who, zoneNum);
         if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateSpellToGraveyard === 'function') {
@@ -2232,7 +2249,7 @@ async function destroySpellTrap(who, zoneNum, isFieldZone, suppressGraveEffect) 
 // Special Summon a monster from a graveyard (or spawn a token) to a free monster zone.
 // `sourceWho` is the side whose graveyard the monster comes from; it is summoned
 // onto `targetWho`'s field. Returns the freeZone number on success, or false on failure.
-async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
+async function specialSummonMonster(targetWho, cardId, sourceWho, position, originElm, flightMs) {
     position = position || 'attack';
     var def = cards[cardId];
     if (!def || def.type !== 'monsters') return false;
@@ -2299,24 +2316,72 @@ async function specialSummonMonster(targetWho, cardId, sourceWho, position) {
     zone.find('.front, .back').removeData('transform');
 
     if (isToken) {
-        // Ethereal token materialization animation directly on the target zone
-        var tokenBurst = $('<div class="card" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + zone.offset().top + 'px; left: ' + zone.offset().left + 'px; opacity: 0; transform: scale(0.4);">' +
-            '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
-                '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
-            '</div>' +
-        '</div>');
-        $('body').append(tokenBurst);
-        await new Promise(function(resolve) {
-            tokenBurst.transition({
-                opacity: 1,
-                scale: 1.05
-            }, getAnimDuration(260), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
-                tokenBurst.transition({ scale: 1 }, getAnimDuration(100), function() {
-                    tokenBurst.remove();
-                    resolve();
+        if (originElm && originElm.length) {
+            // Fly from under the activating spell to the target monster zone
+            var targetTop = zone.offset().top;
+            var targetLeft = zone.offset().left;
+            var cw = zone.outerWidth();
+            var ch = zone.outerHeight();
+            var oOff = originElm.offset();
+            var originLeft = oOff.left + (originElm.outerWidth() - cw) / 2;
+            var originTop = oOff.top + (originElm.outerHeight() - ch) / 2;
+
+            var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + cw + 'px; height: ' + ch + 'px; top: ' + originTop + 'px; left: ' + originLeft + 'px; opacity: 0;">' +
+                '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
+                    '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
+                '</div>' +
+            '</div>');
+            $('body').append(flightClone);
+
+            // 1) Arise from under the spell card
+            await new Promise(function(resolve) {
+                flightClone.transition({
+                    opacity: 1,
+                    scale: 1.12
+                }, getAnimDuration(90), 'cubic-bezier(0.16, 1, 0.3, 1)', resolve);
+            });
+
+            // 2) Arc upward/outward, then drop onto the zone with a soft fade
+            var midTop = targetTop - 16;
+            var midLeft = (originLeft + targetLeft) / 2;
+            var flyHalf = Math.round((flightMs || 250) / 2);
+            await new Promise(function(resolve) {
+                flightClone.transition({
+                    top: midTop,
+                    left: midLeft,
+                    scale: 1.03
+                }, getAnimDuration(flyHalf), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                    flightClone.transition({
+                        top: targetTop,
+                        left: targetLeft,
+                        scale: 1,
+                        opacity: 0.92
+                    }, getAnimDuration(flyHalf) + 30, 'cubic-bezier(0.16, 1, 0.3, 1)', function() {
+                        flightClone.remove();
+                        resolve();
+                    });
                 });
             });
-        });
+        } else {
+            // Ethereal token materialization animation directly on the target zone
+            var tokenBurst = $('<div class="card" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + zone.offset().top + 'px; left: ' + zone.offset().left + 'px; opacity: 0; transform: scale(0.4);">' +
+                '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
+                    '<div class="card-front"><img class="card-img" src="cards/' + def.file + '"></div>' +
+                '</div>' +
+            '</div>');
+            $('body').append(tokenBurst);
+            await new Promise(function(resolve) {
+                tokenBurst.transition({
+                    opacity: 1,
+                    scale: 1.05
+                }, getAnimDuration(260), 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                    tokenBurst.transition({ scale: 1 }, getAnimDuration(100), function() {
+                        tokenBurst.remove();
+                        resolve();
+                    });
+                });
+            });
+        }
     } else {
         // Spirit-flight animation from graveyard to monster zone
         var gyZone = $('#' + sourceWho + '-graveyard-zone');

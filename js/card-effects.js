@@ -7,27 +7,13 @@
 // Card Activation & Resolution
 // ---------------------------------------------------------------------------
 
-// A monster with "cannot be targeted by the effects of Spell Cards" immunity.
-// The immunity only protects against the OPPONENT's spell effects — a player
-// may still target their own Deepsea Warrior with equip spells, etc.
+// A monster with "cannot be targeted by the effects of Spell Cards" immunity (Deepsea Warrior).
+// Per card text, the immunity is symmetrical: neither player can target this card with Spell effects (including Equip Spells).
 function isImmuneToSpellTargeting(monsterInst, spellController) {
-    if (!monsterInst || !spellController) return false;
+    if (!monsterInst) return false;
     if (monsterInst.cardId !== 'deepsea-warrior') return false;
     if (monsterInst.faceDown || monsterInst.position === 'defense-down') return false;
-    var owner = null;
-    ['player', 'computer'].forEach(function(who) {
-        if (GameState[who] && GameState[who].field && GameState[who].field.monsters) {
-            for (var z = 1; z <= 6; z++) {
-                var m = GameState[who].field.monsters[z];
-                if (m && (m === monsterInst || (monsterInst.uid && m.uid === monsterInst.uid))) {
-                    owner = who;
-                    break;
-                }
-            }
-        }
-    });
-    if (!owner) return false;
-    return owner !== spellController;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -222,11 +208,11 @@ async function activateCard(who, instance, zoneNum) {
             updateLPDisplay();
             updateResourceCounters();
             if (typeof BattleFX !== 'undefined') {
-                var oppSquare = getSquareElm(opp, 1);
-                if (oppSquare && oppSquare.length) {
-                    BattleFX.spawnFloatingDamage(oppSquare, 1000, 'heal');
+                var oppLpElm = opp === 'computer' ? $('#opponent-lp') : $('#player-lp');
+                if (oppLpElm && oppLpElm.length) {
+                    BattleFX.spawnFloatingDamage(oppLpElm, 1000, 'heal');
                 }
-                BattleFX.animateLPCount(opp, GameState[opp].lp);
+                BattleFX.animateLPCount(opp, GameState[opp].lp, true);
             }
             await destroySpellTrap(who, zoneNum, false);
             break;
@@ -326,7 +312,8 @@ async function activateCard(who, instance, zoneNum) {
             break;
         }
 
-        case 'crypt-awakening': {
+        case 'crypt-awakening':
+        case 'eldritch-tether': {
             addToFeed(def.name + ' activated: resurrecting a monster from the Graveyard in Attack Position!\n');
             var trapInst = GameState[who].field.spells[zoneNum];
             if (trapInst) {
@@ -334,11 +321,11 @@ async function activateCard(who, instance, zoneNum) {
                 trapInst.faceDown = false;
             }
             if (who === 'player') {
-                await promptPlayerCryptAwakening(zoneNum);
+                await promptPlayerCryptAwakening(zoneNum, def);
             } else {
                 var gyMonsters = GameState.computer.graveyard.filter(function(c) {
                     var d = cards[c.cardId];
-                    return d && d.type === 'monsters';
+                    return d && d.type === 'monsters' && !d.isToken && d.subType !== 'token';
                 });
                 if (gyMonsters.length > 0 && getFirstFreeZone('computer') !== undefined) {
                     gyMonsters.sort(function(a, b) {
@@ -346,19 +333,19 @@ async function activateCard(who, instance, zoneNum) {
                         return (dB.atk || 0) - (dA.atk || 0);
                     });
                     var bestMon = gyMonsters[0];
-                    var gIdx = GameState.computer.graveyard.findIndex(function(c) { return c.uid === bestMon.uid; });
-                    if (gIdx !== -1) GameState.computer.graveyard.splice(gIdx, 1);
-                    
-                    var freeZ = getFirstFreeZone('computer');
-                    await specialSummonMonster('computer', bestMon.cardId, 'computer', 'attack');
-                    var summonedInst = GameState.computer.field.monsters[freeZ];
+                    var freeZ = await specialSummonMonster('computer', bestMon.cardId, 'computer', 'attack');
+                    var summonedInst = (freeZ !== false && GameState.computer.field.monsters[freeZ]) ? GameState.computer.field.monsters[freeZ] : null;
                     if (summonedInst && trapInst) {
                         trapInst.boundMonsterUid = summonedInst.uid;
                         summonedInst.boundTrapUid = trapInst.uid;
                     }
                     updateGraveyardZones();
+                    var bDef = cards[bestMon.cardId];
+                    if (summonedInst) {
+                        addToFeed('Computer\'s ' + def.name + ' resurrected <strong>' + (bDef ? bDef.name : 'monster') + '</strong> in Attack Position!\n\n');
+                    }
                 } else {
-                    addToFeed('No valid monster in Graveyard to revive; Crypt Awakening remains on field.\n');
+                    addToFeed('No valid monster in Graveyard to revive; ' + def.name + ' remains on field.\n');
                 }
             }
             break;
@@ -366,21 +353,38 @@ async function activateCard(who, instance, zoneNum) {
 
         case 'vortex-recall': {
             addToFeed(def.name + ' activated: returning 1 monster on the field to the owner\'s hand!\n');
-            if (who === 'player') {
-                await promptPlayerVortexRecallTarget(who, zoneNum);
-            } else {
-                var playerMonsters = GameState.getMonstersOnField('player');
-                var compMonsters = GameState.getMonstersOnField('computer');
-                if (playerMonsters.length > 0) {
-                    playerMonsters.sort(function(a, b) {
-                        var dA = cards[a.card.cardId]; var dB = cards[b.card.cardId];
-                        return ((dB ? dB.atk : 0) || 0) - ((dA ? dA.atk : 0) || 0);
-                    });
-                    await applyVortexRecallTarget('player', playerMonsters[0].zone);
-                } else if (compMonsters.length > 0) {
-                    await applyVortexRecallTarget('computer', compMonsters[0].zone);
-                }
+            var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+            if (allMonsters.length === 0) {
+                addToFeed('No monsters on the field to return to hand; Vortex Recall resolves with no effect.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
             }
+
+            var chosen = await requestFieldTargetChoice(who, {
+                cardName: 'VORTEX RECALL',
+                prompt: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
+                confirmLabel: 'BOUNCE',
+                confirmIcon: '🌀',
+                candidates: allMonsters,
+                aiPick: function(cands) {
+                    var oppTargets = cands.filter(function(c) { return c.side !== who; });
+                    if (oppTargets.length > 0) {
+                        oppTargets.sort(function(a, b) {
+                            return (getMonsterAtk(b.inst || b.card) || 0) - (getMonsterAtk(a.inst || a.card) || 0);
+                        });
+                        return oppTargets[0];
+                    }
+                    return cands[0];
+                }
+            });
+
+            if (!chosen) {
+                addToFeed('Vortex Recall was cancelled.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+
+            await applyVortexRecallTarget(chosen.side, chosen.zone);
             await destroySpellTrap(who, zoneNum, false);
             break;
         }
@@ -426,30 +430,53 @@ async function activateCard(who, instance, zoneNum) {
 
             if (faceUpMonsters.length === 0) {
                 addToFeed('No face-up monsters on the field; Lunar Grimoire resolves with no effect.\n');
-            } else if (who === 'player') {
-                await promptPlayerLunarGrimoireTarget(faceUpMonsters);
-            } else {
-                var playerTargets = faceUpMonsters.filter(function(t) { return t.side === 'player'; });
-                if (playerTargets.length > 0) {
-                    playerTargets.sort(function(a, b) {
-                        return (getMonsterAtk(b.card) || 0) - (getMonsterAtk(a.card) || 0);
-                    });
-                    await applyLunarGrimoireFlip(playerTargets[0].side, playerTargets[0].zone);
-                } else {
-                    await applyLunarGrimoireFlip(faceUpMonsters[0].side, faceUpMonsters[0].zone);
-                }
+                await destroySpellTrap(who, zoneNum, false);
+                break;
             }
+
+            var chosen = await requestFieldTargetChoice(who, {
+                cardName: 'LUNAR GRIMOIRE',
+                prompt: 'SELECT 1 FACE-UP MONSTER TO FLIP TO FACE-DOWN DEFENSE',
+                confirmLabel: 'FLIP DEFENSE',
+                confirmIcon: '📖',
+                candidates: faceUpMonsters,
+                aiPick: function(cands) {
+                    var playerTargets = cands.filter(function(t) { return t.side === 'player'; });
+                    if (playerTargets.length > 0) {
+                        playerTargets.sort(function(a, b) {
+                            return (getMonsterAtk(b.card) || 0) - (getMonsterAtk(a.card) || 0);
+                        });
+                        return playerTargets[0];
+                    }
+                    return cands[0];
+                }
+            });
+
+            if (!chosen) {
+                addToFeed('Lunar Grimoire was cancelled.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
+            }
+
+            await applyLunarGrimoireFlip(chosen.side, chosen.zone);
             await destroySpellTrap(who, zoneNum, false);
             break;
         }
 
         case 'astral-phantoms': {
             addToFeed(def.name + ' activated: summoning Phantom Tokens in Defense Position!\n');
-            var summonedCount = 0;
+            var originElm = (typeof getSpellSquareElm === 'function') ? getSpellSquareElm(who, zoneNum) : null;
+            var astralPromises = [];
             for (var k = 0; k < 3; k++) {
-                var spawnedZone = await specialSummonMonster(who, 'phantom-token', who, 'defense-up');
-                if (spawnedZone === false) break;
-                var tokenInst = GameState[who].field.monsters[spawnedZone];
+                if (getFirstFreeZone(who) === undefined) break;
+                astralPromises.push(specialSummonMonster(who, 'phantom-token', who, 'defense-up', originElm));
+                if (k < 2 && typeof sleep === 'function') await sleep(90);
+            }
+            var astralZones = await Promise.all(astralPromises);
+            var summonedCount = 0;
+            for (var az = 0; az < astralZones.length; az++) {
+                if (astralZones[az] === false) continue;
+                var tokenInst = GameState[who].field.monsters[astralZones[az]];
                 if (tokenInst) {
                     tokenInst.cannotBeTributed = true;
                     tokenInst.isToken = true;
@@ -472,11 +499,18 @@ async function activateCard(who, instance, zoneNum) {
 
         case 'phantom-catalyst': {
             addToFeed(def.name + ' activated: summoning Catalyst Tokens in Defense Position!\n');
-            var summonedCount = 0;
+            var catalystOrigin = (typeof getSpellSquareElm === 'function') ? getSpellSquareElm(who, zoneNum) : null;
+            var catalystPromises = [];
             for (var k = 0; k < 2; k++) {
-                var spawnedZone = await specialSummonMonster(who, 'catalyst-token', who, 'defense-up');
-                if (spawnedZone === false) break;
-                var tokenInst = GameState[who].field.monsters[spawnedZone];
+                if (getFirstFreeZone(who) === undefined) break;
+                catalystPromises.push(specialSummonMonster(who, 'catalyst-token', who, 'defense-up', catalystOrigin));
+                if (k < 1 && typeof sleep === 'function') await sleep(90);
+            }
+            var catalystZones = await Promise.all(catalystPromises);
+            var summonedCount = 0;
+            for (var cz = 0; cz < catalystZones.length; cz++) {
+                if (catalystZones[cz] === false) continue;
+                var tokenInst = GameState[who].field.monsters[catalystZones[cz]];
                 if (tokenInst) {
                     tokenInst.cannotBeTributed = false;
                     tokenInst.isToken = true;
@@ -607,16 +641,32 @@ async function activateCard(who, instance, zoneNum) {
                 break;
             }
 
-            if (who === 'player') {
-                openRemoveTrapModal('player', zoneNum);
-            } else {
-                // AI picks opponent's face-up trap
-                var aiChoice = allTraps.find(function(t) { return t.who === 'player'; }) || allTraps[0];
-                var trapDef = cards[aiChoice.card.cardId];
-                await destroySpellTrap(aiChoice.who, aiChoice.zone, false);
-                addToFeed('Remove Trap destroyed ' + (trapDef ? trapDef.name : 'Trap') + ' on ' + aiChoice.who + '\'s field!\n');
+            var candidates = allTraps.map(function(t) {
+                return { side: t.who, zone: t.zone, card: t.card };
+            });
+
+            var chosen = await requestFieldTargetChoice(who, {
+                cardName: 'REMOVE TRAP',
+                prompt: 'SELECT 1 FACE-UP TRAP CARD ON THE FIELD TO DESTROY',
+                confirmLabel: 'DESTROY',
+                confirmIcon: '💥',
+                candidates: candidates,
+                aiPick: function(cands) {
+                    var oppTraps = cands.filter(function(t) { return t.side !== who; });
+                    return oppTraps.length > 0 ? oppTraps[0] : cands[0];
+                }
+            });
+
+            if (!chosen) {
+                addToFeed('Remove Trap was cancelled.\n');
                 await destroySpellTrap(who, zoneNum, false);
+                break;
             }
+
+            var trapDef = cards[chosen.card.cardId];
+            await destroySpellTrap(chosen.side, chosen.zone, false);
+            addToFeed('Remove Trap destroyed ' + (trapDef ? trapDef.name : 'Trap') + ' on ' + chosen.side + '\'s field!\n');
+            await destroySpellTrap(who, zoneNum, false);
             break;
         }
 
@@ -892,42 +942,75 @@ async function activateCard(who, instance, zoneNum) {
                 await destroySpellTrap(who, zoneNum, false);
                 break;
             }
-            if (who === 'player') {
-                openChangeOfHeartModal('player');
-            } else {
-                // AI: auto-pick highest ATK monster
-                oppMonsters.sort(function(a, b) {
-                    var defA = cards[a.card.cardId];
-                    var defB = cards[b.card.cardId];
-                    return (defB ? defB.atk || 0 : 0) - (defA ? defA.atk || 0 : 0);
-                });
-                var aiTarget = oppMonsters[0];
+
+            var candidates = oppMonsters.map(function(m) {
+                return { side: opp, zone: m.zone, card: m.card };
+            });
+
+            var chosen = await requestFieldTargetChoice(who, {
+                cardName: 'CHANGE OF HEART',
+                prompt: 'SELECT 1 OPPONENT MONSTER TO TAKE CONTROL OF',
+                confirmLabel: 'CONTROL',
+                confirmIcon: '💖',
+                candidates: candidates,
+                aiPick: function(cands) {
+                    cands.sort(function(a, b) {
+                        return getMonsterAtk(b.card) - getMonsterAtk(a.card);
+                    });
+                    return cands[0];
+                }
+            });
+
+            if (!chosen) {
+                addToFeed('Change of Heart was cancelled.\n');
                 await destroySpellTrap(who, zoneNum, false);
-                await applyChangeOfHeart('computer', aiTarget.zone);
+                break;
             }
+
+            await destroySpellTrap(who, zoneNum, false);
+            await applyChangeOfHeart(who, chosen.zone);
             break;
         }
 
         case 'black-pendant':
         case 'horn-of-the-unicorn': {
-            var faceUpOwn = getFaceUpMonstersOnField(who);
+            var faceUpOwn = getFaceUpMonstersOnField(who).filter(function(m) {
+                return !isImmuneToSpellTargeting(m.card, who);
+            });
             if (faceUpOwn.length === 0) {
-                addToFeed('<em>' + def.name + '</em> fizzles — no face-up monster to equip.\n');
+                addToFeed('<em>' + def.name + '</em> fizzles — no eligible face-up monster to equip.\n');
                 await destroySpellTrap(who, zoneNum, false);
                 break;
             }
-            if (who === 'player') {
-                openEquipTargetModal('player', zoneNum);
-            } else {
-                var aiEquipTarget = (typeof AIEvaluateEquipSpell === 'function') ? AIEvaluateEquipSpell(def) : null;
-                if (!aiEquipTarget) {
-                    faceUpOwn.sort(function(a, b) {
-                        return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                    });
-                    aiEquipTarget = faceUpOwn[0];
+
+            var candidates = faceUpOwn.map(function(m) {
+                return { side: who, zone: m.zone, card: m.card };
+            });
+
+            var chosen = await requestFieldTargetChoice(who, {
+                cardName: def.name.toUpperCase(),
+                prompt: 'SELECT 1 FACE-UP MONSTER TO EQUIP',
+                confirmLabel: 'EQUIP',
+                confirmIcon: '⚔️',
+                candidates: candidates,
+                aiPick: function(cands) {
+                    var aiTarget = (typeof AIEvaluateEquipSpell === 'function') ? AIEvaluateEquipSpell(def) : null;
+                    if (aiTarget) {
+                        var found = cands.find(function(c) { return c.zone === aiTarget.zone; });
+                        if (found) return found;
+                    }
+                    cands.sort(function(a, b) { return getMonsterAtk(b.card) - getMonsterAtk(a.card); });
+                    return cands[0];
                 }
-                await applyEquipCard('computer', zoneNum, aiEquipTarget.zone);
+            });
+
+            if (!chosen) {
+                addToFeed(def.name + ' was cancelled.\n');
+                await destroySpellTrap(who, zoneNum, false);
+                break;
             }
+
+            await applyEquipCard(who, zoneNum, chosen.zone);
             break;
         }
 
@@ -1222,55 +1305,48 @@ function tttdDiscardCardSelected(uid) {
     openTributeToTheDoomedTarget();
 }
 
-function openTributeToTheDoomedTarget() {
-    var grid = $('#tttd-target-grid');
-    grid.empty();
+async function openTributeToTheDoomedTarget() {
+    var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters().filter(function(m) {
+        return !isImmuneToSpellTargeting(m.inst || m.card, 'player');
+    }) : [];
 
-    var allMonsters = [
-        ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
-        ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
-    ].filter(function(m) {
-        // Can't target an opponent's Deepsea Warrior with a Spell effect
-        if (m.side === 'computer') return !isImmuneToSpellTargeting(m.card, 'player');
-        return true;
+    if (allMonsters.length === 0) {
+        addToFeed('Tribute to the Doomed fizzles — no valid monsters to destroy.\n');
+        var sourceZone = tttdSourceZone;
+        tttdSourceZone = null;
+        tttdDiscardedCardId = null;
+        if (sourceZone !== null) {
+            await destroySpellTrap('player', sourceZone, false);
+        }
+        return;
+    }
+
+    var chosen = await requestFieldTargetChoice('player', {
+        cardName: 'TRIBUTE TO THE DOOMED',
+        prompt: 'SELECT 1 MONSTER ON THE FIELD TO DESTROY',
+        confirmLabel: 'DESTROY',
+        confirmIcon: '💥',
+        candidates: allMonsters,
+        aiPick: function(cands) {
+            var oppTargets = cands.filter(function(c) { return c.side === 'computer'; });
+            return oppTargets.length > 0 ? oppTargets[0] : cands[0];
+        }
     });
 
-    allMonsters.forEach(function(entry) {
-        var cardDef = cards[entry.card.cardId];
-        if (!cardDef) return;
-        var isFaceDown = entry.card.faceDown || entry.card.position === 'defense-down';
-        var isOpp = entry.side === 'computer';
-        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
-        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
+    if (!chosen) {
+        addToFeed('Tribute to the Doomed target selection was cancelled.\n');
+        var sourceZone = tttdSourceZone;
+        tttdSourceZone = null;
+        tttdDiscardedCardId = null;
+        if (sourceZone !== null) {
+            await destroySpellTrap('player', sourceZone, false);
+        }
+        return;
+    }
 
-        var imgSrc = isFaceDown ? 'cards/card_back.png' : 'cards/' + cardDef.file;
-        var displayName = isFaceDown ? '???' : cardDef.name;
-        var statsHtml = isFaceDown
-            ? '<span class="rebirth-tile-stats">Face-Down</span>'
-            : '<span class="rebirth-tile-stats">ATK ' + getMonsterAtk(entry.card) + ' / DEF ' + getMonsterDef(entry.card) + '</span>';
-
-        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
-            '<div class="rebirth-card-preview-frame">' +
-                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
-                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ZONE #' + entry.zone + '</span>' +
-            '</div>' +
-            '<div class="rebirth-tile-meta">' +
-                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
-                statsHtml +
-            '</div>' +
-        '</div>');
-
-        tile.on('click', (function(side, zone) {
-            return function() {
-                applyTributeToTheDoomedTarget(side, zone);
-            };
-        })(entry.side, entry.zone));
-
-        grid.append(tile);
-    });
-
-    $('#tttd-target-modal').fadeIn(150);
+    await applyTributeToTheDoomedTarget(chosen.side, chosen.zone);
 }
+
 
 async function applyTributeToTheDoomedTarget(targetWho, targetZone) {
     $('#tttd-target-modal').fadeOut(120);
@@ -1312,96 +1388,96 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
 
     if (monsterInst.cardId === 'man-eater-bug') {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
-        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
 
-        var allMonsters = [
-            ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
-            ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
-        ];
-
+        var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
         if (allMonsters.length === 0) {
             addToFeed('No monsters on the field to destroy.\n');
             return;
         }
 
-        if (who === 'player') {
-            openManEaterBugModal(who, zoneNum);
-        } else {
-            // AI auto-targets strongest player monster
-            var playerMonsters = GameState.getMonstersOnField('player');
-            if (playerMonsters.length > 0) {
-                playerMonsters.sort(function(a, b) {
-                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                });
-                var target = playerMonsters[0];
-                var targetDef = cards[target.card.cardId];
-                addToFeed('<em>Man-Eater Bug</em> destroys ' + (targetDef ? targetDef.name : 'monster') + ' on player\'s field!\n');
-                if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-                await destroyMonster('player', target.zone);
-            } else {
-                // If no player monsters, target highest ATK monster on field (never the flipped Bug itself)
-                var nonSelfMonsters = allMonsters.filter(function(m) {
-                    return !(m.side === who && m.zone === zoneNum);
-                });
-                if (nonSelfMonsters.length === 0) {
-                    addToFeed('<em>Man-Eater Bug</em>: No other monsters on the field to destroy.\n');
-                    return;
-                }
-                nonSelfMonsters.sort(function(a, b) {
-                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                });
-                var fallback = nonSelfMonsters[0];
-                var fallbackDef = cards[fallback.card.cardId];
-                addToFeed('<em>Man-Eater Bug</em> destroys ' + (fallbackDef ? fallbackDef.name : 'monster') + '!\n');
-                await destroyMonster(fallback.side, fallback.zone);
-            }
+        var candidates = allMonsters;
+        var nonSelfMonsters = allMonsters.filter(function(m) {
+            return !(m.side === who && m.zone === zoneNum);
+        });
+        if (nonSelfMonsters.length > 0) {
+            candidates = nonSelfMonsters;
         }
+
+        var chosen = await requestFieldTargetChoice(who, {
+            cardName: 'MAN-EATER BUG',
+            prompt: 'SELECT 1 MONSTER ON THE FIELD TO DESTROY',
+            confirmLabel: 'DESTROY',
+            confirmIcon: '💥',
+            candidates: candidates,
+            aiPick: function(cands) {
+                var oppTargets = cands.filter(function(c) { return c.side !== who; });
+                if (oppTargets.length > 0) {
+                    oppTargets.sort(function(a, b) {
+                        return (getMonsterAtk(b.inst || b.card) || 0) - (getMonsterAtk(a.inst || a.card) || 0);
+                    });
+                    return oppTargets[0];
+                }
+                return cands[0];
+            }
+        });
+
+        if (!chosen) {
+            addToFeed('Man-Eater Bug effect was cancelled.\n');
+            return;
+        }
+
+        var targetDef = chosen.def || (chosen.inst ? cards[chosen.inst.cardId] : (chosen.card ? cards[chosen.card.cardId] : null));
+        addToFeed('<em>Man-Eater Bug</em> destroyed <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> on ' + formatWho(chosen.side) + '\'s field!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+        await destroyMonster(chosen.side, chosen.zone);
+
     } else if (monsterInst.cardId === 'hane-hane') {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
 
-        var allMonsters = [
-            ...GameState.getMonstersOnField('player').map(function(m) { return Object.assign({}, m, { side: 'player' }); }),
-            ...GameState.getMonstersOnField('computer').map(function(m) { return Object.assign({}, m, { side: 'computer' }); })
-        ];
-
+        var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
         if (allMonsters.length === 0) {
             addToFeed('No monsters on the field to return to hand.\n');
             return;
         }
 
-        if (who === 'player') {
-            openHaneHaneModal(who, zoneNum);
-        } else {
-            // AI auto-targets strongest player monster to bounce
-            var playerMonsters = GameState.getMonstersOnField('player');
-            if (playerMonsters.length > 0) {
-                playerMonsters.sort(function(a, b) {
-                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                });
-                var target = playerMonsters[0];
-                var targetDef = cards[target.card.cardId];
-                addToFeed('<em>Hane-Hane</em> returns ' + (targetDef ? targetDef.name : 'monster') + ' on player\'s field to hand!\n');
-                if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
-                await returnMonsterToHand('player', target.zone);
-            } else {
-                // If no player monsters, target highest ATK monster on field (never the flipped Hane-Hane itself)
-                var nonSelfMonsters = allMonsters.filter(function(m) {
-                    return !(m.side === who && m.zone === zoneNum);
-                });
-                if (nonSelfMonsters.length === 0) {
-                    addToFeed('<em>Hane-Hane</em>: No other monsters on the field to return to hand.\n');
-                    return;
-                }
-                nonSelfMonsters.sort(function(a, b) {
-                    return getMonsterAtk(b.card) - getMonsterAtk(a.card);
-                });
-                var fallback = nonSelfMonsters[0];
-                var fallbackDef = cards[fallback.card.cardId];
-                addToFeed('<em>Hane-Hane</em> returns ' + (fallbackDef ? fallbackDef.name : 'monster') + ' to hand!\n');
-                await returnMonsterToHand(fallback.side, fallback.zone);
-            }
+        var candidates = allMonsters;
+        var nonSelfMonsters = allMonsters.filter(function(m) {
+            return !(m.side === who && m.zone === zoneNum);
+        });
+        if (nonSelfMonsters.length > 0) {
+            candidates = nonSelfMonsters;
         }
+
+        var chosen = await requestFieldTargetChoice(who, {
+            cardName: 'HANE-HANE',
+            prompt: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
+            confirmLabel: 'BOUNCE',
+            confirmIcon: '🪶',
+            candidates: candidates,
+            aiPick: function(cands) {
+                var oppTargets = cands.filter(function(c) { return c.side !== who; });
+                if (oppTargets.length > 0) {
+                    oppTargets.sort(function(a, b) {
+                        return (getMonsterAtk(b.inst || b.card) || 0) - (getMonsterAtk(a.inst || a.card) || 0);
+                    });
+                    return oppTargets[0];
+                }
+                return cands[0];
+            }
+        });
+
+        if (!chosen) {
+            addToFeed('Hane-Hane effect was cancelled.\n');
+            return;
+        }
+
+        var targetDef = chosen.def || (chosen.inst ? cards[chosen.inst.cardId] : (chosen.card ? cards[chosen.card.cardId] : null));
+        addToFeed('<em>Hane-Hane</em> returned <strong>' + (targetDef ? targetDef.name : 'monster') + '</strong> on ' + formatWho(chosen.side) + '\'s field to hand!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('medium');
+        await returnMonsterToHand(chosen.side, chosen.zone);
+
     } else if (monsterInst.cardId === 'dragon-piper') {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
@@ -2048,21 +2124,25 @@ function resolveRadiantBacklashPrompt(shouldActivate) {
 var cryptAwakeningResolver = null;
 var pendingCryptAwakeningTrapZone = null;
 
-function promptPlayerCryptAwakening(zoneNum) {
+function promptPlayerCryptAwakening(zoneNum, trapDef) {
     return new Promise(function(resolve) {
         cryptAwakeningResolver = resolve;
         pendingCryptAwakeningTrapZone = zoneNum;
+
+        var trapName = (trapDef && trapDef.name) ? trapDef.name : 'Continuous Trap';
+        $('#crypt-awakening-modal .action-modal-card-name').text(trapName.toUpperCase());
+        $('#crypt-awakening-modal .action-header-category').text(trapName.toUpperCase() + ' • RESURRECTION');
 
         var grid = $('#crypt-awakening-grid');
         grid.empty();
 
         var gyMonsters = GameState.player.graveyard.filter(function(inst) {
             var def = cards[inst.cardId];
-            return def && def.type === 'monsters';
+            return def && def.type === 'monsters' && !def.isToken && def.subType !== 'token';
         });
 
         if (gyMonsters.length === 0 || getFirstFreeZone('player') === undefined) {
-            addToFeed('No valid monster in Graveyard or no free zone for Crypt Awakening.\n');
+            addToFeed('No valid monster in Graveyard or no free zone for ' + trapName + '.\n');
             resolve();
             return;
         }
@@ -2087,13 +2167,12 @@ function promptPlayerCryptAwakening(zoneNum) {
             tile.on('click', async function() {
                 $('#crypt-awakening-modal').fadeOut(120);
                 
-                var gIdx = GameState.player.graveyard.findIndex(function(c) { return c.uid === inst.uid; });
-                if (gIdx !== -1) GameState.player.graveyard.splice(gIdx, 1);
+                var trapZone = pendingCryptAwakeningTrapZone;
+                pendingCryptAwakeningTrapZone = null;
 
-                var freeZ = getFirstFreeZone('player');
-                await specialSummonMonster('player', inst.cardId, 'player', 'attack');
-                var summonedInst = GameState.player.field.monsters[freeZ];
-                var trapInst = GameState.player.field.spells[pendingCryptAwakeningTrapZone];
+                var freeZ = await specialSummonMonster('player', inst.cardId, 'player', 'attack');
+                var summonedInst = (freeZ !== false && GameState.player.field.monsters[freeZ]) ? GameState.player.field.monsters[freeZ] : null;
+                var trapInst = trapZone !== null ? GameState.player.field.spells[trapZone] : null;
                 if (summonedInst && trapInst) {
                     trapInst.boundMonsterUid = summonedInst.uid;
                     summonedInst.boundTrapUid = trapInst.uid;
@@ -2101,7 +2180,7 @@ function promptPlayerCryptAwakening(zoneNum) {
                 updateGraveyardZones();
                 updateResourceCounters();
 
-                addToFeed('Crypt Awakening resurrected <strong>' + cardDef.name + '</strong> in Attack Position!\n\n');
+                addToFeed(trapName + ' resurrected <strong>' + cardDef.name + '</strong> in Attack Position!\n\n');
 
                 if (typeof cryptAwakeningResolver === 'function') {
                     var r = cryptAwakeningResolver;
@@ -2119,6 +2198,7 @@ function promptPlayerCryptAwakening(zoneNum) {
 
 function cancelCryptAwakeningTarget() {
     $('#crypt-awakening-modal').fadeOut(120);
+    pendingCryptAwakeningTrapZone = null;
     if (typeof cryptAwakeningResolver === 'function') {
         var r = cryptAwakeningResolver;
         cryptAwakeningResolver = null;
@@ -2427,67 +2507,34 @@ function resolveVortexRecallPrompt(shouldActivate) {
     }
 }
 
-function promptPlayerVortexRecallTarget(sourceWho, sourceZone) {
-    return new Promise(function(resolve) {
-        vortexRecallResolver = resolve;
-
-        var grid = $('#vortex-recall-grid');
-        grid.empty();
-
-        var allTargets = [];
-        GameState.getMonstersOnField('player').forEach(function(m) { allTargets.push({ side: 'player', zone: m.zone, card: m.card }); });
-        GameState.getMonstersOnField('computer').forEach(function(m) { allTargets.push({ side: 'computer', zone: m.zone, card: m.card }); });
-
-        if (allTargets.length === 0) {
-            addToFeed('No valid monster targets on the field for Vortex Recall.\n');
-            resolve();
-            return;
-        }
-
-        allTargets.forEach(function(item) {
-            var cardDef = cards[item.card.cardId];
-            if (!cardDef) return;
-
-            var sideLabel = item.side === 'player' ? 'YOU' : 'OPPONENT';
-            var tagClass = item.side === 'player' ? 'tag-player' : 'tag-opponent';
-            var stats = 'ATK ' + (typeof getMonsterAtk === 'function' ? getMonsterAtk(item.card) : cardDef.atk) + ' / DEF ' + (typeof getMonsterDef === 'function' ? getMonsterDef(item.card) : cardDef.def);
-
-            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
-                '<div class="rebirth-card-preview-frame">' +
-                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
-                    '<span class="target-owner-tag ' + tagClass + '">' + sideLabel + ' #' + item.zone + '</span>' +
-                '</div>' +
-                '<div class="rebirth-tile-meta">' +
-                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
-                    '<span class="rebirth-tile-stats">' + stats + '</span>' +
-                '</div>' +
-            '</div>');
-
-            tile.on('click', async function() {
-                $('#vortex-recall-modal').fadeOut(120);
-                await applyVortexRecallTarget(item.side, item.zone);
-                if (typeof vortexRecallResolver === 'function') {
-                    var r = vortexRecallResolver;
-                    vortexRecallResolver = null;
-                    r();
-                }
-            });
-
-            grid.append(tile);
-        });
-
-        $('#vortex-recall-modal').fadeIn(150);
-    });
-}
-
-function cancelVortexRecallTarget() {
-    $('#vortex-recall-modal').fadeOut(120);
-    if (typeof vortexRecallResolver === 'function') {
-        var r = vortexRecallResolver;
-        vortexRecallResolver = null;
-        r();
+async function promptPlayerVortexRecallTarget(sourceWho, sourceZone) {
+    var allTargets = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+    if (allTargets.length === 0) {
+        addToFeed('No valid monster targets on the field for Vortex Recall.\n');
+        return;
     }
+
+    var chosen = await requestFieldTargetChoice(sourceWho, {
+        cardName: 'VORTEX RECALL',
+        prompt: 'SELECT 1 MONSTER ON THE FIELD TO RETURN TO HAND',
+        confirmLabel: 'BOUNCE',
+        confirmIcon: '🌀',
+        candidates: allTargets,
+        aiPick: function(cands) {
+            var oppTargets = cands.filter(function(c) { return c.side !== sourceWho; });
+            return oppTargets.length > 0 ? oppTargets[0] : cands[0];
+        }
+    });
+
+    if (!chosen) {
+        addToFeed('Vortex Recall was dismissed.\n');
+        return;
+    }
+
+    await applyVortexRecallTarget(chosen.side, chosen.zone);
 }
+
+
 
 async function applyVortexRecallTarget(side, zoneNum) {
     var monsterInst = GameState[side].field.monsters[zoneNum];
@@ -3008,7 +3055,8 @@ async function handleEndPhaseEffects(who) {
         delete GameState.turn.spellTrapLocked;
         delete GameState.turn.spellTrapLockedBy;
     }
-    $('.tribute-of-ages-badge').remove();
+    $('.tribute-of-ages-badge, .tributable-bound-badge').remove();
+    updateStatModBadges();
 
     updateGraveyardZones();
     updateResourceCounters();
@@ -3312,61 +3360,32 @@ async function applyHarpieLadyDiscard(cardUid, cardName) {
     openHarpieLadyTargetModal();
 }
 
-function openHarpieLadyTargetModal() {
-    var grid = $('#harpie-lady-target-grid');
-    grid.empty();
-
-    var targets = [];
-    ['computer', 'player'].forEach(function(side) {
-        for (var z = 1; z <= 6; z++) {
-            var inst = GameState[side].field.spells[z];
-            if (inst) {
-                targets.push({ side: side, zone: z, isField: false, inst: inst });
-            }
-        }
-        var fieldInst = GameState[side].field.fieldZone;
-        if (fieldInst) {
-            targets.push({ side: side, zone: null, isField: true, inst: fieldInst });
-        }
-    });
+async function openHarpieLadyTargetModal() {
+    var targets = (typeof Queries !== 'undefined') ? Queries.getAllSpellTraps() : [];
 
     if (targets.length === 0) {
         addToFeed('No Spell or Trap cards on the field to destroy.\n');
-        $('#harpie-lady-target-modal').fadeOut(120);
         return;
     }
 
-    targets.forEach(function(entry) {
-        var cardDef = cards[entry.inst.cardId];
-        var isFaceDown = entry.inst.faceDown || entry.inst.position === 'set';
-        var isOpp = entry.side === 'computer';
-        var ownerLabel = isOpp ? 'OPPONENT' : 'YOUR FIELD';
-        var ownerClass = isOpp ? 'tag-opponent' : 'tag-player';
-        var zoneLabel = entry.isField ? 'FIELD ZONE' : 'SPELL ZONE #' + entry.zone;
-
-        var imgSrc = (isFaceDown && isOpp) ? 'cards/card_back.png' : 'cards/' + (cardDef ? cardDef.file : 'card_back.png');
-        var displayName = (isFaceDown && isOpp) ? 'Set Card (Hidden)' : (cardDef ? cardDef.name : 'Spell/Trap');
-        var subTypeLabel = (isFaceDown && isOpp) ? 'Face-Down' : (cardDef ? (cardDef.subType || cardDef.type).toUpperCase() : '');
-
-        var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
-            '<div class="rebirth-card-preview-frame">' +
-                '<img src="' + imgSrc + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
-                '<span class="target-owner-tag ' + ownerClass + '">' + ownerLabel + ' • ' + zoneLabel + '</span>' +
-            '</div>' +
-            '<div class="rebirth-tile-meta">' +
-                '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
-                '<span class="rebirth-tile-stats">' + subTypeLabel + '</span>' +
-            '</div>' +
-        '</div>');
-
-        tile.on('click', function() {
-            applyHarpieLadyTarget(entry.side, entry.zone, entry.isField);
-        });
-
-        grid.append(tile);
+    var chosen = await requestFieldTargetChoice('player', {
+        cardName: 'HARPIE LADY',
+        prompt: 'SELECT 1 SPELL OR TRAP CARD ON THE FIELD TO DESTROY',
+        confirmLabel: 'DESTROY',
+        confirmIcon: '🦅',
+        candidates: targets,
+        aiPick: function(cands) {
+            var oppTargets = cands.filter(function(c) { return c.side === 'computer'; });
+            return oppTargets.length > 0 ? oppTargets[0] : cands[0];
+        }
     });
 
-    $('#harpie-lady-target-modal').fadeIn(150);
+    if (!chosen) {
+        addToFeed('Harpie Lady effect target selection was cancelled.\n');
+        return;
+    }
+
+    await applyHarpieLadyTarget(chosen.side, chosen.zone, chosen.isField);
 }
 
 async function applyHarpieLadyTarget(side, zoneNum, isFieldZone) {

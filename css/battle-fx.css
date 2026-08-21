@@ -239,6 +239,12 @@
     text-shadow: 0 0 14rem #38bdf8, 0 4rem 10rem rgba(0, 0, 0, 0.9);
 }
 
+.floating-damage-number.heal-gain {
+    font-size: 28rem;
+    color: #22c55e;
+    text-shadow: 0 0 16rem #22c55e, 0 4rem 12rem rgba(0, 0, 0, 0.95), 0 0 28rem #86efac;
+}
+
 @keyframes floatingDamagePop {
     0% {
         opacity: 0;
@@ -287,9 +293,13 @@
     }
 }
 
-/* 7. LP Glow Damage Flash */
+/* 7. LP Glow Damage / Heal Flash */
 .lp-damage-flash {
     animation: lpDamageFlashAnim 0.5s ease-out !important;
+}
+
+.lp-heal-flash {
+    animation: lpHealFlashAnim 0.5s ease-out !important;
 }
 
 @keyframes lpDamageFlashAnim {
@@ -297,6 +307,18 @@
         background: #ef4444 !important;
         color: #ffffff !important;
         box-shadow: 0 0 30px 10px #ef4444 !important;
+        transform: scale(1.2) !important;
+    }
+    100% {
+        transform: scale(1) !important;
+    }
+}
+
+@keyframes lpHealFlashAnim {
+    0% {
+        background: #22c55e !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 30px 10px #22c55e !important;
         transform: scale(1.2) !important;
     }
     100% {

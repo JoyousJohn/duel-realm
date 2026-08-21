@@ -4,18 +4,15 @@ var turnCount = 0;
 
 var phases = [
     { 'phaseNum': 0, 'phaseName': 'Draw Phase' },
-    { 'phaseNum': 1, 'phaseName': 'Standby Phase' },
-    { 'phaseNum': 2, 'phaseName': 'Main Phase 1' },
-    { 'phaseNum': 3, 'phaseName': 'Battle Phase' },
-    { 'phaseNum': 4, 'phaseName': 'Main Phase 2' },
-    { 'phaseNum': 5, 'phaseName': 'End Phase' },
-    { 'phaseNum': 6, 'phaseName': 'Game Start' }
+    { 'phaseNum': 1, 'phaseName': 'Main Phase' },
+    { 'phaseNum': 2, 'phaseName': 'End Phase' },
+    { 'phaseNum': 3, 'phaseName': 'Game Start' }
 ];
 
 async function startGame() {
     prepareGame();
 
-    setPhase(6);
+    setPhase(3);
 
     await getCards('player', 5);
     await getCards('computer', 5);
@@ -43,13 +40,12 @@ async function playerTurn() {
     await getCards('player', 1);
     await sleep(getAnimDuration(250));
 
-    // 2. Standby Phase
-    setPhase(1); // SP
+    // 2. Standby checks (no separate phase)
     checkStandbyTraps('computer');
     await sleep(getAnimDuration(200));
 
-    // 3. Main Phase 1
-    setPhase(2); // M1
+    // 3. Main Phase (combines M1 + Battle + M2)
+    setPhase(1); // MP
 
     if (activeCard !== null) {
         showAvailableZones();
@@ -74,11 +70,11 @@ async function computerTurn() {
     await getCards('computer', 1);
     await sleep(getAnimDuration(350));
 
-    setPhase(1); // Standby
+    // Standby checks (no separate phase)
     checkStandbyTraps('player');
     await sleep(getAnimDuration(150));
 
-    setPhase(2); // Main Phase 1
+    setPhase(1); // Main Phase (combines M1 + Battle + M2)
 
     // 1. AI evaluates existing field monsters to flip/change position
     if (typeof AIEvaluatePositionChanges === 'function') {
@@ -151,12 +147,10 @@ async function computerTurn() {
     if (GameState.turn && GameState.turn.battlePhaseLocked) {
         addToFeed('[AI Tactical] Battle Phase skipped due to Tribute of the Ages.\n');
     } else {
-        setPhase(3); // Battle Phase
         await AIPerformBattlePhase();
         await sleep(getAnimDuration(500));
     }
 
-    setPhase(4); // Main Phase 2
     if (typeof AIEvaluatePositionChanges === 'function') {
         await AIEvaluatePositionChanges();
     }
@@ -165,7 +159,7 @@ async function computerTurn() {
     }
     await AIPlaySpellTrapCards();
 
-    setPhase(5); // End Phase
+    setPhase(2); // End Phase
     await handleEndPhaseEffects('computer');
     await sleep(getAnimDuration(600));
 
@@ -225,7 +219,7 @@ async function requestEndTurn() {
         hideAtkMenuIfVisible();
 
         // 6. End Phase
-        setPhase(5); // EP
+        setPhase(2); // EP
         await handleEndPhaseEffects('player');
         await sleep(350);
 
@@ -399,6 +393,7 @@ function resetAllSquares(squareElm) {
     $('.no-tribute-badge').remove();
     $('.attack-locked-badge').remove();
     $('.effect-ready-badge').remove();
+    $('.tributable-bound-badge').remove();
     $('.equip-tag-badge').remove();
     $('.tribute-selected-badge').remove();
     $('.tribute-candidate-highlight').removeClass('tribute-candidate-highlight');

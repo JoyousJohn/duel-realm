@@ -33,17 +33,36 @@ function AICalcMonsterPosition(monsterName) {
         return 'defense-down';
     }
 
-    // 2. Find opponent's highest face-up Attack threat
+    // 2. Find opponent's highest face-up Attack threat and piercing threats
     var maxPlayerAtk = -1;
     var hasPlayerAttackThreat = false;
+    var maxPiercingAtk = -1;
+    var hasPiercingThreat = false;
 
     playerMonsters.forEach(function(pm) {
+        var isFaceUp = !pm.card.faceDown && pm.card.position !== 'defense-down';
+        var pDef = cards[pm.card.cardId];
+        var pAtk = (typeof getMonsterAtk === 'function') ? getMonsterAtk(pm.card) : (pDef ? pDef.atk || 0 : 0);
+
         if (pm.card.position === 'attack') {
-            var pAtk = getMonsterAtk(pm.card);
             if (pAtk > maxPlayerAtk) maxPlayerAtk = pAtk;
             hasPlayerAttackThreat = true;
         }
+
+        var isPiercing = isFaceUp && (pm.card.cardId === 'aegis-seraph' || (pDef && pDef.piercing === true));
+        if (isPiercing && pAtk > maxPiercingAtk) {
+            maxPiercingAtk = pAtk;
+            hasPiercingThreat = true;
+        }
     });
+
+    // Piercing threat tactical consideration:
+    // If the opponent controls a superior piercing attacker (e.g. Aegis Seraph) and our monster's ATK > DEF,
+    // summoning in Attack Position results in strictly LESS LP damage than Defense Position (e.g. 1800 - 1200 ATK = 600 vs 1800 - 400 DEF = 1400),
+    // and additionally prevents the opponent from triggering piercing combat draws!
+    if (hasPiercingThreat && maxPiercingAtk > atk && atk > def) {
+        return 'attack';
+    }
 
     // If opponent has superior Attack monsters that would easily destroy this card and inflict LP damage
     if (hasPlayerAttackThreat && maxPlayerAtk > atk) {
@@ -150,7 +169,18 @@ async function AIEvaluatePositionChanges() {
                 return getMonsterAtk(pm.card) > atk;
             });
 
-            if ((def > atk && playerHasBiggerThreat) || (isToken && atk === 0)) {
+            var hasPiercingAttacker = playerMonsters.some(function(pm) {
+                var isFaceUp = !pm.card.faceDown && pm.card.position !== 'defense-down';
+                var pDef = cards[pm.card.cardId];
+                var pAtk = (typeof getMonsterAtk === 'function') ? getMonsterAtk(pm.card) : (pDef ? pDef.atk || 0 : 0);
+                var isPiercing = isFaceUp && (pm.card.cardId === 'aegis-seraph' || (pDef && pDef.piercing === true));
+                return isPiercing && pAtk > atk;
+            });
+
+            // Do not switch to defense if facing a superior piercing attacker and ATK > DEF (as defense would take MORE damage and trigger draws)
+            if (hasPiercingAttacker && atk > def) {
+                // Stay in Attack Position to minimize piercing damage and deny combat draws
+            } else if ((def > atk && playerHasBiggerThreat) || (isToken && atk === 0)) {
                 await AIChangeMonsterPosition(zoneNum, 'defense-up');
             }
         }
@@ -1124,7 +1154,7 @@ async function AIPlaySpellTrapCards() {
                             shouldSet = false;
                         }
                     }
-                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
+                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'eldritch-tether' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
                     var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', def.id) !== null);
                     if (alreadySet) {
                         shouldSet = false;
@@ -1144,17 +1174,17 @@ async function AIPlaySpellTrapCards() {
             }
         }
 
-        // Check if AI can activate a set Crypt Awakening
-        var setCryptZone = (typeof findSetTrapZone === 'function') ? findSetTrapZone('computer', 'crypt-awakening') : null;
-        if (setCryptZone !== null && getFirstFreeZone('computer') !== undefined) {
+        // Check if AI can activate a set Crypt Awakening or Eldritch Tether
+        var setRevivalZone = (typeof findSetTrapZone === 'function') ? (findSetTrapZone('computer', 'eldritch-tether') || findSetTrapZone('computer', 'crypt-awakening')) : null;
+        if (setRevivalZone !== null && getFirstFreeZone('computer') !== undefined) {
             var gyMonsters = GameState.computer.graveyard.filter(function(c) {
                 var d = cards[c.cardId];
-                return d && d.type === 'monsters';
+                return d && d.type === 'monsters' && !d.isToken && d.subType !== 'token';
             });
             if (gyMonsters.length > 0) {
-                var trapInst = GameState.computer.field.spells[setCryptZone];
+                var trapInst = GameState.computer.field.spells[setRevivalZone];
                 if (trapInst) {
-                    await activateCard('computer', trapInst, setCryptZone);
+                    await activateCard('computer', trapInst, setRevivalZone);
                     playedAny = true;
                 }
             }

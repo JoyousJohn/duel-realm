@@ -143,10 +143,17 @@ var BattleFX = {
         var cy = offset.top + 10;
 
         var extraClass = '';
-        if (type === 'direct') extraClass = 'direct-hit';
-        else if (type === 'def-blocked') extraClass = 'def-blocked';
-
         var label = '-' + damageAmount + ' LP';
+
+        if (type === 'heal' || type === 'gain') {
+            extraClass = 'heal-gain';
+            label = '+' + damageAmount + ' LP';
+        } else if (type === 'direct') {
+            extraClass = 'direct-hit';
+        } else if (type === 'def-blocked') {
+            extraClass = 'def-blocked';
+        }
+
         var floatElm = $('<div class="floating-damage-number ' + extraClass + '">' + label + '</div>').css({
             left: cx - 40,
             top: cy
@@ -162,13 +169,14 @@ var BattleFX = {
     /**
      * Smoothly animate numerical countdown for Life Points
      */
-    animateLPCount: function(who, targetLP) {
+    animateLPCount: function(who, targetLP, isHeal) {
         var lpElement = who === 'player' ? $('#player-lp') : $('#opponent-lp');
         if (!lpElement.length) return;
 
-        lpElement.addClass('lp-damage-flash');
+        var flashClass = isHeal ? 'lp-heal-flash' : 'lp-damage-flash';
+        lpElement.addClass(flashClass);
         setTimeout(function() {
-            lpElement.removeClass('lp-damage-flash');
+            lpElement.removeClass(flashClass);
         }, 500);
 
         var currentText = lpElement.text().replace(/[^0-9]/g, '');
@@ -235,6 +243,7 @@ var BattleFX = {
                 $(squareElm).find('.no-tribute-badge').remove();
                 $(squareElm).find('.attack-locked-badge').remove();
                 $(squareElm).find('.effect-ready-badge').remove();
+                $(squareElm).find('.tributable-bound-badge').remove();
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
@@ -729,15 +738,12 @@ var BattleFX = {
                     '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' + faceOrder + '</div>' +
                 '</div>');
 
-                if (typeof $.fn.flip === 'function') {
-                    try {
-                        flightClone.find('.card-relative').flip({
-                            trigger: 'manual',
-                            axis: 'y'
-                        });
-                        flightClone.find('.card-relative').flip(!isFaceDown);
-                    } catch (e) {}
-                }
+                // Reveal the art only when the card is face-up OR it returns to the human
+                // player's own hand. A face-down card leaving for the opponent's hand must
+                // stay on its hidden (card-back) face — never reveal it to the player.
+                var reveal = !isFaceDown || isRecipientPlayer;
+                flightClone.find('.card-front').css('transform', reveal ? 'rotateY(0deg)' : 'rotateY(180deg)');
+                flightClone.find('.card-back').css('transform', reveal ? 'rotateY(180deg)' : 'rotateY(0deg)');
 
                 // Hide the on-mat source element while flight takes place
                 if (sourceCardZone) sourceCardZone.css('opacity', 0);
@@ -753,22 +759,6 @@ var BattleFX = {
                     rotate: '0deg',
                     scale: 1.12
                 }, liftDuration, 'ease-out', function() {
-
-                    // If returning to AI hand, flip to face-down in mid-flight
-                    if (!isRecipientPlayer && typeof $.fn.flip === 'function') {
-                        setTimeout(function() {
-                            try {
-                                flightClone.find('.card-relative').flip(false);
-                            } catch (e) {}
-                        }, getAnimDuration(90));
-                    } else if (isRecipientPlayer && isFaceDown && typeof $.fn.flip === 'function') {
-                        // Reveal face-up if returning to player's hand
-                        setTimeout(function() {
-                            try {
-                                flightClone.find('.card-relative').flip(true);
-                            } catch (e) {}
-                        }, getAnimDuration(90));
-                    }
 
                     // Arc trajectory directly into hand
                     flightClone.transition({

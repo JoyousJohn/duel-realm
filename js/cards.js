@@ -806,6 +806,15 @@ var cards = {
         'desc': 'Target 1 monster in your Graveyard; Special Summon that target in Attack Position. When this card leaves the field, destroy that monster.'
     },
 
+    'eldritch-tether': {
+        'id': 'eldritch-tether',
+        'type': 'traps',
+        'subType': 'continuous',
+        'file': 'eldritch_tether.png',
+        'name': 'Eldritch Tether',
+        'desc': 'Target 1 monster in your Graveyard; Special Summon it in Attack Position. When this card leaves the field, destroy that monster. When that monster is destroyed, destroy this card.'
+    },
+
     'vortex-recall': {
         'id': 'vortex-recall',
         'type': 'traps',
@@ -1019,7 +1028,18 @@ var cards = {
         'subType': 'normal',
         'file': 'essence_siphon.png',
         'name': 'Essence Siphon',
-        'desc': 'Target 2 face-up monsters on the field; halve the ATK of 1 target, and add that lost ATK to the other target until the End Phase.'
+        'desc': 'Target 2 face-up monsters on the field; halve the ATK of 1 target, and add that lost ATK to the other target until the End Phase.',
+        canActivate: function(who) {
+            var allMonsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+            var faceUp = allMonsters.filter(function(m) {
+                var inst = m.inst || m.card;
+                return inst && !inst.faceDown && inst.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(inst, who) : true);
+            });
+            return faceUp.length >= 2 && (typeof getNumOfFreeZones === 'function' ? getNumOfFreeZones(who) > 0 : true);
+        },
+        unplayableReason: function(who) {
+            return 'Requires at least 2 targetable face-up monsters on the field.';
+        }
     },
 
     'gaia-power': {
@@ -1046,7 +1066,16 @@ var cards = {
         'subType': 'normal',
         'file': 'swords_of_revealing_light.png',
         'name': 'Swords of Revealing Light',
-        'desc': "Flip all your opponent's face-down monsters to face-up. Destroy this card in 3 turns. While this card is face-up on the field, your opponent's monsters cannot declare an attack." 
+        'desc': "Flip all your opponent's face-down monsters to face-up. Destroy this card in 3 turns. While this card is face-up on the field, your opponent's monsters cannot declare an attack.",
+        canActivate: function(who) {
+            var alreadyActive = hasActiveCard(who, 'swords-of-revealing-light');
+            var freeSlots = getNumOfFreeZones(who);
+            return !alreadyActive && freeSlots > 0;
+        },
+        unplayableReason: function(who) {
+            if (hasActiveCard(who, 'swords-of-revealing-light')) return 'Swords of Revealing Light is already active on your field.';
+            return 'No free Spell/Trap zones available.';
+        }
     },
 
     'remove-trap': {
@@ -1055,7 +1084,15 @@ var cards = {
         'subType': 'normal',
         'file': 'remove_trap.png',
         'name': 'Remove Trap',
-        'desc': 'Destroy 1 face-up Trap Card on the field.'
+        'desc': 'Destroy 1 face-up Trap Card on the field.',
+        canActivate: function(who) {
+            var hasFaceUpTrap = (typeof findFaceUpTrap === 'function') && (findFaceUpTrap('computer') !== null || findFaceUpTrap('player') !== null);
+            var freeSlots = getNumOfFreeZones(who);
+            return hasFaceUpTrap && freeSlots > 0;
+        },
+        unplayableReason: function(who) {
+            return 'There are no face-up Trap cards on the field to destroy.';
+        }
     },
 
     'mystical-space-typhoon': {
@@ -1314,7 +1351,20 @@ var cards = {
         'subType': 'normal',
         'file': 'tribute_to_the_doomed.png',
         'name': 'Tribute to the Doomed',
-        'desc': 'Discard 1 card from your hand. Destroy 1 monster on the field.'
+        'desc': 'Discard 1 card from your hand. Destroy 1 monster on the field.',
+        canActivate: function(who) {
+            var monsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+            var handCards = (GameState && GameState[who] && GameState[who].hand) ? GameState[who].hand : [];
+            // Must have at least 2 cards in hand: Tribute to the Doomed itself + at least 1 other card to discard
+            return monsters.length > 0 && handCards.length >= 2;
+        },
+        unplayableReason: function(who) {
+            var monsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+            var handCards = (GameState && GameState[who] && GameState[who].hand) ? GameState[who].hand : [];
+            if (monsters.length === 0) return 'No monsters on the field to destroy.';
+            if (handCards.length < 2) return 'Requires another card in hand to discard.';
+            return 'Cannot activate Tribute to the Doomed right now.';
+        }
     },
     
     'pot-of-greed': {
@@ -1324,6 +1374,13 @@ var cards = {
         'file': 'pot_of_greed.png',
         'name': 'Pot of Greed',
         'desc': 'Draw 2 cards.',
+        canActivate: function(who) {
+            var deckCount = (GameState && GameState[who] && GameState[who].deck) ? GameState[who].deck.length : 0;
+            return deckCount >= 2;
+        },
+        unplayableReason: function(who) {
+            return 'Not enough cards in Deck to draw 2.';
+        },
         onActivate: async function(ctx) {
             addToFeed(ctx.def.name + ' activated: ' + formatWho(ctx.who) + ' draws 2 cards.\n');
             await getCards(ctx.who, 2);
@@ -1338,7 +1395,18 @@ var cards = {
         'subType': 'normal',
         'file': 'monster_reborn.png',
         'name': 'Monster Reborn',
-        'desc': 'Target 1 Monster in either Graveyard and Special Summon it.'
+        'desc': 'Target 1 Monster in either Graveyard and Special Summon it.',
+        canActivate: function(who) {
+            var gyMonsters = (typeof getGraveyardMonsters === 'function') ? getGraveyardMonsters() : [];
+            var freeSlots = getNumOfFreeZones(who);
+            return gyMonsters.length > 0 && freeSlots >= 2;
+        },
+        unplayableReason: function(who) {
+            var gyMonsters = (typeof getGraveyardMonsters === 'function') ? getGraveyardMonsters() : [];
+            if (gyMonsters.length === 0) return 'No valid monsters in either Graveyard.';
+            if (getNumOfFreeZones(who) < 2) return 'No free monster zone on your field.';
+            return 'Cannot activate Monster Reborn right now.';
+        }
     },
 
     'black-pendant': {
@@ -1349,6 +1417,15 @@ var cards = {
         'name': 'Black Pendant',
         'atkMod': 500,
         'desc': 'The equipped monster gains 500 ATK. When this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
+        canActivate: function(who) {
+            var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField(who) : [];
+            return ownMonsters.some(function(m) {
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, who) : true);
+            });
+        },
+        unplayableReason: function(who) {
+            return 'No eligible face-up monster on your field to equip.';
+        },
         onSentToGraveyard: async function(data) {
             var opp = GameState.getOpponent(data.who);
             var pendantDef = cards['black-pendant'];
@@ -1366,6 +1443,15 @@ var cards = {
         'atkMod': 700,
         'defMod': 700,
         'desc': 'The equipped monster gains 700 ATK/DEF. When this card is sent from the field to the Graveyard: Return it to the top of the Deck.',
+        canActivate: function(who) {
+            var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField(who) : [];
+            return ownMonsters.some(function(m) {
+                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, who) : true);
+            });
+        },
+        unplayableReason: function(who) {
+            return 'No eligible face-up monster on your field to equip.';
+        },
         onSentToGraveyard: async function(data) {
             var hornDef = cards['horn-of-the-unicorn'];
             var ownerWho = (data.cardInst && data.cardInst.originalOwner) || data.who;
@@ -1394,7 +1480,14 @@ var cards = {
         'subType': 'normal',
         'file': 'dark_hole.png',
         'name': 'Dark Hole',
-        'desc': 'Destroy all monsters on the field.'
+        'desc': 'Destroy all monsters on the field.',
+        canActivate: function(who) {
+            var monsters = (typeof Queries !== 'undefined') ? Queries.getAllMonsters() : [];
+            return monsters.length > 0;
+        },
+        unplayableReason: function(who) {
+            return 'No monsters on the field to destroy.';
+        }
     },
 
     'raigeki': {
@@ -1403,7 +1496,15 @@ var cards = {
         'subType': 'normal',
         'file': 'raigeki.png',
         'name': 'Raigeki',
-        'desc': 'Destroy all monsters your opponent controls.'
+        'desc': 'Destroy all monsters your opponent controls.',
+        canActivate: function(who) {
+            var opp = GameState.getOpponent(who);
+            var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField(opp) : [];
+            return oppMonsters.length > 0;
+        },
+        unplayableReason: function(who) {
+            return 'Opponent controls no monsters to destroy.';
+        }
     },
 
     'change-of-heart': {
@@ -1412,7 +1513,22 @@ var cards = {
         'subType': 'normal',
         'file': 'change_of_heart.png',
         'name': 'Change of Heart',
-        'desc': 'Target 1 monster your opponent controls; take control of it until the End Phase.'
+        'desc': 'Target 1 monster your opponent controls; take control of it until the End Phase.',
+        canActivate: function(who) {
+            var opp = GameState.getOpponent(who);
+            var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField(opp).filter(function(m) {
+                return !isImmuneToSpellTargeting(m.card, who);
+            }) : [];
+            var freeSlots = getNumOfFreeZones(who);
+            return oppMonsters.length > 0 && freeSlots >= 2;
+        },
+        unplayableReason: function(who) {
+            var opp = GameState.getOpponent(who);
+            var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField(opp) : [];
+            if (oppMonsters.length === 0) return 'Opponent controls no monsters.';
+            if (getNumOfFreeZones(who) < 2) return 'No free monster zone to hold the borrowed monster.';
+            return 'Cannot target any opponent monster with spell effects.';
+        }
     }
 };
 

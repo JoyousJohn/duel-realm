@@ -372,6 +372,9 @@ function updateStatModBadges(previewFieldSpellId) {
 
     // 8. Update EFFECT READY badges for monsters with available ignition effects
     updateEffectReadyBadges();
+
+    // 9. Update TRIBUTABLE badges for opponent monsters bound by Tribute of the Ages
+    updateTributeBoundBadges();
 }
 
 // Update or create visual "DEF LOCKED" badges for Dragon monsters affected by Dragon Capture Jar
@@ -538,7 +541,7 @@ function updateAttackLockedBadges() {
 // Face-up monsters on the active player's field with available ignition effects get an "EFFECT READY" badge.
 function updateEffectReadyBadges() {
     var isPlayerTurn = (typeof turn !== 'undefined' && turn === 0 && GameState && GameState.turn && GameState.turn.active === 'player');
-    var isMainPhase = (typeof phase !== 'undefined' && (phase === 2 || phase === 4));
+    var isMainPhase = (typeof phase !== 'undefined' && phase === 1);
     var hasHandCards = (GameState && GameState.player && GameState.player.hand) ? (GameState.player.hand.length > 0) : false;
 
     for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
@@ -581,4 +584,35 @@ function updateEffectReadyBadges() {
             existing.remove();
         }
     }
+}
+
+// Opponent monsters bound by Tribute of the Ages get a "TRIBUTABLE" badge so both players
+// immediately see that this monster can be sacrificed for a Tribute Summon this turn.
+function updateTributeBoundBadges() {
+    var soulTarget = (GameState && GameState.turn && GameState.turn.tributeOfTheAgesTarget) ? GameState.turn.tributeOfTheAgesTarget : null;
+
+    ["player", "computer"].forEach(function(who) {
+        for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+            var square = getSquareElm(who, zoneNum);
+            if (!square || !square.length) continue;
+
+            var monsterInst = (GameState && GameState[who] && GameState[who].field && GameState[who].field.monsters) ? GameState[who].field.monsters[zoneNum] : null;
+            var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
+            var existing = square.find(".tributable-bound-badge");
+
+            var isTarget = soulTarget && soulTarget.opp === who && soulTarget.zone === zoneNum && monsterInst && monsterInst.uid === soulTarget.uid && !isFaceDown;
+
+            if (isTarget) {
+                if (!existing.length) {
+                    var badge = $("<div class=\"tributable-bound-badge\">" +
+                        "<span class=\"tributable-bound-icon\">🔮</span>" +
+                        "<span class=\"tributable-bound-label\">TRIBUTABLE</span>" +
+                    "</div>");
+                    square.append(badge);
+                }
+            } else if (existing.length) {
+                existing.remove();
+            }
+        }
+    });
 }
