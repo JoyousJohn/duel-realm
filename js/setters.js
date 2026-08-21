@@ -14,7 +14,8 @@ function buildPlayerDeck() {
     var collectibleIds = getCollectibleCardIds();
 
     if (rawDeck === null) {
-        buildingDeckList = [...collectibleIds];
+        var shuffledPool = shuffleArray([...collectibleIds]);
+        buildingDeckList = (shuffledPool.length >= 40) ? shuffledPool.slice(0, 40) : [...collectibleIds];
     } else {
         var localDeck = JSON.parse(rawDeck) || {};
         var cardList = Object.keys(localDeck);
@@ -29,10 +30,26 @@ function buildPlayerDeck() {
                 buildingDeckList.push(cardId);
             }
         }
+
+        // If user chose less than 40 cards in their custom deck, populate the rest with random cards up to 40
+        if (buildingDeckList.length > 0 && buildingDeckList.length < 40) {
+            var unusedPool = shuffleArray(collectibleIds.filter(function(id) {
+                return !buildingDeckList.includes(id);
+            }));
+
+            while (buildingDeckList.length < 40 && unusedPool.length > 0) {
+                buildingDeckList.push(unusedPool.pop());
+            }
+
+            while (buildingDeckList.length < 40) {
+                buildingDeckList.push(random(collectibleIds));
+            }
+        }
     }
 
     if (buildingDeckList.length === 0) {
-        buildingDeckList = [...collectibleIds];
+        var shuffledPool = shuffleArray([...collectibleIds]);
+        buildingDeckList = (shuffledPool.length >= 40) ? shuffledPool.slice(0, 40) : [...collectibleIds];
     }
 
     // Shuffle and assign player deck stack
@@ -41,13 +58,82 @@ function buildPlayerDeck() {
         GameState.player.deck = [...deck];
     }
 
-    // Build and shuffle AI computer deck (35 cards)
+    // Build and shuffle AI computer deck (40 cards)
     var computerDeckList = [];
-    for (var k = 0; k < 35; k++) {
+    for (var k = 0; k < 40; k++) {
         computerDeckList.push(random(collectibleIds));
     }
     if (GameState && GameState.computer) {
         GameState.computer.deck = shuffleArray(computerDeckList);
+    }
+
+    // Preload all card images in both players' decks immediately
+    preloadDuelDecks();
+}
+
+// Preload an array of card IDs into browser memory & cache
+function preloadCardImages(cardIds) {
+    if (!Array.isArray(cardIds) || typeof cards === 'undefined') return;
+    var preloaded = window._preloadedCardImages = window._preloadedCardImages || {};
+    var uniqueIds = Array.from(new Set(cardIds));
+
+    uniqueIds.forEach(function(cardId) {
+        var cardDef = cards[cardId];
+        if (cardDef && cardDef.file && !preloaded[cardDef.file]) {
+            var img = new Image();
+            img.src = 'cards/' + cardDef.file;
+            preloaded[cardDef.file] = img;
+        }
+    });
+}
+
+// Preload all cards in active duel decks and card backs
+function preloadDuelDecks() {
+    var deckCards = [];
+    if (GameState && GameState.player && GameState.player.deck) {
+        deckCards = deckCards.concat(GameState.player.deck);
+    }
+    if (GameState && GameState.computer && GameState.computer.deck) {
+        deckCards = deckCards.concat(GameState.computer.deck);
+    }
+
+    // Include common tokens and card back graphics
+    ['card_back.png', 'card_back_2.png', 'catalyst_token.png'].forEach(function(f) {
+        var preloaded = window._preloadedCardImages = window._preloadedCardImages || {};
+        if (!preloaded[f]) {
+            var img = new Image();
+            img.src = 'cards/' + f;
+            preloaded[f] = img;
+        }
+    });
+
+    preloadCardImages(deckCards);
+}
+
+// Background progressive preloading of all cards during idle moments
+function preloadAllCollectibleCards() {
+    var collectibleIds = (typeof getCollectibleCardIds === 'function') ? getCollectibleCardIds() : [];
+    if (collectibleIds.length === 0 && typeof cards !== 'undefined') {
+        collectibleIds = Object.keys(cards);
+    }
+
+    var i = 0;
+    function loadNextBatch() {
+        if (i >= collectibleIds.length) return;
+        var batch = collectibleIds.slice(i, i + 8);
+        preloadCardImages(batch);
+        i += 8;
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(loadNextBatch, { timeout: 1000 });
+        } else {
+            setTimeout(loadNextBatch, 250);
+        }
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(loadNextBatch, { timeout: 1500 });
+    } else {
+        setTimeout(loadNextBatch, 600);
     }
 }
 
@@ -145,8 +231,12 @@ function isCardCurrentlyPlayable(cardDef) {
         var lpCost = reqTributes * 1000;
         var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
 
-        var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
-        if (ownMonsters < reqTributes && !canMausoleum) return false;
+        var eligibleTributes = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').filter(function(entry) {
+            var mDef = cards[entry.card.cardId];
+            return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
+        }).length : 0;
+
+        if (eligibleTributes < reqTributes && !canMausoleum) return false;
         if (reqTributes === 0 && freeSlots <= 0) return false;
         if (reqTributes > 0 && (freeSlots + (canMausoleum ? 0 : reqTributes)) < 1 && freeSlots <= 0) return false;
         return true;
@@ -166,8 +256,10 @@ function isCardCurrentlyPlayable(cardDef) {
 
     // Tactical spell checks
     if (cardDef.id === 'change-of-heart') {
-        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
-        // Need at least 1 opponent monster and at least 2 free zones (1 for spell + 1 for monster)
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer').filter(function(m) {
+            return !isImmuneToSpellTargeting(m.card, 'player');
+        }) : [];
+        // Need at least 1 targetable opponent monster and at least 2 free zones (1 for spell + 1 for monster)
         return oppMonsters.length > 0 && freeSlots >= 2;
     }
 
@@ -183,7 +275,7 @@ function isCardCurrentlyPlayable(cardDef) {
 
     if (cardDef.id === 'fissure' || cardDef.id === 'smashing-ground') {
         var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
-        var faceUpOpp = oppMonsters.filter(function(m) { return m.card && !m.card.faceDown; });
+        var faceUpOpp = oppMonsters.filter(function(m) { return m.card && !m.card.faceDown && !isImmuneToSpellTargeting(m.card, 'player'); });
         return faceUpOpp.length > 0;
     }
 
@@ -265,9 +357,11 @@ function getCardUnplayableReason(cardDef) {
     }
 
     if (cardDef.id === 'change-of-heart') {
-        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer') : [];
+        var oppMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('computer').filter(function(m) {
+            return !isImmuneToSpellTargeting(m.card, 'player');
+        }) : [];
         if (oppMonsters.length === 0) {
-            return 'Opponent controls no monsters to take.';
+            return 'Opponent controls no monsters you can take (some may be immune to Spell targeting).';
         }
         if (freeSlots < 2) {
             return 'You need space on your field to hold the opponent monster.';
@@ -289,7 +383,7 @@ function getCardUnplayableReason(cardDef) {
     }
 
     if (cardDef.id === 'fissure' || cardDef.id === 'smashing-ground') {
-        return 'Opponent controls no face-up monsters to destroy.';
+        return 'Opponent controls no targetable face-up monsters to destroy.';
     }
 
     if (cardDef.id === 'remove-trap') {

@@ -376,7 +376,8 @@ div.card-zone.field-available-zone {
 
 .card-zone-square[data-card-position*="defense"] .borrowed-monster-badge,
 .card-zone-square[data-card-position*="defense"] .def-locked-badge,
-.card-zone-square[data-card-position*="defense"] .flip-effect-badge {
+.card-zone-square[data-card-position*="defense"] .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge {
     top: calc(50% - (var(--card-width) / 2));
     transform: translate(-50%, -50%);
 }
@@ -384,13 +385,19 @@ div.card-zone.field-available-zone {
 /* Vertical Stacking for Multiple Top Badges (e.g. Borrowed + DEF LOCKED) */
 .card-zone-square .borrowed-monster-badge ~ .def-locked-badge,
 .card-zone-square .flip-effect-badge ~ .def-locked-badge,
-.card-zone-square .def-locked-badge ~ .flip-effect-badge {
+.card-zone-square .def-locked-badge ~ .flip-effect-badge,
+.card-zone-square .immune-badge ~ .def-locked-badge,
+.card-zone-square .def-locked-badge ~ .immune-badge,
+.card-zone-square .immune-badge ~ .flip-effect-badge,
+.card-zone-square .flip-effect-badge ~ .immune-badge {
     transform: translate(-50%, calc(-50% - 19rem));
 }
 
 .card-zone-square .def-locked-badge ~ .borrowed-monster-badge,
 .card-zone-square .flip-effect-badge ~ .borrowed-monster-badge,
-.card-zone-square .borrowed-monster-badge ~ .flip-effect-badge {
+.card-zone-square .borrowed-monster-badge ~ .flip-effect-badge,
+.card-zone-square .immune-badge ~ .borrowed-monster-badge,
+.card-zone-square .borrowed-monster-badge ~ .immune-badge {
     transform: translate(-50%, calc(-50% - 19rem));
 }
 
@@ -399,7 +406,16 @@ div.card-zone.field-available-zone {
 .card-zone-square .def-locked-badge ~ .flip-effect-badge ~ .borrowed-monster-badge,
 .card-zone-square .flip-effect-badge ~ .def-locked-badge ~ .borrowed-monster-badge,
 .card-zone-square .borrowed-monster-badge ~ .def-locked-badge ~ .flip-effect-badge,
-.card-zone-square .def-locked-badge ~ .borrowed-monster-badge ~ .flip-effect-badge {
+.card-zone-square .def-locked-badge ~ .borrowed-monster-badge ~ .flip-effect-badge,
+.card-zone-square .immune-badge ~ .borrowed-monster-badge ~ .def-locked-badge,
+.card-zone-square .immune-badge ~ .flip-effect-badge ~ .def-locked-badge,
+.card-zone-square .immune-badge ~ .def-locked-badge ~ .flip-effect-badge,
+.card-zone-square .borrowed-monster-badge ~ .immune-badge ~ .def-locked-badge,
+.card-zone-square .flip-effect-badge ~ .immune-badge ~ .def-locked-badge,
+.card-zone-square .def-locked-badge ~ .immune-badge ~ .flip-effect-badge,
+.card-zone-square .borrowed-monster-badge ~ .immune-badge ~ .flip-effect-badge,
+.card-zone-square .flip-effect-badge ~ .immune-badge ~ .borrowed-monster-badge,
+.card-zone-square .def-locked-badge ~ .immune-badge ~ .borrowed-monster-badge {
     transform: translate(-50%, calc(-50% - 38rem));
 }
 
@@ -408,7 +424,13 @@ div.card-zone.field-available-zone {
 .card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .def-locked-badge,
 .card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .flip-effect-badge,
 .card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .borrowed-monster-badge,
-.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .flip-effect-badge {
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .immune-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .immune-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .borrowed-monster-badge,
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .immune-badge {
     top: calc(50% - (var(--card-width) / 2));
     transform: translate(-50%, calc(-50% - 19rem));
 }
@@ -418,7 +440,16 @@ div.card-zone.field-available-zone {
 .card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .flip-effect-badge ~ .borrowed-monster-badge,
 .card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .def-locked-badge ~ .borrowed-monster-badge,
 .card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .def-locked-badge ~ .flip-effect-badge,
-.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .borrowed-monster-badge ~ .flip-effect-badge {
+.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .borrowed-monster-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .borrowed-monster-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .flip-effect-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .immune-badge ~ .def-locked-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .immune-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .immune-badge ~ .def-locked-badge,
+.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .immune-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .borrowed-monster-badge ~ .immune-badge ~ .flip-effect-badge,
+.card-zone-square[data-card-position*="defense"] .flip-effect-badge ~ .immune-badge ~ .borrowed-monster-badge,
+.card-zone-square[data-card-position*="defense"] .def-locked-badge ~ .immune-badge ~ .borrowed-monster-badge {
     top: calc(50% - (var(--card-width) / 2));
     transform: translate(-50%, calc(-50% - 38rem));
 }
@@ -522,6 +553,49 @@ div.card-zone.field-available-zone {
     }
     to {
         box-shadow: 0 0 16px rgba(34, 211, 238, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+/* ==========================================================================
+   Spell-Immune Monster "IMMUNE" Badge (shown on face-up Deepsea Warrior)
+   ========================================================================== */
+
+.immune-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3.5rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.95) 0%, rgba(2, 132, 199, 0.95) 100%);
+    border: 1px solid #bae6fd;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 77;
+    pointer-events: none;
+    animation: immuneBadgeGlow 1.8s infinite alternate ease-in-out;
+}
+
+.immune-badge-icon {
+    font-size: 8.5rem;
+    line-height: 1;
+}
+
+@keyframes immuneBadgeGlow {
+    from {
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(125, 211, 252, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
         filter: brightness(1.15);
     }
 }

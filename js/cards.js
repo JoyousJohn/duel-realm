@@ -410,18 +410,18 @@ var cards = {
         'desc': 'Trap Cards, and their effects on the field, cannot be activated. Negate all Trap effects on the field.'
     },
 
-    'jinzo': {
-        'id': 'jinzoid',
+    'deepsea-warrior': {
+        'id': 'deepsea-warrior',
         'type': 'monsters',
         'subType': 'effect',
-        'file': 'jinzoid.png',
-        'name': 'Jinzoid',
-        'monsterType': 'Machine',
-        'attribute': 'DARK',
-        'level': 6,
-        'atk': 2400,
-        'def': 1500,
-        'desc': 'Trap Cards, and their effects on the field, cannot be activated. Negate all Trap effects on the field.'
+        'file': 'deepsea_warrior.png',
+        'name': 'Deepsea Warrior',
+        'monsterType': 'Warrior',
+        'attribute': 'WATER',
+        'level': 5,
+        'atk': 1600,
+        'def': 1600,
+        'desc': 'While this card is face-up on the field, it cannot be targeted by the effects of Spell Cards.'
     },
 
     'chainsaw-insect': {
@@ -507,6 +507,26 @@ var cards = {
             await destroyMonster(who, zoneNum);
             await destroyMonster(target.side, target.zone);
             return true;
+        }
+    },
+
+    'gale-swiftblade': {
+        'id': 'gale-swiftblade',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'gale_swiftblade.png',
+        'name': 'Gale Swiftblade',
+        'monsterType': 'Winged Beast',
+        'attribute': 'WIND',
+        'level': 3,
+        'atk': 1300,
+        'def': 400,
+        'hasIgnitionEffect': true,
+        'desc': 'Once per turn: You can target 1 face-up monster your opponent controls; halve its ATK and DEF until the end of this turn.',
+        onIgnitionEffect: async function(who, zoneNum) {
+            if (typeof activateGaleSwiftblade === 'function') {
+                await activateGaleSwiftblade(who, zoneNum);
+            }
         }
     },
 
@@ -763,6 +783,57 @@ var cards = {
         'desc': 'Target 1 monster in your Graveyard; Special Summon that target in Attack Position. When this card leaves the field, destroy that monster.'
     },
 
+    'vortex-recall': {
+        'id': 'vortex-recall',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'vortex_recall.png',
+        'name': 'Vortex Recall',
+        'desc': 'Target 1 monster on the field; return that target to the owner\'s hand.'
+    },
+
+    'vanguards-accord': {
+        'id': 'vanguards-accord',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'vanguards_accord.png',
+        'name': 'Vanguard\'s Accord',
+        'desc': 'If you control no monsters: Special Summon 1 Level 4 or lower Normal Monster from your Deck.',
+        canActivate: function(who) {
+            var hasMonsters = (typeof GameState !== 'undefined' && GameState && GameState[who] && GameState.getMonstersOnField(who).length > 0);
+            if (hasMonsters) return false;
+            var deckArr = (GameState && GameState[who] && GameState[who].deck) ? GameState[who].deck : [];
+            var hasTarget = deckArr.some(function(id) {
+                var d = cards[id];
+                return d && d.type === 'monsters' && (!d.subType || d.subType === 'normal' || d.subType === '') && (d.level || 0) <= 4 && !d.isToken;
+            });
+            return hasTarget && (typeof getFirstFreeZone === 'function' ? getFirstFreeZone(who) !== undefined : true);
+        },
+        unplayableReason: function(who) {
+            var hasMonsters = (typeof GameState !== 'undefined' && GameState && GameState[who] && GameState.getMonstersOnField(who).length > 0);
+            if (hasMonsters) return 'You can only activate this card if you control no monsters.';
+            return 'No Level 4 or lower Normal Monsters remaining in your Deck.';
+        }
+    },
+
+    'bargain-of-fortune': {
+        'id': 'bargain-of-fortune',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'bargain_of_fortune.png',
+        'name': 'Bargain of Fortune',
+        'desc': 'Draw 1 card, then your opponent gains 1000 Life Points.',
+        canActivate: function(who) {
+            var deckArr = (GameState && GameState[who] && GameState[who].deck) ? GameState[who].deck : [];
+            return deckArr.length > 0 && (typeof getNumOfFreeZones === 'function' ? getNumOfFreeZones(who) > 0 : true);
+        },
+        unplayableReason: function(who) {
+            var deckArr = (GameState && GameState[who] && GameState[who].deck) ? GameState[who].deck : [];
+            if (deckArr.length === 0) return 'No cards remaining in your Deck to draw.';
+            return 'No free Spell/Trap zones available.';
+        }
+    },
+
     'celestial-tithe': {
         'id': 'celestial-tithe',
         'type': 'spells',
@@ -778,7 +849,26 @@ var cards = {
         'subType': 'normal',
         'file': 'lunar_grimoire.png',
         'name': 'Lunar Grimoire',
-        'desc': 'Target 1 face-up monster on the field; change that target to face-down Defense Position.'
+        'desc': 'Target 1 face-up monster on the field (except Tokens); change that target to face-down Defense Position.',
+        canActivate: function(who) {
+            var hasTarget = false;
+            ['player', 'computer'].forEach(function(side) {
+                if (GameState && GameState[side] && GameState[side].field) {
+                    for (var z = 1; z <= 6; z++) {
+                        var m = GameState[side].field.monsters[z];
+                        var d = m ? cards[m.cardId] : null;
+                        var isToken = m && (m.isToken || (d && (d.isToken || d.subType === 'token')));
+                        if (m && !m.faceDown && m.position !== 'defense-down' && !isToken && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m, who) : true)) {
+                            hasTarget = true;
+                        }
+                    }
+                }
+            });
+            return hasTarget && (typeof getNumOfFreeZones === 'function' ? getNumOfFreeZones(who) > 0 : true);
+        },
+        unplayableReason: function(who) {
+            return 'No eligible face-up non-token monsters on the field to target.';
+        }
     },
 
     'astral-phantoms': {
@@ -805,7 +895,7 @@ var cards = {
         'subType': 'field',
         'file': 'yami.png',
         'name': 'Yami',
-        'desc': 'Increase the ATK and DEF of all Fiend and Spellcaster-Type monsters by 300 points and decrease the ATK and DEF of all Fairy-Type monsters by 200 points.'
+        'desc': 'Increase the ATK and DEF of all Fiend and Spellcaster-Type monsters by 200 points and decrease the ATK and DEF of all Fairy-Type monsters by 200 points.'
     },
 
     'wasteland': {
@@ -862,13 +952,31 @@ var cards = {
         'desc': 'Increase the ATK of all LIGHT monsters by 500. Decrease the DEF of all LIGHT monsters by 400.'
     },
 
-    'gaia-power': {
-        'id': 'gaia-power',
+    'tectonic-domain': {
+        'id': 'tectonic-domain',
         'type': 'spells',
         'subType': 'field',
-        'file': 'gaia_power.png',
-        'name': 'Gaia Power',
-        'desc': 'Increase the ATK of all EARTH monsters by 500. Decrease the DEF of all EARTH monsters by 400.'
+        'file': 'tectonic_domain.png',
+        'name': 'Tectonic Domain',
+        'desc': 'All EARTH monsters on the field gain 500 ATK and lose 400 DEF.'
+    },
+
+    'essence-siphon': {
+        'id': 'essence-siphon',
+        'type': 'spells',
+        'subType': 'normal',
+        'file': 'essence_siphon.png',
+        'name': 'Essence Siphon',
+        'desc': 'Target 2 face-up monsters on the field; halve the ATK of 1 target, and add that lost ATK to the other target until the End Phase.'
+    },
+
+    'gaia-power': {
+        'id': 'tectonic-domain',
+        'type': 'spells',
+        'subType': 'field',
+        'file': 'tectonic_domain.png',
+        'name': 'Tectonic Domain',
+        'desc': 'All EARTH monsters on the field gain 500 ATK and lose 400 DEF.'
     },
 
     'umi': {

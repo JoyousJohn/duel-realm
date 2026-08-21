@@ -231,6 +231,7 @@ var BattleFX = {
                 $(squareElm).find('.borrowed-monster-badge').remove();
                 $(squareElm).find('.def-locked-badge').remove();
                 $(squareElm).find('.flip-effect-badge').remove();
+                $(squareElm).find('.immune-badge').remove();
                 $(squareElm).find('.stat-mod-badge').remove();
 
                 zone.removeClass('monster-shattered available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
@@ -687,11 +688,221 @@ var BattleFX = {
     },
 
     /**
+     * Animate card bounce flight from on-mat square to owner's hand
+     * @param {string} sourceWho - Side currently controlling the monster on field ('player' or 'computer')
+     * @param {number} sourceZone - Zone number of the monster on field
+     * @param {string} ownerWho - Player receiving the card in hand ('player' or 'computer')
+     * @param {string} cardName - ID of the bounced card
+     * @param {jQuery} targetCardElm - Target card placeholder in recipient's hand
+     */
+    animateCardBounceToHand: function(sourceWho, sourceZone, ownerWho, cardName, targetCardElm) {
+        var self = this;
+        return new Promise(function(resolve) {
+            try {
+                var sourceSquare = getSquareElm(sourceWho, sourceZone);
+                var sourceCardZone = sourceSquare ? sourceSquare.find('div.card-zone') : null;
+
+                if (!sourceSquare || !sourceSquare.length || !targetCardElm || !targetCardElm.length) {
+                    if (targetCardElm) targetCardElm.css({ opacity: 1, visibility: 'visible' });
+                    resolve();
+                    return;
+                }
+
+                var startOffset = (sourceCardZone && sourceCardZone.length) ? sourceCardZone.offset() : sourceSquare.offset();
+                var targetOffset = targetCardElm.offset();
+
+                var cardDef = cards[cardName];
+                var imgSrc = cardDef ? cardDef.file : 'card_back_2.png';
+                var isRecipientPlayer = (ownerWho === 'player');
+
+                var cardWidth = (targetCardElm && targetCardElm.outerWidth()) ? targetCardElm.outerWidth() : 70;
+                var cardHeight = (targetCardElm && targetCardElm.outerHeight()) ? targetCardElm.outerHeight() : 102;
+
+                var isFaceDown = sourceSquare.attr('data-card-position') === 'defense-down';
+
+                var faceOrder = '<div class="card-back"></div><div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>';
+
+                var flightClone = $('<div class="card card-bounce-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + cardWidth + 'px; height: ' + cardHeight + 'px; top: ' + startOffset.top + 'px; left: ' + startOffset.left + 'px; box-shadow: 0 0 24px rgba(56, 189, 248, 0.7); pointer-events: none; border-radius: 4px; overflow: hidden;">' +
+                    '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' + faceOrder + '</div>' +
+                '</div>');
+
+                if (typeof $.fn.flip === 'function') {
+                    try {
+                        flightClone.find('.card-relative').flip({
+                            trigger: 'manual',
+                            axis: 'y'
+                        });
+                        flightClone.find('.card-relative').flip(!isFaceDown);
+                    } catch (e) {}
+                }
+
+                // Hide the on-mat source element while flight takes place
+                if (sourceCardZone) sourceCardZone.css('opacity', 0);
+
+                $('body').append(flightClone);
+
+                var liftDuration = getAnimDuration(110);
+                var flightDuration = getAnimDuration(380);
+
+                // Pop upwards off the field mat with an aura glow
+                flightClone.transition({
+                    y: (sourceWho === 'player') ? -25 : 25,
+                    rotate: '0deg',
+                    scale: 1.12
+                }, liftDuration, 'ease-out', function() {
+
+                    // If returning to AI hand, flip to face-down in mid-flight
+                    if (!isRecipientPlayer && typeof $.fn.flip === 'function') {
+                        setTimeout(function() {
+                            try {
+                                flightClone.find('.card-relative').flip(false);
+                            } catch (e) {}
+                        }, getAnimDuration(90));
+                    } else if (isRecipientPlayer && isFaceDown && typeof $.fn.flip === 'function') {
+                        // Reveal face-up if returning to player's hand
+                        setTimeout(function() {
+                            try {
+                                flightClone.find('.card-relative').flip(true);
+                            } catch (e) {}
+                        }, getAnimDuration(90));
+                    }
+
+                    // Arc trajectory directly into hand
+                    flightClone.transition({
+                        top: targetOffset.top,
+                        left: targetOffset.left,
+                        x: 0,
+                        y: 0,
+                        rotate: '0deg',
+                        scale: 1
+                    }, flightDuration, 'cubic-bezier(0.2, 0.9, 0.3, 1)', function() {
+                        flightClone.remove();
+                        targetCardElm.css({ opacity: 1, visibility: 'visible' });
+                        resolve();
+                    });
+                });
+            } catch (err) {
+                console.error('animateCardBounceToHand error:', err);
+                if (targetCardElm) targetCardElm.css({ opacity: 1, visibility: 'visible' });
+                resolve();
+            }
+        });
+    },
+
+    /**
+     * Animate Card Discard flight from Hand into Graveyard
+     * @param {string} who - 'player' or 'computer'
+     * @param {string} cardName - ID of the card discarded
+     * @param {jQuery} targetCardElm - Target card element in hand
+     */
+    animateCardDiscard: function(who, cardName, targetCardElm) {
+        var self = this;
+        return new Promise(function(resolve) {
+            try {
+                var gyZone = $('#' + who + '-graveyard-zone');
+                var gyTarget = gyZone.length ? (gyZone.find('.card-zone').length ? gyZone.find('.card-zone') : gyZone) : null;
+                if (!gyTarget || !gyTarget.length) {
+                    if (targetCardElm) targetCardElm.remove();
+                    if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
+                    if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                    resolve();
+                    return;
+                }
+
+                var gyOffset = gyTarget.offset();
+                var cardDef = (typeof cards !== 'undefined' && cards[cardName]) ? cards[cardName] : null;
+                var imgSrc = cardDef ? cardDef.file : 'card_back_2.png';
+                var isPlayer = (who === 'player');
+
+                var sourceOffset;
+                var cardWidth = 70;
+                var cardHeight = 102;
+
+                if (targetCardElm && targetCardElm.length && targetCardElm.is(':visible')) {
+                    sourceOffset = targetCardElm.offset();
+                    cardWidth = targetCardElm.outerWidth() || 70;
+                    cardHeight = targetCardElm.outerHeight() || 102;
+                    // Trigger hand reorder immediately and hide placeholder card
+                    if (typeof animateHandReorder === 'function' && typeof getHand === 'function') {
+                        animateHandReorder(getHand(who), targetCardElm[0], getAnimDuration(380));
+                    } else {
+                        targetCardElm.css({ opacity: 0, visibility: 'hidden' });
+                    }
+                } else {
+                    var handContainer = $('#' + who + '-hand');
+                    sourceOffset = (handContainer.length && handContainer.is(':visible')) ? handContainer.offset() : gyOffset;
+                }
+
+                var faceOrder = '<div class="card-back"></div><div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>';
+
+                var flightClone = $('<div class="card card-discard-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + cardWidth + 'px; height: ' + cardHeight + 'px; top: ' + sourceOffset.top + 'px; left: ' + sourceOffset.left + 'px;">' +
+                    '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' + faceOrder + '</div>' +
+                '</div>');
+
+                if (typeof $.fn.flip === 'function') {
+                    try {
+                        flightClone.find('.card-relative').flip({
+                            trigger: 'manual',
+                            axis: 'y'
+                        });
+                        // Computer starts face-down (false), Player starts face-up (true)
+                        flightClone.find('.card-relative').flip(isPlayer);
+                    } catch (e) {}
+                }
+
+                $('body').append(flightClone);
+
+                var liftDuration = getAnimDuration(160);
+                var flipDelay = getAnimDuration(80);
+                var flightDuration = getAnimDuration(420);
+
+                // 1. Elevate out of hand with shadow aura
+                flightClone.transition({
+                    y: isPlayer ? -30 : 30,
+                    scale: 1.18,
+                    rotate: isPlayer ? -8 : 8
+                }, liftDuration, 'cubic-bezier(0.18, 0.89, 0.32, 1.28)', function() {
+
+                    // Flip face-up to reveal discarded card to player if computer discarded
+                    if (!isPlayer && typeof $.fn.flip === 'function') {
+                        setTimeout(function() {
+                            try {
+                                flightClone.find('.card-relative').flip(true);
+                            } catch (e) {}
+                        }, flipDelay);
+                    }
+
+                    // 2. Flight to Graveyard Zone
+                    flightClone.transition({
+                        top: gyOffset.top,
+                        left: gyOffset.left,
+                        x: 0,
+                        y: 0,
+                        rotate: 0,
+                        scale: 0.95,
+                        opacity: 0.7
+                    }, flightDuration, 'cubic-bezier(0.22, 1, 0.36, 1)', function() {
+                        flightClone.remove();
+                        if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
+                        if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                        resolve();
+                    });
+                });
+            } catch (err) {
+                console.error('animateCardDiscard error:', err);
+                if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
+                if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+                resolve();
+            }
+        });
+    },
+
+    /**
      * Update 3D Deck Stack Visual Heights & Badges
      */
     updateDeckVisuals: function() {
-        var playerDeckCount = (GameState && GameState.player && GameState.player.deck) ? GameState.player.deck.length : (typeof deck !== 'undefined' && deck ? deck.length : 35);
-        var computerDeckCount = (GameState && GameState.computer && GameState.computer.deck) ? GameState.computer.deck.length : 35;
+        var playerDeckCount = (GameState && GameState.player && GameState.player.deck) ? GameState.player.deck.length : (typeof deck !== 'undefined' && deck ? deck.length : 40);
+        var computerDeckCount = (GameState && GameState.computer && GameState.computer.deck) ? GameState.computer.deck.length : 40;
 
         $('#player-deck-overhead-count').text(playerDeckCount);
         $('#computer-deck-overhead-count').text(computerDeckCount);

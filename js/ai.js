@@ -26,8 +26,8 @@ function AICalcMonsterPosition(monsterName) {
 
     // 1. Direct attack opportunity if opponent has no monsters
     if (playerMonsters.length === 0) {
-        // Attack mode if monster has decent attack or higher atk than def
-        if (atk >= 1000 || atk >= def) {
+        // Attack mode if monster has positive offensive attack power
+        if (atk >= 1000 || (atk > 0 && atk >= def)) {
             return 'attack';
         }
         return 'defense-down';
@@ -51,18 +51,12 @@ function AICalcMonsterPosition(monsterName) {
         return 'defense-down';
     }
 
-    // 3. If monster has superior ATK or higher ATK than DEF, summon in Attack Position.
-    // NOTE: This includes summoning in Attack even when the opponent may control stronger
-    // monsters (e.g. ones sitting in Defense). The incentive is deliberate: an exposed
-    // Attack monster acts as BAIT — it invites the player to spend their attack destroying
-    // it, so the AI trades a cheap card to absorb that attack instead of the player hitting
-    // the AI's Life Points directly or attacking a more valuable target. Losing a monster
-    // is preferable to losing LP.
-    if (atk >= 1400 || atk >= def) {
+    // 3. Summon in Attack Position only if monster has real combat stats (1400+ or solid 1000+ with atk >= def)
+    if (atk >= 1400 || (atk >= 1000 && atk >= def)) {
         return 'attack';
     }
 
-    // Default: Set face-down in defense for defensive/ambush monsters (e.g. Mystical Elf, Wall of Illusion)
+    // Default: Set face-down in defense for defensive/ambush/weak monsters
     return 'defense-down';
 }
 
@@ -138,21 +132,25 @@ async function AIEvaluatePositionChanges() {
             // Cannot switch to Attack Position if it is a Dragon under Dragon Capture Jar
             if (isJarActive && cardDef.monsterType === 'Dragon') continue;
 
+            var isToken = monsterInst.isToken || cardDef.isToken || cardDef.subType === 'token';
+            if (isToken && atk === 0) continue; // 0-ATK tokens should remain in defense to absorb attacks
+
             // Borrowed monsters with Change of Heart should always switch to Attack position to attack
             if (monsterInst.isBorrowed && atk > 0) {
                 await AIChangeMonsterPosition(zoneNum, 'attack');
-            } else if (atk >= 1400 || atk >= def) {
-                // Favorable to switch to Attack if high ATK power or ATK >= DEF
+            } else if (atk >= 1400 || (atk >= 1000 && atk >= def)) {
+                // Favorable to switch to Attack if high ATK power or solid 1000+ ATK with ATK >= DEF
                 await AIChangeMonsterPosition(zoneNum, 'attack');
             }
         } else if (currentPos === 'attack') {
-            // If monster has low ATK and higher DEF, and player has strong offensive threats
+            // If monster has low ATK and higher DEF, or is a 0-ATK token exposed to attacks
+            var isToken = monsterInst.isToken || cardDef.isToken || cardDef.subType === 'token';
             var playerMonsters = GameState.getMonstersOnField('player');
             var playerHasBiggerThreat = playerMonsters.some(function(pm) {
                 return getMonsterAtk(pm.card) > atk;
             });
 
-            if (def > atk && playerHasBiggerThreat) {
+            if ((def > atk && playerHasBiggerThreat) || (isToken && atk === 0)) {
                 await AIChangeMonsterPosition(zoneNum, 'defense-up');
             }
         }
@@ -224,18 +222,48 @@ async function AIPerformBattlePhase() {
             var defPosition = defender.card.position;
             var defenderAtk = getMonsterAtk(defender.card);
             var defenderDefVal = getMonsterDef(defender.card);
+            var isFaceUpYomiShip = (defender.card.cardId === 'yomi-ship' && !defender.card.faceDown);
 
             if (defPosition === 'attack') {
                 // Face-Up Attack Target
                 if (attackerAtk > defenderAtk) {
-                    // Safe win: Inflicts battle damage & destroys opponent monster
                     var damageToPlayer = attackerAtk - defenderAtk;
-                    var score = 1000 + damageToPlayer;
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestTargetZone = defender.zone;
+                    var isLethal = (damageToPlayer >= (GameState.player.lp || 0));
+
+                    if (isFaceUpYomiShip) {
+                        if (isLethal) {
+                            // Lethal blow: Deliver game-winning strike despite recoil
+                            var score = 10000 + damageToPlayer;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestTargetZone = defender.zone;
+                            }
+                        } else {
+                            var isFodder = (attackerDef.isToken || (attackerDef.level || 0) <= 3 || attackerAtk <= 1000);
+                            if (isFodder) {
+                                // Disposable / weak monster trade to safely remove Yomi Ship
+                                var score = 400 + damageToPlayer;
+                                if (score > bestScore) {
+                                    bestScore = score;
+                                    bestTargetZone = defender.zone;
+                                }
+                            } else {
+                                // High-value / boss monster: DO NOT attack Yomi Ship (suicide)
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Safe win: Inflicts battle damage & destroys opponent monster
+                        var score = 1000 + damageToPlayer;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTargetZone = defender.zone;
+                        }
                     }
                 } else if (attackerAtk === defenderAtk) {
+                    if (isFaceUpYomiShip) {
+                        continue;
+                    }
                     // Equal ATK trade (mutual destruction): Only take trade if defender has high ATK threat
                     if (defenderAtk >= 1500 && bestScore < 200) {
                         bestScore = 200;
@@ -248,11 +276,28 @@ async function AIPerformBattlePhase() {
             } else if (defPosition === 'defense-up') {
                 // Face-Up Defense Target
                 if (attackerAtk > defenderDefVal) {
-                    // Safe destruction with no recoil
-                    var score = 500 + (defenderDefVal / 10);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestTargetZone = defender.zone;
+                    if (isFaceUpYomiShip) {
+                        var isFodder = (attackerDef.isToken || (attackerDef.level || 0) <= 3 || attackerAtk <= 1000);
+                        if (isFodder) {
+                            var score = 350;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestTargetZone = defender.zone;
+                            }
+                        } else {
+                            // High-value monster should not kill defense Yomi Ship for 0 damage and suicide
+                            continue;
+                        }
+                    } else if (defender.card.cardId === 'nether-wraith') {
+                        // Nether Wraith cannot be destroyed by battle in defense
+                        continue;
+                    } else {
+                        // Safe destruction with no recoil
+                        var score = 500 + (defenderDefVal / 10);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTargetZone = defender.zone;
+                        }
                     }
                 } else {
                     // Attacker ATK <= Defender DEF: DO NOT ATTACK (would take recoil or do nothing)
@@ -281,19 +326,19 @@ async function AIPerformBattlePhase() {
     }
 }
 
-// Step 1: Play Pot of Greed immediately if held to maximize card advantage & tactical options
+// Step 1: Play Pot of Greed & Bargain of Fortune immediately if held to maximize card advantage & tactical options
 async function AIPlayDrawCards() {
     var played = false;
-    var maxIter = 3;
+    var maxIter = 5;
     while (maxIter-- > 0) {
-        var pogInstance = GameState.computer.hand.find(function(c) { return c.cardId === 'pot-of-greed'; });
-        if (!pogInstance || getNumOfFreeZones('computer') <= 0) break;
+        var drawInst = GameState.computer.hand.find(function(c) { return c.cardId === 'pot-of-greed' || c.cardId === 'bargain-of-fortune'; });
+        if (!drawInst || getNumOfFreeZones('computer') <= 0) break;
 
-        var def = cards['pot-of-greed'];
+        var def = cards[drawInst.cardId];
         var zoneNum = getFirstFreeZone('computer');
-        if (zoneNum === undefined) break;
+        if (zoneNum === undefined || !def) break;
 
-        await playNonMonsterCard('computer', getHandCardElmByUid('computer', pogInstance.uid), getSquareElm('computer', zoneNum), def, 'slot');
+        await playNonMonsterCard('computer', getHandCardElmByUid('computer', drawInst.uid), getSquareElm('computer', zoneNum), def, 'slot');
         played = true;
         await sleep(getAnimDuration(400));
     }
@@ -336,9 +381,9 @@ async function AIPlayFissure() {
     if (!inst) return;
     if (getNumOfFreeZones('computer') <= 0) return;
 
-    // Only play if player has at least one face-up monster
+    // Only play if player has at least one face-up monster that isn't immune
     var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
-        return m.card && !m.card.faceDown;
+        return m.card && !m.card.faceDown && !isImmuneToSpellTargeting(m.card, 'computer');
     });
     if (playerFaceUp.length === 0) return;
 
@@ -362,8 +407,12 @@ async function AIPlayTributeToTheDoomed() {
 
     // Only play if there's a monster on the field worth destroying
     var allMonsters = [
-        ...GameState.getMonstersOnField('player'),
-        ...GameState.getMonstersOnField('computer')
+        ...GameState.getMonstersOnField('player').filter(function(m) {
+            return !isImmuneToSpellTargeting(m.card, 'computer');
+        }),
+        ...GameState.getMonstersOnField('computer').filter(function(m) {
+            return !isImmuneToSpellTargeting(m.card, 'computer');
+        })
     ];
     if (allMonsters.length === 0) return;
 
@@ -489,6 +538,29 @@ async function AIPlayExiledForce() {
     await sleep(getAnimDuration(500));
 }
 
+// AI evaluates whether to activate Gale Swiftblade on field
+async function AIPlayGaleSwiftblade() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var galeEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'gale-swiftblade' && 
+               m.card.position !== 'defense-down' && 
+               !m.card.faceDown &&
+               m.card.usedGaleTurn !== turnCount;
+    });
+
+    if (!galeEntry) return;
+
+    var playerMonsters = GameState.getMonstersOnField('player').filter(function(m) {
+        return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+    });
+    if (playerMonsters.length === 0) return;
+
+    if (typeof activateGaleSwiftblade === 'function') {
+        await activateGaleSwiftblade('computer', galeEntry.zone);
+        await sleep(getAnimDuration(350));
+    }
+}
+
 // Step 2b: AI plays summon enabler spells (Double Tribute Surge, Phantom Catalyst, Mausoleum) BEFORE the summon routine
 async function AIPlaySummonEnablerSpells() {
     var hand = GameState.computer.hand.slice();
@@ -548,6 +620,23 @@ async function AIPlaySummonEnablerSpells() {
                 });
                 if (hasHighLvl && GameState.computer.lp >= 2500) {
                     await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getFieldZoneElm('computer'), def, 'field');
+                    await sleep(getAnimDuration(300));
+                }
+            }
+        }
+        // 4. Vanguard's Accord
+        else if (def.id === 'vanguards-accord') {
+            var compMons = GameState.getMonstersOnField('computer').length;
+            var compDeck = (GameState.computer && GameState.computer.deck) ? GameState.computer.deck : [];
+            var hasTarget = compDeck.some(function(id) {
+                var d = cards[id];
+                return d && d.type === 'monsters' && (!d.subType || d.subType === 'normal' || d.subType === '') && (d.level || 0) <= 4 && !d.isToken;
+            });
+            var freeZones = getNumOfFreeZones('computer');
+            if (compMons === 0 && hasTarget && freeZones >= 1) {
+                var zoneNum = getFirstFreeZone('computer');
+                if (zoneNum !== undefined) {
+                    await playNonMonsterCard('computer', getHandCardElmByUid('computer', instance.uid), getSquareElm('computer', zoneNum), def, 'slot');
                     await sleep(getAnimDuration(300));
                 }
             }
@@ -772,7 +861,7 @@ async function AIPlaySpellTrapCards() {
                     if (getNumOfFreeZones('computer') > 0) {
                         if (def.ai && typeof def.ai.shouldPlay === 'function') {
                             shouldPlay = def.ai.shouldPlay('computer', instance);
-                        } else if (def.id === 'pot-of-greed' || def.id === 'celestial-tithe') {
+                        } else if (def.id === 'pot-of-greed' || def.id === 'celestial-tithe' || def.id === 'bargain-of-fortune') {
                             shouldPlay = true;
                         } else if (def.id === 'raigeki') {
                             shouldPlay = GameState.getMonstersOnField('player').length > 0;
@@ -781,7 +870,10 @@ async function AIPlaySpellTrapCards() {
                             var playerCount = GameState.getMonstersOnField('player').length;
                             shouldPlay = playerCount > 0 && (compCount === 0 || playerCount > compCount);
                         } else if (def.id === 'change-of-heart') {
-                            shouldPlay = (getFirstFreeZone('computer') !== undefined) && (GameState.getMonstersOnField('player').length > 0);
+                            var cohTargets = GameState.getMonstersOnField('player').filter(function(m) {
+                                return !isImmuneToSpellTargeting(m.card, 'computer');
+                            });
+                            shouldPlay = (getFirstFreeZone('computer') !== undefined) && cohTargets.length > 0;
                         } else if (def.id === 'remove-trap') {
                             shouldPlay = findFaceUpTrap('player') !== null;
                         } else if (def.id === 'mystical-space-typhoon') {
@@ -804,20 +896,40 @@ async function AIPlaySpellTrapCards() {
                             shouldPlay = (playerST > 0 && (playerST > compST || playerSwords || playerJar));
                         } else if (def.id === 'fissure' || def.id === 'smashing-ground') {
                             var playerFaceUp = GameState.getMonstersOnField('player').filter(function(m) {
-                                return m.card && !m.card.faceDown;
+                                return m.card && !m.card.faceDown && !isImmuneToSpellTargeting(m.card, 'computer');
                             });
                             shouldPlay = playerFaceUp.length > 0;
                         } else if (def.id === 'monster-reborn') {
                             shouldPlay = (getFirstFreeZone('computer') !== undefined) && (getGraveyardMonsters().length > 0);
+                        } else if (def.id === 'vanguards-accord') {
+                            var compCount = GameState.getMonstersOnField('computer').length;
+                            var compDeck = (GameState.computer && GameState.computer.deck) ? GameState.computer.deck : [];
+                            var hasValidTarget = compDeck.some(function(id) {
+                                var d = cards[id];
+                                return d && d.type === 'monsters' && (!d.subType || d.subType === 'normal' || d.subType === '') && (d.level || 0) <= 4 && !d.isToken;
+                            });
+                            shouldPlay = (compCount === 0 && hasValidTarget && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'lunar-grimoire') {
                             var faceUpMonsters = GameState.getMonstersOnField('player').filter(function(m) {
-                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+                                var d = cards[m.card.cardId];
+                                var isToken = m.card.isToken || (d && (d.isToken || d.subType === 'token'));
+                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !isToken && !isImmuneToSpellTargeting(m.card, 'computer');
                             });
                             shouldPlay = faceUpMonsters.length > 0;
                         } else if (def.id === 'astral-phantoms') {
                             var compMons = GameState.getMonstersOnField('computer').length;
                             var playerMons = GameState.getMonstersOnField('player').length;
                             shouldPlay = (compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined;
+                        } else if (def.id === 'essence-siphon') {
+                            var compFaceUpMons = GameState.getMonstersOnField('computer').filter(function(m) {
+                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !isImmuneToSpellTargeting(m.card, 'computer');
+                            });
+                            var playerFaceUpMons = GameState.getMonstersOnField('player').filter(function(m) {
+                                return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && !isImmuneToSpellTargeting(m.card, 'computer');
+                            });
+                            shouldPlay = compFaceUpMons.length > 0 && playerFaceUpMons.length > 0 && playerFaceUpMons.some(function(pm) {
+                                return getMonsterAtk(pm.card) >= 1000;
+                            });
                         } else if (def.id === 'double-tribute-surge') {
                             var handMonsters = (computer.hand && computer.hand.monsters) ? computer.hand.monsters.length : 0;
                             var hasHighLvl = computer.hand && computer.hand.monsters ? computer.hand.monsters.some(function(m) {
@@ -881,7 +993,7 @@ async function AIPlaySpellTrapCards() {
                             shouldSet = false;
                         }
                     }
-                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'arcane-disruptor' || def.id === 'prism-of-retribution') {
+                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'arcane-disruptor' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall') {
                     var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', def.id) !== null);
                     if (alreadySet) {
                         shouldSet = false;
@@ -912,6 +1024,24 @@ async function AIPlaySpellTrapCards() {
                 var trapInst = GameState.computer.field.spells[setCryptZone];
                 if (trapInst) {
                     await activateCard('computer', trapInst, setCryptZone);
+                    playedAny = true;
+                }
+            }
+        }
+
+        // Check if AI can activate a set Vortex Recall to bounce a high-threat player monster
+        var setVRZone = (typeof findSetTrapZone === 'function') ? findSetTrapZone('computer', 'vortex-recall') : null;
+        if (setVRZone !== null) {
+            var playerMonsters = GameState.getMonstersOnField('player');
+            var highThreat = playerMonsters.some(function(m) {
+                var d = cards[m.card.cardId];
+                var atk = (typeof getMonsterAtk === 'function') ? getMonsterAtk(m.card) : (d ? d.atk || 0 : 0);
+                return atk >= 1600 || (d && d.level >= 5);
+            });
+            if (highThreat) {
+                var vrInst = GameState.computer.field.spells[setVRZone];
+                if (vrInst) {
+                    await activateCard('computer', vrInst, setVRZone);
                     playedAny = true;
                 }
             }

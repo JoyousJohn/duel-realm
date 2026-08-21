@@ -69,27 +69,23 @@ body.sidebar-is-resizing * {
 
 /* Custom Tactical Scrollbar */
 #info-panel::-webkit-scrollbar,
-#feed::-webkit-scrollbar,
-.preview-desc-container::-webkit-scrollbar {
+#feed::-webkit-scrollbar {
     width: 4rem;
 }
 
 #info-panel::-webkit-scrollbar-track,
-#feed::-webkit-scrollbar-track,
-.preview-desc-container::-webkit-scrollbar-track {
+#feed::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.2);
 }
 
 #info-panel::-webkit-scrollbar-thumb,
-#feed::-webkit-scrollbar-thumb,
-.preview-desc-container::-webkit-scrollbar-thumb {
+#feed::-webkit-scrollbar-thumb {
     background: rgba(212, 175, 55, 0.3);
     border-radius: 4rem;
 }
 
 #info-panel::-webkit-scrollbar-thumb:hover,
-#feed::-webkit-scrollbar-thumb:hover,
-.preview-desc-container::-webkit-scrollbar-thumb:hover {
+#feed::-webkit-scrollbar-thumb:hover {
     background: rgba(212, 175, 55, 0.6);
 }
 
@@ -930,8 +926,9 @@ body.sidebar-is-resizing * {
     border: 1px solid rgba(240, 246, 252, 0.1);
     border-radius: 6rem;
     padding: 8rem 10rem;
-    max-height: 90rem;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
+    height: auto;
 }
 
 .preview-desc-title {
@@ -952,29 +949,31 @@ body.sidebar-is-resizing * {
 
 /* While inspecting cards, hide duel log and fit all components cleanly */
 #info-panel.sidebar-inspecting {
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 #info-panel.sidebar-inspecting .log-module,
-#info-panel.sidebar-inspecting #duel-log-module {
+#info-panel.sidebar-inspecting #duel-log-module,
+#info-panel.sidebar-inspecting .command-module,
+#info-panel.sidebar-inspecting #btn-panel {
     display: none !important;
 }
 
 #info-panel.sidebar-inspecting .scanner-module {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .sidebar-inspecting .scanner-active-view {
     display: flex;
     flex-direction: column;
     gap: 8rem;
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .sidebar-inspecting .preview-primary-meta {
@@ -986,9 +985,10 @@ body.sidebar-is-resizing * {
 }
 
 .sidebar-inspecting .preview-desc-container {
-    flex: 0 1 auto;
-    max-height: 140rem;
-    overflow-y: auto;
+    flex: 0 0 auto;
+    max-height: none;
+    overflow: visible;
+    height: auto;
 }
 
 /* ==========================================================================
@@ -1107,7 +1107,6 @@ body.sidebar-is-resizing * {
     font-size: 10rem;
     line-height: 1.5;
     color: #94a3b8;
-    max-height: 145rem;
     overflow-y: auto;
     padding-right: 4rem;
 }

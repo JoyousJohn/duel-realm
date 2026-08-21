@@ -407,6 +407,28 @@
     border-radius: 0;
 }
 
+/* Card Discard Flight Clone */
+.card-discard-flight {
+    position: fixed !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    perspective: 1000px;
+    transform-style: preserve-3d;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 24px rgba(168, 85, 247, 0.75) !important;
+    border-radius: 0;
+}
+
+.card-discard-flight .card-relative {
+    height: 100%;
+    transform-style: preserve-3d;
+    border-radius: 0;
+}
+
+.card-discard-flight .card-front img {
+    border-radius: 0;
+}
+
 /* ==========================================================================
    9. Realistic Dynamic 3D Graveyard Stack
    ========================================================================== */

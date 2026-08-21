@@ -113,6 +113,9 @@ async function computerTurn() {
     if (typeof AIPlayGryphonStormlord === 'function') {
         await AIPlayGryphonStormlord();
     }
+    if (typeof AIPlayGaleSwiftblade === 'function') {
+        await AIPlayGaleSwiftblade();
+    }
 
     // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game
     if (typeof AIPlayOokazi === 'function') {
@@ -286,7 +289,18 @@ function endGame() {
     }
 
     GameState.reset();
-    resetAllSquares();   
+    resetAllSquares();
+
+    // Clear any lingering global selection/UI modes from the prior match
+    $('body').removeClass('tribute-selection-mode');
+    if (typeof clearTributeSelectionMode === 'function') {
+        clearTributeSelectionMode();
+    }
+
+    // Force-hide any modal that may have been open when the match ended
+    // (fadeIn leaves an inline display style that overrides the CSS class base)
+    $('.tactical-action-modal').hide();
+    $('#tribute-action-bar').hide();
 }
 
 function addToFeed(gameMove) {
@@ -347,6 +361,9 @@ function resetAllSquares(squareElm) {
         $(this).attr('data-turn-moved', "");
         $(this).attr('data-turn-posChanged', "");
 
+        $(this).removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
+        $(this).find('div.card-zone').removeClass('available-zone spell-available-zone field-available-zone active-card card-actionable active-attacker-zone');
+
         $(this).find('div.card-zone').removeData("flip-model");
         $(this).find('div.card-zone').removeData('transform');
         $(this).find('div.card-zone').removeAttr('style');
@@ -363,4 +380,9 @@ function resetAllSquares(squareElm) {
     $('.stat-mod-badge').remove();
     $('.def-locked-badge').remove();
     $('.flip-effect-badge').remove();
+    $('.immune-badge').remove();
+    $('.equip-tag-badge').remove();
+    $('.tribute-selected-badge').remove();
+    $('.tribute-candidate-highlight').removeClass('tribute-candidate-highlight');
+    $('.is-tribute-selected').removeClass('is-tribute-selected');
 }
