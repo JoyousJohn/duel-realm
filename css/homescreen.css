@@ -172,7 +172,7 @@
 }
 
 /* Mobile — title on left, actions on right (instead of stacked) */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .homescreen-content {
         flex-direction: row;
         align-items: center;

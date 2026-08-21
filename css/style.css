@@ -187,7 +187,7 @@ img {
 }
 
 /* Mobile — hand cards are already spread by default; skip the hover spread */
-@media (max-width: 768px) and (hover: none) {
+@media (max-width: 900px) and (hover: none) {
     #player-hand > div:hover,
     #player-hand:hover > .card {
         margin: 0 1px;
@@ -284,7 +284,7 @@ img {
 /* Mobile only — offset past the tactical sidebar so modals cover just
    the board area, not the space underneath the sidebar. Tracks resizer
    drags via the inline --sidebar-width the resizer writes. */
-@media (max-width: 768px) and (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape) {
     .tactical-action-modal {
         left: var(--sidebar-width, 210rem);
     }
@@ -1695,7 +1695,7 @@ body.spell-target-selection-mode #player-field .card-zone-square:not(.spell-targ
    dismisses it the board must still be usable. Stack the layout vertically
    so the mat gets the full viewport width and cards can grow to fill the
    horizontal 7-column budget. */
-@media (max-width: 768px) and (orientation: portrait) {
+@media (max-width: 900px) and (orientation: portrait) {
     #viewport {
         flex-direction: column-reverse;
     }

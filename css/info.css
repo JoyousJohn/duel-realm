@@ -543,7 +543,7 @@ body.sidebar-is-resizing * {
 }
 
 /* Mobile-only phase strip — hidden on desktop.
-   The (max-width: 768px) overrides live at the END of this file so they
+   The (max-width: 900px) overrides live at the END of this file so they
    win the cascade against all base rules regardless of specificity ties. */
 #phase-tracker-mobile {
     display: none;
@@ -1206,7 +1206,7 @@ body.sidebar-is-resizing * {
    Mobile Overrides — kept at the END of the file so they win the cascade
    against all base rules (equal-specificity ties resolve to last match).
    ========================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     /* Hide the desktop phase module entirely; the dedicated mobile
        strip (#phase-tracker-mobile) replaces it. */
     #info-stats.phase-module {

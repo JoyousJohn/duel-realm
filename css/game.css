@@ -31,7 +31,7 @@
 
 /* Mobile — banner spans the full viewport including the sidebar,
    so raise it above the sidebar's z-index (1050). */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     #turn-popup {
         z-index: 1200;
     }

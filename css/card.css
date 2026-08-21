@@ -130,7 +130,7 @@ img[src="#"] {
 }
 
 /* Mobile — minimal lift on touch "hover" so cards stay anchored to the hand */
-@media (max-width: 768px) and (hover: none) {
+@media (max-width: 900px) and (hover: none) {
     #player-hand:hover > .card {
         transform: scale(1.08);
     }

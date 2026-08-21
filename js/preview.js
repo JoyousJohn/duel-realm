@@ -238,7 +238,7 @@ $(document).on('mouseleave', '.card-zone-square, .card, .rebirth-card-tile, .gy-
     $('#duel-log-module').show();
     // On mobile the desktop phase module is hidden via CSS; .show() would
     // write an inline display that overrides it, so only restore on desktop.
-    if (!window.matchMedia('(max-width: 768px)').matches) {
+    if (!window.matchMedia('(max-width: 900px)').matches) {
         $('#info-stats').show();
     }
     $('#scanner-active').hide();
@@ -251,7 +251,7 @@ $(document).on('mouseleave', '.card-zone-square, .card, .rebirth-card-tile, .gy-
  * Called after a card is placed/used so the inspector doesn't linger.
  */
 function dismissMobilePreview() {
-    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    if (!window.matchMedia('(max-width: 900px)').matches) return;
     hoverCardName = null;
     $('#info-panel').removeClass('sidebar-inspecting');
     $('#duel-log-module').show();

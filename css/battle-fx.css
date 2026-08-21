@@ -627,7 +627,7 @@
 }
 
 /* Mobile — circular counters: square aspect, smaller font, centered digit */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .deck-center-counter {
         aspect-ratio: 1;
         width: auto;

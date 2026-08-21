@@ -21,7 +21,7 @@
     display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .gy-label-full {
         display: none;
     }

@@ -1440,7 +1440,7 @@ body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candida
    buttons and card grids. Placed at the end of the last-loaded stylesheet
    so it wins cascade ties against all base modal rules.
    ========================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .tactical-action-modal {
         padding: 8px;
     }
