@@ -413,6 +413,9 @@ var BattleFX = {
             var cardDef = cards[cardName];
             var imgSrc = cardDef ? cardDef.file : '';
 
+            // Capture face-down state BEFORE clearing the square data attributes
+            var wasFaceDown = ($(squareElm).attr('data-card-position') === 'set' || $(squareElm).attr('data-card-position') === 'defense-down');
+
             // Clear square data attributes to reveal placeholder state
             $(squareElm).attr('data-card-type', '');
             $(squareElm).attr('data-card-name', '');
@@ -434,9 +437,14 @@ var BattleFX = {
             var gyCoord = (typeof getMatLocalCoord === 'function') ? getMatLocalCoord(gyZone) : null;
 
             if (imgSrc && sourceCoord && gyCoord) {
+                // Face-down cards fly to the graveyard face-down (never revealed)
+                var faceContent = wasFaceDown
+                    ? '<div class="card-back"></div>'
+                    : '<div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>';
+
                 var flightClone = $('<div class="card card-draw-flight" style="position: absolute !important; z-index: 99999; margin: 0; width: ' + zone.outerWidth() + 'px; height: ' + zone.outerHeight() + 'px; top: ' + sourceCoord.top + 'px; left: ' + sourceCoord.left + 'px; filter: brightness(1.1);">' +
                     '<div class="card-relative" style="position: relative; width: 100%; height: 100%;">' +
-                        '<div class="card-front"><img class="card-img" src="cards/' + imgSrc + '"></div>' +
+                        faceContent +
                     '</div>' +
                 '</div>');
 

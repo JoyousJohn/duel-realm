@@ -23,7 +23,7 @@ async function startGame() {
 
 async function playerTurn() {
 
-    showPopup("YOUR TURN");
+    showPopup("Your turn");
 
     updateTurn(0); // Set phase to player
     GameState.turn.active = 'player';
@@ -34,6 +34,9 @@ async function playerTurn() {
     // Reset attack flags for player monsters
     var playerMonsters = GameState.getMonstersOnField('player');
     playerMonsters.forEach(function(m) { m.card.hasAttacked = false; });
+
+    // Clean up expired Void Sentinel negations
+    cleanupExpiredNegations();
 
     // 1. Draw Phase
     setPhase(0); // DP
@@ -54,7 +57,7 @@ async function playerTurn() {
 
 async function computerTurn() {
 
-    showPopup("COMPUTER'S TURN");
+    showPopup("Opponent's turn");
 
     updateTurn(1); // Set phase to computer
     GameState.turn.active = 'computer';
@@ -65,6 +68,9 @@ async function computerTurn() {
     // Reset attack flags for computer monsters
     var computerMonsters = GameState.getMonstersOnField('computer');
     computerMonsters.forEach(function(m) { m.card.hasAttacked = false; });
+
+    // Clean up expired Void Sentinel negations
+    cleanupExpiredNegations();
 
     setPhase(0); // Draw 
     await getCards('computer', 1);
@@ -91,6 +97,11 @@ async function computerTurn() {
         await AIPlaySummonEnablerSpells();
     }
 
+    // 2c. AI Special Summons Umbra Herald from hand if it controls a Fiend
+    if (typeof AISpecialSummonUmbraHerald === 'function') {
+        await AISpecialSummonUmbraHerald();
+    }
+
     // 3. AI Normal/Tribute Summons best monster with full hand visibility
     if (typeof AISummonMonsterRoutine === 'function') {
         await AISummonMonsterRoutine();
@@ -108,6 +119,9 @@ async function computerTurn() {
     }
     if (typeof AIPlayGryphonStormlord === 'function') {
         await AIPlayGryphonStormlord();
+    }
+    if (typeof AIPlayVoidMonarch === 'function') {
+        await AIPlayVoidMonarch();
     }
     if (typeof AIPlayGaleSwiftblade === 'function') {
         await AIPlayGaleSwiftblade();
@@ -187,6 +201,13 @@ function updateTurn(newTurn) {
         $('#end-turn-btn').prop('disabled', true).css('opacity', '0.5');
         $('#end-turn-btn-label').text('OPPONENT TURN');
     }
+
+    // Log the turn change in the duel log
+    var turnLabel = turn === 0 ? 'Your turn' : 'Opponent\'s turn';
+    var turnHtml = '<div class="feed-turn-separator"><span>' + turnLabel + ' — Turn ' + turnCount + '</span></div>';
+    $('#feed').append(turnHtml);
+    var feedElem = document.getElementById('feed');
+    if (feedElem) feedElem.scrollTop = feedElem.scrollHeight;
 
     updateResourceCounters();
 } 

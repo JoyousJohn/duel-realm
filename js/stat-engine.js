@@ -22,7 +22,8 @@ function getFieldMods(monsterDef, overridePlayerFieldId) {
     for (var s = 0; s < bothSides.length; s++) {
         var who = bothSides[s];
         var fieldInst = (typeof GameState !== "undefined" && GameState && GameState[who] && GameState[who].field) ? GameState[who].field.fieldZone : null;
-        if (fieldInst && fieldInst.cardId) {
+        var fieldNegated = (typeof isNegatedByVoidSentinel === "function") && isNegatedByVoidSentinel(fieldInst);
+        if (fieldInst && fieldInst.cardId && !fieldNegated) {
             fieldsToEvaluate.push(fieldInst.cardId);
         }
     }
@@ -162,6 +163,13 @@ function getMonsterAtk(instance) {
                 });
             });
             selfMod += (otherWingedBeastCount * 300);
+        }
+    }
+
+    // Void Monarch: +500 ATK from its ignition effect (per-turn stackable)
+    if (instance.cardId === "void-monarch" && typeof GameState !== "undefined" && GameState) {
+        if (!instance.faceDown && instance.position !== "defense-down") {
+            selfMod += (instance.voidMonarchAtkBoost || 0);
         }
     }
 
@@ -426,7 +434,7 @@ function updateDefLockedBadges() {
 // controller knows the monster is a flip monster waiting to be triggered.
 // Only shown for the human player's own monsters — showing it on the AI's
 // face-down monsters would leak that they are flip monsters.
-var FLIP_EFFECT_MONSTERS = ["man-eater-bug", "zephyr-imp", "dragon-piper", "spear-cretin"];
+var FLIP_EFFECT_MONSTERS = ["man-eater-bug", "zephyr-imp", "dragon-piper", "spear-cretin", "aurora-golem"];
 
 function updateFlipBadges() {
     for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
@@ -576,7 +584,8 @@ function updateEffectReadyBadges() {
                 } else if (monsterInst.cardId === 'exiled-force') {
                     canUseEffect = GameState.getMonstersOnField('computer').length > 0;
                 } else if (monsterInst.cardId === 'gryphon-stormlord') {
-                    canUseEffect = hasHandCards && GameState.player.hand.some(function(c) { var d = cards[c.cardId]; return d && d.attribute === 'WIND'; });
+                    var stormlordBoardCount = GameState.getMonstersOnField('player').length + GameState.getMonstersOnField('computer').length;
+                    canUseEffect = stormlordBoardCount > 1;
                 } else if (typeof def.onIgnitionEffect === 'function') {
                     canUseEffect = true;
                 }

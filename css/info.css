@@ -1136,6 +1136,26 @@ body.sidebar-is-resizing * {
     font-weight: 700;
 }
 
+.feed-turn-separator {
+    display: flex;
+    align-items: center;
+    gap: 8rem;
+    margin: 12rem 0;
+    color: #94a3b8;
+    font-size: 10rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.feed-turn-separator::before,
+.feed-turn-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #475569, transparent);
+}
+
 /* ==========================================================================
    Duelist Life Points HUD (Overlay on Battlefield)
    ========================================================================== */

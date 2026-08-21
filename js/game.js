@@ -547,7 +547,7 @@ async function summonMonster(who, monsterName, skipFeed) {
 }
 
 // Move a monster card (from hand) to a monster zone on the board
-async function moveCard(who, source, targetSquare, mode, skipFeed) {
+async function moveCard(who, source, targetSquare, mode, skipFeed, isSpecialSummon) {
 
     let isDefense, faceDown;
     if (mode === 'attack') {
@@ -587,9 +587,9 @@ async function moveCard(who, source, targetSquare, mode, skipFeed) {
                 addToFeed('Computer sets a monster in Defense Position in zone #' + zoneNum + '.\n\n');
             }
         } else if (mode === 'defense-up') {
-            addToFeed(formatWho(who) + ' summons <em>' + monsterDisplayName + '</em> in Defense Position in zone #' + zoneNum + '.\n\n');
+            addToFeed(formatWho(who) + (isSpecialSummon ? ' Special Summons' : ' summons') + ' <em>' + monsterDisplayName + '</em> in Defense Position in zone #' + zoneNum + '.\n\n');
         } else {
-            addToFeed(formatWho(who) + ' Normal Summons <em>' + monsterDisplayName + '</em> in Attack Position in zone #' + zoneNum + '.\n\n');
+            addToFeed(formatWho(who) + (isSpecialSummon ? ' Special Summons' : ' Normal Summons') + ' <em>' + monsterDisplayName + '</em> in Attack Position in zone #' + zoneNum + '.\n\n');
         }
     }
 
@@ -601,7 +601,7 @@ async function moveCard(who, source, targetSquare, mode, skipFeed) {
         window[who]['field'][cardType].push({'zone': zoneNum, 'cardName': cardName, 'cardType': cardType, 'cardPosition': mode});
     }
 
-    if (who === GameState.turn.active && cardType === 'monsters') {
+    if (!isSpecialSummon && who === GameState.turn.active && cardType === 'monsters') {
         if (GameState.turn.normalSummonUsed && GameState.turn.extraNormalSummons > 0) {
             GameState.turn.extraNormalSummons--;
         } else {
@@ -611,7 +611,7 @@ async function moveCard(who, source, targetSquare, mode, skipFeed) {
 
     await animateCardPlacement(who, source, targetSquare, faceDown, isDefense, cardName, cardType, mode);
 
-    await EventBus.emitAsync('MONSTER_SUMMONED', { who: who, instance: instance, zone: zoneNum });
+    await EventBus.emitAsync('MONSTER_SUMMONED', { who: who, instance: instance, zone: zoneNum, isSpecialSummon: !!isSpecialSummon });
     updateActionableCards();
     updateStatModBadges();
 }
@@ -931,7 +931,8 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
             }
 
             var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
-            if (normalSummonExhausted) {
+            var canSpecialHerald = (activeCardDef.id === 'umbra-herald' && typeof controlsFaceUpFiend === 'function' && controlsFaceUpFiend('player') && getNumOfFreeZones('player') > 0);
+            if (normalSummonExhausted && !canSpecialHerald) {
                 addToFeed('(Action) You have already used your Normal Summon/Set for this turn.\n\n');
                 resetActiveCardClass();
                 clearAvailableZones();
@@ -952,6 +953,8 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
 
             var isJarActive = (typeof isDragonLocked === 'function') && isDragonLocked();
             var isDragon = (activeCardDef.monsterType === 'Dragon');
+
+            $('#summon-special-btn').toggle(canSpecialHerald);
 
             if (isJarActive && isDragon) {
                 $('#summon-jar-warning-banner').show();
@@ -1041,6 +1044,12 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
                 if (oppFaceUp.length > 0 && monsterInst.usedGaleTurn !== turnCount) {
                     canUseEffect = true;
                     effectBtnText = 'GALE SLASH (HALVE ATK/DEF)';
+                }
+            } else if (monsterInst.cardId === 'void-monarch') {
+                var vmOppGY = (GameState && GameState.computer && GameState.computer.graveyard) ? GameState.computer.graveyard : [];
+                if (vmOppGY.length > 0 && monsterInst.voidMonarchBoostTurn !== turnCount) {
+                    canUseEffect = true;
+                    effectBtnText = 'VOID DRAIN';
                 }
             }
         }
@@ -1152,6 +1161,33 @@ async function summonOptionSelected(position) {
     selectedSquare = null;
 
     await moveCard('player', sourceCard, targetSq, position);
+
+    updateActionableCards();
+    updateResourceCounters();
+}
+
+// Umbra Herald: Special Summon from hand (does not consume the Normal Summon)
+async function specialSummonOptionSelected() {
+    if (!activeCard || !selectedSquare) return;
+    var monsterName = activeCard.attr('data-card-name');
+    if (monsterName !== 'umbra-herald') return;
+    if (typeof controlsFaceUpFiend !== 'function' || !controlsFaceUpFiend('player')) {
+        addToFeed('(Rule) Umbra Herald needs a face-up Fiend monster you control to be Special Summoned.\n\n');
+        return;
+    }
+
+    var sourceCard = activeCard;
+    var targetSq = selectedSquare;
+
+    resetActiveCardClass();
+    $('#summon-options').hide();
+    clearAvailableZones();
+
+    activeCard = null;
+    selectedSquare = null;
+
+    addToFeed('<em>Umbra Herald</em> slips from the shadows — Special Summoned without using your Normal Summon!\n');
+    await moveCard('player', sourceCard, targetSq, 'attack', false, true);
 
     updateActionableCards();
     updateResourceCounters();
@@ -1367,6 +1403,7 @@ async function confirmTributeSummon(position) {
             var dDef = cards[dInst.cardId];
             discardedNames.push(dDef ? dDef.name : 'a card');
             GameState.player.graveyard.push(dInst);
+            notifyUmbraHeraldGraveyardSend('player', dInst);
         }
         GameState.player.hand = GameState.player.hand.filter(function(c) { return c.uid === sourceUid; });
         updateHandDisplay('player');
@@ -1611,9 +1648,12 @@ function changePositionSelected(position) {
         activeCard.transition({ rotate: '0' }, turnDuration, animEasing, function() {
             updateActionableCards();
             updateStatModBadges();
-            if (prevPosition === 'defense-down' && typeof triggerFlipEffect === 'function') {
+            if (prevPosition === 'defense-down') {
                 var mInst = GameState.player.field.monsters[zoneNum];
-                triggerFlipEffect(mInst, 'player', zoneNum);
+                if (typeof triggerFlipEffect === 'function') {
+                    triggerFlipEffect(mInst, 'player', zoneNum);
+                }
+                EventBus.emitAsync('MONSTER_SUMMONED', { who: 'player', instance: mInst, zone: zoneNum, isFlipSummon: true });
             }
         });
     } else if (position === 'defense-up') {
@@ -1621,9 +1661,12 @@ function changePositionSelected(position) {
         activeCard.transition({ rotate: '90deg' }, turnDuration, animEasing, function() {
             updateActionableCards();
             updateStatModBadges();
-            if (prevPosition === 'defense-down' && typeof triggerFlipEffect === 'function') {
+            if (prevPosition === 'defense-down') {
                 var mInst = GameState.player.field.monsters[zoneNum];
-                triggerFlipEffect(mInst, 'player', zoneNum);
+                if (typeof triggerFlipEffect === 'function') {
+                    triggerFlipEffect(mInst, 'player', zoneNum);
+                }
+                EventBus.emitAsync('MONSTER_SUMMONED', { who: 'player', instance: mInst, zone: zoneNum, isFlipSummon: true });
             }
         });
     } else if (position === 'defense-down') {
@@ -1671,6 +1714,8 @@ function activateSelectedMonsterEffect() {
         }
     } else if (monsterInst.cardId === 'gryphon-stormlord') {
         openGryphonStormlordModal(zoneNum);
+    } else if (monsterInst.cardId === 'void-monarch') {
+        activateVoidMonarch('player', zoneNum);
     }
 }
 
@@ -1785,6 +1830,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     if (defenderZone === 'direct' || defenderZone === null || defenderZone === undefined) {
         // DIRECT ATTACK
         var damage = attackerAtk;
+        if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, damage)) {
+            damage = 0;
+        }
         GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - damage);
 
         // Play Direct Attack Strike Animation
@@ -1858,6 +1906,14 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         if (typeof triggerFlipEffect === 'function') {
             await triggerFlipEffect(defenderInst, defenderWho, defenderZone);
         }
+
+        // If the flip effect removed the attacker (destroyed/bounced), the attack
+        // ends immediately — no battle damage, no further combat resolution.
+        if (!GameState[attackerWho].field.monsters[attackerZone]) {
+            addToFeed(formatWho(attackerWho) + '\'s <strong>' + (attackerDef ? attackerDef.name : 'monster') + '</strong> was removed from the field — the attack ends here!\n\n');
+            updateResourceCounters();
+            return;
+        }
     }
 
     // Play 3D Combat Lunge & Impact Animation
@@ -1874,6 +1930,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         // ATK vs ATK
         if (attackerAtk > defenderAtk) {
             var diff = attackerAtk - defenderAtk;
+            if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, diff)) {
+                diff = 0;
+            }
             GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - diff);
             
             if (typeof BattleFX !== 'undefined') {
@@ -1920,8 +1979,20 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             } else if (defenderInst.cardId === 'titan-of-the-obsidian-peak') {
                 await triggerTitanLpGain(defenderWho, attackerDef, defenderSquare);
             }
+
+            if (typeof triggerBattleDestructionGraveyardEffect === 'function') {
+                if (attackerInst.cardId !== 'nether-wraith') {
+                    await triggerBattleDestructionGraveyardEffect(attackerInst, attackerWho, attackerZone, defenderInst, defenderWho, defenderZone);
+                }
+                if (defenderInst.cardId !== 'nether-wraith') {
+                    await triggerBattleDestructionGraveyardEffect(defenderInst, defenderWho, defenderZone, attackerInst, attackerWho, attackerZone);
+                }
+            }
         } else {
             var diff = defenderAtk - attackerAtk;
+            if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(attackerWho, diff)) {
+                diff = 0;
+            }
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
 
             if (typeof BattleFX !== 'undefined') {
@@ -1958,6 +2029,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             var pierceDamage = isPiercing ? (attackerAtk - defenderDefVal) : 0;
 
             if (isPiercing && pierceDamage > 0) {
+                if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, pierceDamage)) {
+                    pierceDamage = 0;
+                }
                 GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - pierceDamage);
                 if (typeof BattleFX !== 'undefined') {
                     BattleFX.spawnFloatingDamage(defenderSquare, pierceDamage, 'piercing');
@@ -1989,6 +2063,9 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             }
         } else if (attackerAtk < defenderDefVal) {
             var diff = defenderDefVal - attackerAtk;
+            if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(attackerWho, diff)) {
+                diff = 0;
+            }
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
 
             if (typeof BattleFX !== 'undefined') {
@@ -2101,6 +2178,9 @@ async function destroyMonster(who, zoneNum) {
             }, 500);
         }
     }
+
+    // Umbra Herald: When sent to the Graveyard, banish 1 card from the opponent's Graveyard
+    notifyUmbraHeraldGraveyardSend(ownerWho, cardInst);
 
     // Continuous Trap binding (Crypt Awakening): If monster is destroyed, destroy bound trap
     if (cardInst.boundTrapUid) {

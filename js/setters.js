@@ -220,6 +220,14 @@ function isCardCurrentlyPlayable(cardDef) {
         }
     }
 
+    // Void Sentinel: Check if this card is negated in hand
+    if (typeof isNegatedByVoidSentinel === 'function' && GameState && GameState.player && GameState.player.hand) {
+        var handInst = GameState.player.hand.find(function(c) { return c.cardId === cardDef.id; });
+        if (handInst && isNegatedByVoidSentinel(handInst)) {
+            return false;
+        }
+    }
+
     // Declarative Unified Registry Resolution
     if (typeof cardDef.canActivate === 'function') {
         return cardDef.canActivate('player');
@@ -322,6 +330,14 @@ function getCardUnplayableReason(cardDef) {
         }
     }
 
+    // Void Sentinel negation check
+    if (typeof isNegatedByVoidSentinel === 'function' && GameState && GameState.player && GameState.player.hand) {
+        var handInst = GameState.player.hand.find(function(c) { return c.cardId === cardDef.id; });
+        if (handInst && isNegatedByVoidSentinel(handInst)) {
+            return "This card is locked by Void Sentinel's gaze and cannot activate its effects.";
+        }
+    }
+
     // Declarative Unified Registry Resolution
     if (typeof cardDef.unplayableReason === 'function') {
         return cardDef.unplayableReason('player');
@@ -331,7 +347,8 @@ function getCardUnplayableReason(cardDef) {
     var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
 
     if (cardDef.type === 'monsters') {
-        if (normalSummonExhausted) {
+        var canSpecialHerald = (cardDef.id === 'umbra-herald' && typeof controlsFaceUpFiend === 'function' && controlsFaceUpFiend('player') && freeSlots > 0);
+        if (normalSummonExhausted && !canSpecialHerald) {
             return 'You have already used your Normal Summon / Set for this turn.';
         }
         if (cardDef.id === 'infernal-incinerator') {

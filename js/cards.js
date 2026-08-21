@@ -569,6 +569,20 @@ var cards = {
         'desc': 'This card can only be Normal Summoned or Set by discarding all other card(s) in your hand and Tributing 1 card you control with 2000 or more ATK. This card gains 200 ATK for each monster your opponent controls. This card loses 500 ATK for each other monster you control.'
     },
 
+    'void-sentinel': {
+        'id': 'void-sentinel',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'void_sentinel.png',
+        'name': 'Void Sentinel',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 6,
+        'atk': 2300,
+        'def': 1200,
+        'desc': 'When this card is Tribute Summoned: Look at your opponent\'s hand and Set cards. Choose 1 card — it cannot activate its effects until the end of your next turn.'
+    },
+
     'titan-of-the-obsidian-peak': {
         'id': 'titan-of-the-obsidian-peak',
         'type': 'monsters',
@@ -609,6 +623,73 @@ var cards = {
         'atk': 2600,
         'def': 2200,
         'desc': 'When this card is Tribute Summoned: Destroy up to 2 Spell or Trap cards on the field. Once per turn, if this card declares an attack: Change the attack target to face-up Attack Position (Flip effects are not activated).'
+    },
+
+    'void-monarch': {
+        'id': 'void-monarch',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'void_monarch.png',
+        'name': 'Void Monarch',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 7,
+        'atk': 2500,
+        'def': 2100,
+        'hasIgnitionEffect': true,
+        'desc': 'Once per turn, during your Main Phase: You can banish 1 card from your opponent\'s Graveyard. If you do, this card gains 500 ATK until the end of this turn. If this card is destroyed by battle: You can add 1 DARK monster from your Deck to your hand.',
+        canActivateIgnition: function(who, zoneNum) {
+            var opp = (typeof GameState !== 'undefined' && GameState) ? GameState.getOpponent(who) : null;
+            if (!opp || !GameState[opp]) return false;
+            return (GameState[opp].graveyard && GameState[opp].graveyard.length > 0);
+        },
+        onIgnitionEffect: async function(who, zoneNum) {
+            if (typeof activateVoidMonarch === 'function') {
+                await activateVoidMonarch(who, zoneNum);
+            }
+        }
+    },
+
+    'aurora-golem': {
+        'id': 'aurora-golem',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'aurora_golem.png',
+        'name': 'Aurora Golem',
+        'monsterType': 'Rock',
+        'attribute': 'LIGHT',
+        'level': 7,
+        'atk': 2200,
+        'def': 2800,
+        'desc': 'Cannot be destroyed by battle while in Defense Position. When this card is flipped face-up: You can Special Summon 1 LIGHT monster from your hand or Graveyard in Defense Position.'
+    },
+
+    'umbra-herald': {
+        'id': 'umbra-herald',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'umbra_herald.png',
+        'name': 'Umbra Herald',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 4,
+        'atk': 1700,
+        'def': 1000,
+        'desc': 'If you control a Fiend monster, you can Special Summon this card from your hand. If this card is sent to the Graveyard: Banish 1 card from your opponent\'s Graveyard.'
+    },
+
+    'soul-lantern-keeper': {
+        'id': 'soul-lantern-keeper',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'soul_lantern_keeper.png',
+        'name': 'Soul Lantern Keeper',
+        'monsterType': 'Fiend',
+        'attribute': 'DARK',
+        'level': 1,
+        'atk': 300,
+        'def': 200,
+        'desc': 'During your opponent\'s Battle Step: You can discard this card from your hand; battle damage from that attack becomes 0.'
     },
 
     'dragon-piper': {
@@ -733,7 +814,63 @@ var cards = {
         'subType': 'normal',
         'file': 'double_tribute_surge.png',
         'name': 'Double Tribute Surge',
-        'desc': 'You can conduct 2 Normal Summons/Sets this turn, instead of just 1.'
+        'desc': 'You can conduct 2 Normal Summons/Sets this turn, instead of just 1.',
+        canActivate: function(who) {
+            var hand = (GameState && GameState[who] && GameState[who].hand) ? GameState[who].hand : [];
+            var freeSlots = (typeof getNumOfFreeZones === 'function') ? getNumOfFreeZones(who) : 0;
+            var summonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+
+            return hand.some(function(c) {
+                var d = cards[c.cardId];
+                if (!d || d.type !== 'monsters') return false;
+                if (summonUsed) return false;
+                if (freeSlots <= 0) return false;
+                var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(d.level) : 0;
+                if (req === 0) return true;
+                // Level 5+: needs tributes or Mausoleum LP payment
+                var freeMonsters = GameState.getMonstersOnField(who);
+                var eligibleTributes = freeMonsters.filter(function(entry) {
+                    var fDef = cards[entry.card.cardId];
+                    return !entry.card.cannotBeTributed && !(fDef && fDef.cannotBeTributed);
+                }).length;
+                if (eligibleTributes >= req) return true;
+                var lp = GameState[who].lp;
+                var lpCost = req * 1000;
+                if ((typeof isMausoleumActive === 'function') && isMausoleumActive() && lp > lpCost + 1000 && freeSlots > 0) return true;
+                return false;
+            });
+        },
+        unplayableReason: function(who) {
+            var hand = (GameState && GameState[who] && GameState[who].hand) ? GameState[who].hand : [];
+            var freeSlots = (typeof getNumOfFreeZones === 'function') ? getNumOfFreeZones(who) : 0;
+            var summonUsed = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed);
+
+            var hasMonsters = hand.some(function(c) {
+                return cards[c.cardId] && cards[c.cardId].type === 'monsters';
+            });
+            if (!hasMonsters) return 'No monsters in hand to summon with the extra Normal Summon.';
+            if (summonUsed) return 'Your Normal Summon has already been used this turn.';
+            if (freeSlots <= 0) return 'No free Monster Zones available.';
+
+            // Check if any monster in hand is actually summonable
+            var summonable = hand.some(function(c) {
+                var d = cards[c.cardId];
+                if (!d || d.type !== 'monsters') return false;
+                var req = (typeof getRequiredTributes === 'function') ? getRequiredTributes(d.level) : 0;
+                if (req === 0) return true;
+                var freeMonsters = GameState.getMonstersOnField(who);
+                var eligibleTributes = freeMonsters.filter(function(entry) {
+                    var fDef = cards[entry.card.cardId];
+                    return !entry.card.cannotBeTributed && !(fDef && fDef.cannotBeTributed);
+                }).length;
+                if (eligibleTributes >= req) return true;
+                var lpCost = req * 1000;
+                if ((typeof isMausoleumActive === 'function') && isMausoleumActive() && GameState[who].lp > lpCost + 1000) return true;
+                return false;
+            });
+            if (!summonable) return 'No monsters in hand can be Normal Summoned (need tributes or Mausoleum).';
+            return 'No free Spell/Trap zones available.';
+        }
     },
 
     'phantom-catalyst': {
@@ -1054,12 +1191,18 @@ var cards = {
     },
 
     'gaia-power': {
-        'id': 'tectonic-domain',
+        'id': 'gaia-power',
         'type': 'spells',
         'subType': 'field',
-        'file': 'tectonic_domain.png',
-        'name': 'Tectonic Domain',
-        'desc': 'All EARTH monsters on the field gain 500 ATK and lose 400 DEF.'
+        'file': 'gaia_power.png',
+        'name': 'Gaia Power',
+        'desc': 'Face-up EARTH attribute monsters on the field gain 500 ATK and lose 400 DEF. If this card in the Field Spell Zone is destroyed: You can Special Summon 1 Level 4 or lower EARTH attribute monster from your Deck.',
+        onSentToGraveyard: async function(data) {
+            if (!data.isFieldZone) return;
+            if (typeof triggerGaiaPowerRebirth === 'function') {
+                await triggerGaiaPowerRebirth(data.who);
+            }
+        }
     },
 
     'umi': {

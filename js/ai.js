@@ -7,7 +7,7 @@ function AICalcMonsterPosition(monsterName) {
     const def = getMonsterDef({ cardId: monsterName });
 
     // FLIP effect monsters should always be Set in defense-down
-    if (monsterName === 'man-eater-bug' || monsterName === 'zephyr-imp' || monsterName === 'dragon-piper') {
+    if (monsterName === 'man-eater-bug' || monsterName === 'zephyr-imp' || monsterName === 'dragon-piper' || monsterName === 'aurora-golem') {
         return 'defense-down';
     }
 
@@ -88,7 +88,8 @@ async function AIChangeMonsterPosition(zoneNum, newPosition) {
     if (!monsterInst) return;
 
     var cardDef = cards[monsterInst.cardId];
-    var isFlipSummon = (monsterInst.position === 'defense-down' && newPosition === 'attack');
+    var wasFaceDown = (monsterInst.position === 'defense-down');
+    var isFlipSummon = wasFaceDown;
 
     monsterInst.position = newPosition;
     monsterInst.turnPosChanged = turnCount;
@@ -113,12 +114,31 @@ async function AIChangeMonsterPosition(zoneNum, newPosition) {
         } else {
             addToFeed('Computer switches <em>' + cardDef.name + '</em> to Attack Position in zone #' + zoneNum + '.\n\n');
         }
+        if (wasFaceDown && typeof triggerFlipEffect === 'function') {
+            var flippedInst = GameState.computer.field.monsters[zoneNum];
+            if (flippedInst) await triggerFlipEffect(flippedInst, 'computer', zoneNum);
+        }
     } else if (newPosition === 'defense-up') {
         if (typeof zone.flip === 'function') zone.flip(false);
         await new Promise(function(resolve) {
             zone.transition({ rotate: '90deg' }, turnDuration, animEasing, resolve);
         });
-        addToFeed('Computer switches <em>' + cardDef.name + '</em> to Defense Position in zone #' + zoneNum + '.\n\n');
+        if (wasFaceDown) {
+            addToFeed('Computer Flip Summons <em>' + cardDef.name + '</em> to Defense Position in zone #' + zoneNum + '.\n\n');
+        } else {
+            addToFeed('Computer switches <em>' + cardDef.name + '</em> to Defense Position in zone #' + zoneNum + '.\n\n');
+        }
+        if (wasFaceDown && typeof triggerFlipEffect === 'function') {
+            var flippedInstDef = GameState.computer.field.monsters[zoneNum];
+            if (flippedInstDef) await triggerFlipEffect(flippedInstDef, 'computer', zoneNum);
+        }
+    }
+
+    if (wasFaceDown) {
+        var flippedSummonInst = GameState.computer.field.monsters[zoneNum];
+        if (flippedSummonInst) {
+            EventBus.emitAsync('MONSTER_SUMMONED', { who: 'computer', instance: flippedSummonInst, zone: zoneNum, isFlipSummon: true });
+        }
     }
 
     updateStatModBadges();
@@ -146,6 +166,16 @@ async function AIEvaluatePositionChanges() {
         var currentPos = monsterInst.position;
         var atk = getMonsterAtk(monsterInst);
         var def = getMonsterDef(monsterInst);
+
+        if (monsterInst.cardId === 'aurora-golem') {
+            var golemFacesTargets = GameState.getMonstersOnField('player').length > 0;
+            if (currentPos === 'defense-down' || (currentPos === 'attack' && golemFacesTargets)) {
+                await AIChangeMonsterPosition(zoneNum, 'defense-up');
+            } else if (currentPos === 'defense-up' && !golemFacesTargets) {
+                await AIChangeMonsterPosition(zoneNum, 'attack');
+            }
+            continue;
+        }
 
         if (currentPos === 'defense-up' || currentPos === 'defense-down') {
             // Cannot switch to Attack Position if it is a Dragon under Dragon Capture Jar
@@ -521,6 +551,7 @@ async function AIPlayHarpieLady() {
     var discardedInst = GameState.computer.hand.splice(gIdx, 1)[0];
 
     GameState.computer.graveyard.push(discardedInst);
+    notifyUmbraHeraldGraveyardSend('computer', discardedInst);
     updateHandDisplay('computer');
 
     harpieEntry.card.lastEffectTurn = turnCount;
@@ -815,6 +846,21 @@ async function AISummonMonsterRoutine() {
                     }).length;
                     score += 400 + (playerDefMonsters * 300);
                 }
+                if (mDef.id === 'void-sentinel') {
+                    // Value based on opponent's hand size and set cards
+                    var playerHandSize = (GameState.player.hand) ? GameState.player.hand.length : 0;
+                    var playerSetTraps = 0;
+                    for (var vz = 1; vz <= 6; vz++) {
+                        var vs = GameState.player.field.spells[vz];
+                        if (vs && vs.position === 'set') playerSetTraps++;
+                    }
+                    score += 300 + (playerHandSize * 200) + (playerSetTraps * 250);
+                }
+                if (mDef.id === 'void-monarch') {
+                    // Value banish effect based on opponent's GY size
+                    var playerGY = (GameState.player.graveyard) ? GameState.player.graveyard.length : 0;
+                    score += 200 + (playerGY * 150);
+                }
                 summonable.push({
                     name: mName,
                     def: mDef,
@@ -883,6 +929,7 @@ async function AISummonMonsterRoutine() {
 
             for (var d = 0; d < remainingCards.length; d++) {
                 GameState.computer.graveyard.push(remainingCards[d]);
+                notifyUmbraHeraldGraveyardSend('computer', remainingCards[d]);
             }
 
             GameState.computer.hand = infernalInst ? [infernalInst] : [];
@@ -1334,4 +1381,24 @@ function shouldAIPlayFieldSpell(fieldDef) {
     }
 
     return true;
+}
+// AI Special Summons Umbra Herald from hand when it controls a face-up Fiend
+async function AISpecialSummonUmbraHerald() {
+    var heraldInst = GameState.computer.hand.find(function(c) { return c.cardId === 'umbra-herald'; });
+    if (!heraldInst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+    if (typeof controlsFaceUpFiend !== 'function' || !controlsFaceUpFiend('computer')) return;
+
+    var zone = getFirstFreeZone('computer');
+    var mode = AICalcMonsterPosition('umbra-herald');
+    var source = getHandCardElm('computer', 'umbra-herald');
+    var target = getSquareElm('computer', zone);
+
+    target.attr('data-card-name', 'umbra-herald');
+    target.attr('data-card-type', 'monsters');
+    target.attr('data-card-position', mode);
+
+    addToFeed('Computer Special Summons <em>Umbra Herald</em> in zone #' + zone + ' without using its Normal Summon!\n\n');
+    await sleep(getAnimDuration(300));
+    await moveCard('computer', source, target, mode, true, true);
 }

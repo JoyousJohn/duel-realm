@@ -57,7 +57,6 @@
             <div class="homescreen-logo-wrapper">
                 <p class="homescreen-subtitle">Tactical Card Game</p>
                 <h1 class="homescreen-title">DUEL REALM</h1>
-                <p class="homescreen-tagline">Tactics &bull; Classic TCG Duel Arena</p>
             </div>
 
             <div class="homescreen-menu">
@@ -162,6 +161,22 @@
                             <div class="stance-badge">SET MONSTER</div>
                             <div class="stance-title">Face-Down Defense</div>
                             <div class="stance-desc">Conceal monster face-down in defense to ambush opponent</div>
+                        </div>
+                        <div class="stance-chevron">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </button>
+
+                    <button class="tactical-action-btn stance-attack" id="summon-special-btn" style="display: none; border-color: rgba(168, 85, 247, 0.5);" onclick="specialSummonOptionSelected()">
+                        <div class="stance-icon-container">
+                            <svg class="stance-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                            </svg>
+                        </div>
+                        <div class="stance-info">
+                            <div class="stance-badge" style="color: #c084fc;">SPECIAL SUMMON</div>
+                            <div class="stance-title">Fiend Ritual</div>
+                            <div class="stance-desc">Summon in Attack Position without using your Normal Summon</div>
                         </div>
                         <div class="stance-chevron">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -664,7 +679,93 @@
             </div>
         </div>
 
+        <!-- Aurora Golem LIGHT Monster Search Modal -->
+        <div id="aurora-golem-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(132, 204, 255, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(132, 204, 255, 0.15); border-color: rgba(132, 204, 255, 0.4);">
+                        <span class="action-pulse-dot" style="background: #86c4ff; box-shadow: 0 0 8px #86c4ff;"></span>
+                        <span class="action-header-category" style="color: #86c4ff;">FLIP SUMMON • AURORA GOLEM</span>
+                    </div>
+                    <h3 class="action-modal-card-name">AURORA GOLEM</h3>
+                    <div class="action-modal-card-stats">SELECT 1 LIGHT MONSTER TO SPECIAL SUMMON IN DEFENSE POSITION</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="aurora-golem-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <div style="font-size: 12px; color: #94a3b8;">Choose a LIGHT monster from your hand or Graveyard</div>
+                </div>
+            </div>
+        </div>
 
+        <!-- Void Monarch Graveyard Banish Modal -->
+        <div id="void-monarch-banish-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4);">
+                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
+                        <span class="action-header-category" style="color: #c084fc;">IGNITION • VOID DRAIN</span>
+                    </div>
+                    <h3 class="action-modal-card-name">VOID MONARCH</h3>
+                    <div class="action-modal-card-stats">BANISH 1 CARD FROM THE OPPONENT'S GRAVEYARD</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="void-monarch-banish-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <div style="font-size: 12px; color: #94a3b8;">Void Monarch gains 500 ATK until the end of this turn</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Void Monarch DARK Monster Search Modal -->
+        <div id="void-monarch-search-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4);">
+                        <span class="action-pulse-dot" style="background: #a855f7; box-shadow: 0 0 8px #a855f7;"></span>
+                        <span class="action-header-category" style="color: #c084fc;">DECK SEARCH • VOID MONARCH</span>
+                    </div>
+                    <h3 class="action-modal-card-name">VOID MONARCH</h3>
+                    <div class="action-modal-card-stats">SELECT 1 DARK MONSTER TO ADD TO YOUR HAND</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="void-monarch-search-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <div style="font-size: 12px; color: #94a3b8;">Choose a DARK monster from your Deck</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Umbra Herald Graveyard Banish Modal -->
+        <div id="umbra-herald-banish-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(132, 204, 255, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(132, 204, 255, 0.15); border-color: rgba(132, 204, 255, 0.4);">
+                        <span class="action-pulse-dot" style="background: #86c4ff; box-shadow: 0 0 8px #86c4ff;"></span>
+                        <span class="action-header-category" style="color: #86c4ff;">GRAVEYARD EFFECT • UMBRA HERALD</span>
+                    </div>
+                    <h3 class="action-modal-card-name">UMBRA HERALD</h3>
+                    <div class="action-modal-card-stats">BANISH 1 CARD FROM THE OPPONENT'S GRAVEYARD</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="umbra-herald-banish-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <div style="font-size: 12px; color: #94a3b8;">Umbra Herald was sent to the Graveyard — choose a card to banish</div>
+                </div>
+            </div>
+        </div>
 
         <!-- Radiant Backlash Prompt Modal -->
         <div id="radiant-backlash-prompt-modal" class="tactical-action-modal" style="display: none;">
@@ -694,6 +795,40 @@
                         💥 ACTIVATE TRAP
                     </button>
                     <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveRadiantBacklashPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Soul Lantern Keeper Prompt Modal -->
+        <div id="soul-lantern-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveSoulLanternPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(134, 196, 255, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(134, 196, 255, 0.18); border-color: rgba(134, 196, 255, 0.45);">
+                        <span class="action-pulse-dot" style="background: #86c4ff; box-shadow: 0 0 8px #86c4ff;"></span>
+                        <span class="action-header-category" style="color: #86c4ff;">BATTLE STEP • QUICK EFFECT</span>
+                    </div>
+                    <h3 class="action-modal-card-name">SOUL LANTERN KEEPER</h3>
+                    <div class="action-modal-card-stats">DISCARD FROM HAND TO HALT THE DAMAGE</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+                        Discard <strong style="color: #86c4ff;">Soul Lantern Keeper</strong> from your hand to make battle damage from this attack become <strong>0</strong>?
+                    </div>
+                    <div id="soul-lantern-damage-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(134, 196, 255, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <!-- Incoming damage preview -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #0369a1, #075985); border: 1px solid #86c4ff; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveSoulLanternPrompt(true)">
+                        🏮 DISCARD &amp; NEGATE DAMAGE
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveSoulLanternPrompt(false)">
                         <span>&times; PASS</span>
                     </button>
                 </div>
@@ -798,6 +933,28 @@
                 </div>
                 <div class="action-modal-footer">
                     <button class="action-cancel-btn" onclick="cancelVanguardsAccordSelection()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gaia Power Deck Summon Modal -->
+        <div id="gaia-power-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelGaiaPowerSelection()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(217, 119, 6, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(217, 119, 6, 0.15); border-color: rgba(217, 119, 6, 0.4);">
+                        <span class="action-pulse-dot" style="background: #d97706; box-shadow: 0 0 8px #d97706;"></span>
+                        <span class="action-header-category" style="color: #fcd34d;">GAIA POWER • DECK SUMMON</span>
+                    </div>
+                    <h3 class="action-modal-card-name">GAIA POWER</h3>
+                    <div class="action-modal-card-stats">SELECT 1 LEVEL 4 OR LOWER EARTH MONSTER TO SPECIAL SUMMON</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="gaia-power-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelGaiaPowerSelection()"><span>&times; CANCEL</span></button>
                 </div>
             </div>
         </div>
@@ -1628,6 +1785,48 @@
             window.addEventListener('resize', updateRotateOverlay);
             window.addEventListener('orientationchange', function() {
                 setTimeout(updateRotateOverlay, 200);
+            });
+        })();
+
+        // Immersive mode: on mobile browsers (before PWA install), drop into
+        // fullscreen + landscape lock on the first user tap while sideways.
+        // Browsers require a user gesture for this, so we hook the first tap.
+        (function immersiveMode() {
+            var isTouchCoarse = window.matchMedia('(pointer: coarse)').matches;
+            var isStandalone = (window.matchMedia('(display-mode: standalone)').matches) ||
+                (window.navigator.standalone === true);
+            if (!isTouchCoarse || isStandalone) return;
+
+            function isLandscape() {
+                return window.innerWidth >= window.innerHeight;
+            }
+
+            var attempted = false;
+            function tryImmersive() {
+                if (attempted || !isLandscape()) return;
+                attempted = true;
+                var el = document.documentElement;
+                var req = el.requestFullscreen || el.webkitRequestFullscreen;
+                if (!req) return;
+                var p = req.call(el);
+                if (p && p.then) {
+                    p.then(function() {
+                        if (screen.orientation && screen.orientation.lock) {
+                            screen.orientation.lock('landscape').catch(function() {});
+                        }
+                    }).catch(function() { attempted = false; });
+                }
+            }
+
+            document.addEventListener('pointerdown', function onFirstTap() {
+                tryImmersive();
+                if (attempted) document.removeEventListener('pointerdown', onFirstTap);
+            });
+
+            // If they rotate to landscape after tapping in portrait, the next
+            // tap will trigger it (handler stays attached until it succeeds).
+            window.addEventListener('orientationchange', function() {
+                setTimeout(function() { attempted = false; }, 300);
             });
         })();
     </script>

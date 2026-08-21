@@ -161,13 +161,19 @@ async function activateCard(who, instance, zoneNum) {
     if (GameState.turn && GameState.turn.spellTrapLocked && GameState.turn.spellTrapLockedBy === who) {
         addToFeed('(Locked) <em>Arcane Ward</em>\'s barrier prevents ' + formatWho(who) + ' from activating Spell/Trap Cards this turn.\n\n');
         // Clean up from field if prematurely placed
-        await destroySpellTrap(who, zoneNum, false);
+        await destroySpellTrap(who, zoneNum, zoneNum === null || zoneNum === undefined, false);
         return;
     }
 
     // Jinzoid trap negation
     if (def.type === 'traps' && isJinzoidActive()) {
         addToFeed('(Negated) <em>Jinzoid</em>\'s continuous field negation prevents Trap Cards from activating!\n\n');
+        return;
+    }
+
+    // Void Sentinel: Check if this card instance is negated
+    if (instance && isNegatedByVoidSentinel(instance)) {
+        addToFeed('(Negated) <em>' + def.name + '</em> is locked by <em>Void Sentinel</em>\'s gaze — its effects cannot be activated!\n\n');
         return;
     }
 
@@ -304,6 +310,7 @@ async function activateCard(who, instance, zoneNum) {
                         if (dIdx !== -1) {
                             var discarded = GameState.computer.hand.splice(dIdx, 1)[0];
                             GameState.computer.graveyard.push(discarded);
+                            notifyUmbraHeraldGraveyardSend('computer', discarded);
                         }
                     }
                     updateHandDisplay('computer');
@@ -322,6 +329,7 @@ async function activateCard(who, instance, zoneNum) {
                 trapInst.position = 'active';
                 trapInst.faceDown = false;
             }
+            targetSquareStateFix(who, zoneNum, 'active');
             if (who === 'player') {
                 await promptPlayerCryptAwakening(zoneNum, def);
             } else {
@@ -347,7 +355,8 @@ async function activateCard(who, instance, zoneNum) {
                         addToFeed('Computer\'s ' + def.name + ' resurrected <strong>' + (bDef ? bDef.name : 'monster') + '</strong> in Attack Position!\n\n');
                     }
                 } else {
-                    addToFeed('No valid monster in Graveyard to revive; ' + def.name + ' remains on field.\n');
+                    addToFeed('No valid monster in Graveyard to revive; ' + def.name + ' returns to Set Position.\n');
+                    revertContinuousTrapToSet(who, zoneNum);
                 }
             }
             break;
@@ -613,6 +622,18 @@ async function activateCard(who, instance, zoneNum) {
 
             var donorInst = GameState[donorChoice.side].field.monsters[donorChoice.zone];
             var recipientInst = GameState[recipientChoice.side].field.monsters[recipientChoice.zone];
+
+            if (donorInst && donorInst.cardId === 'nether-wraith') {
+                addToFeed('<em>Nether Wraith</em> was targeted by Essence Siphon! Its self-destruction effect activates!\n');
+                await destroyMonster(donorChoice.side, donorChoice.zone);
+                donorInst = null;
+            }
+            if (recipientInst && recipientInst.cardId === 'nether-wraith') {
+                addToFeed('<em>Nether Wraith</em> was targeted by Essence Siphon! Its self-destruction effect activates!\n');
+                await destroyMonster(recipientChoice.side, recipientChoice.zone);
+                recipientInst = null;
+            }
+
             if (donorInst && recipientInst) {
                 var donorDef = cards[donorInst.cardId];
                 var recipientDef = cards[recipientInst.cardId];
@@ -775,7 +796,6 @@ async function activateCard(who, instance, zoneNum) {
             instance.position = 'active';
             targetSquareStateFix(who, zoneNum, 'active');
             addToFeed('<em>' + def.name + '</em> activated: All face-up monsters controlled by ' + formatWho(opp) + ' lose <strong>100 ATK</strong> per Level!\n\n');
-            if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
             updateStatModBadges();
             updateActionableCards();
             break;
@@ -903,6 +923,7 @@ async function activateCard(who, instance, zoneNum) {
                 if (handIdx !== -1) {
                     var discardedCard = GameState.computer.hand.splice(handIdx, 1)[0];
                     GameState.computer.graveyard.push(discardedCard);
+                    notifyUmbraHeraldGraveyardSend('computer', discardedCard);
                 }
                 addToFeed('<em>' + def.name + '</em>: AI discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
                 updateHandDisplay('computer');
@@ -913,11 +934,11 @@ async function activateCard(who, instance, zoneNum) {
                     return !isImmuneToSpellTargeting(m.card, who);
                 });
                 oppField.sort(function(a, b) { return getMonsterAtk(b.card) - getMonsterAtk(a.card); });
-                var aiTarget = oppField[0] || allFieldMonsters.filter(function(m) {
-                    return !isImmuneToSpellTargeting(m.card, who);
-                })[0];
-                var aiTargetWho = oppField.length > 0 ? 'player' : (allFieldMonsters[0] ? allFieldMonsters[0].who : null);
-                if (!aiTarget || aiTargetWho === null) {
+                var aiTarget = oppField[0];
+                var aiTargetWho = 'player';
+
+                if (!aiTarget) {
+                    // No opponent monsters available to destroy
                     addToFeed('<em>' + def.name + '</em> fizzles — no valid monsters to target.\n');
                     await destroySpellTrap(who, zoneNum, false);
                     break;
@@ -1047,6 +1068,27 @@ function targetSquareStateFix(who, zoneNum, position) {
     if (square && square.length) {
         square.attr('data-card-position', position);
         square.find('div.card-zone').flip(false);
+    }
+}
+
+// Return a continuous trap that failed to resolve back to its face-down Set state.
+function revertContinuousTrapToSet(who, zoneNum) {
+    if (zoneNum === null || zoneNum === undefined) return;
+    var inst = GameState[who] && GameState[who].field.spells[zoneNum];
+    if (inst) {
+        inst.position = 'set';
+        inst.faceDown = true;
+    }
+    var square = getSpellSquareElm(who, zoneNum);
+    if (square && square.length) {
+        square.attr('data-card-position', 'set');
+        var zoneElm = square.find('div.card-zone');
+        if (typeof zoneElm.flip === 'function') {
+            try {
+                zoneElm.flip({ trigger: 'manual' });
+                zoneElm.flip(true);
+            } catch (e) {}
+        }
     }
 }
 
@@ -1298,6 +1340,7 @@ function tttdDiscardCardSelected(uid) {
     if (idx !== -1) {
         var discarded = GameState.player.hand.splice(idx, 1)[0];
         GameState.player.graveyard.push(discarded);
+        notifyUmbraHeraldGraveyardSend('player', discarded);
         tttdDiscardedCardId = discarded.cardId;
         var discardDef = cards[tttdDiscardedCardId];
         addToFeed('<em>Tribute to the Doomed</em>: You discard <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
@@ -1547,6 +1590,110 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         monsterInst.spearCretinPrimed = true;
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT primed: When this card is sent to the Graveyard, both players can Special Summon 1 monster from their respective Graveyards!\n\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+    } else if (monsterInst.cardId === 'aurora-golem') {
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        // Gather LIGHT monsters from own hand and graveyard
+        var lightCandidates = [];
+
+        // From hand
+        if (GameState[who] && GameState[who].hand) {
+            GameState[who].hand.forEach(function(hInst) {
+                var hDef = cards[hInst.cardId];
+                if (hDef && hDef.type === 'monsters' && hDef.attribute === 'LIGHT' && !hDef.isToken) {
+                    lightCandidates.push({
+                        source: 'hand',
+                        inst: hInst,
+                        def: hDef,
+                        name: hDef.name
+                    });
+                }
+            });
+        }
+
+        // From graveyard
+        if (GameState[who] && GameState[who].graveyard) {
+            GameState[who].graveyard.forEach(function(gInst) {
+                var gDef = cards[gInst.cardId];
+                if (gDef && gDef.type === 'monsters' && gDef.attribute === 'LIGHT' && !gDef.isToken) {
+                    lightCandidates.push({
+                        source: 'graveyard',
+                        inst: gInst,
+                        def: gDef,
+                        name: gDef.name
+                    });
+                }
+            });
+        }
+
+        if (lightCandidates.length === 0) {
+            addToFeed('<em>' + def.name + '</em>: No LIGHT monsters in hand or Graveyard to Special Summon.\n\n');
+        } else if (getNumOfFreeZones(who) <= 0) {
+            addToFeed('<em>' + def.name + '</em>: No free monster zones to Special Summon.\n\n');
+        } else {
+            var chosenLight = null;
+            if (who === 'player') {
+                chosenLight = await promptPlayerAuroraGolem(who, lightCandidates);
+            } else {
+                // AI picks the highest-ATK LIGHT monster
+                lightCandidates.sort(function(a, b) {
+                    return (b.def.atk || 0) - (a.def.atk || 0);
+                });
+                chosenLight = lightCandidates[0];
+            }
+
+            if (!chosenLight) {
+                addToFeed('<em>' + def.name + '</em> effect was dismissed.\n\n');
+                return;
+            }
+
+            var lightDef = chosenLight.def;
+            var chosenCardId = chosenLight.inst.cardId;
+            var freeZone = getFirstFreeZone(who);
+            if (freeZone === undefined) {
+                addToFeed('(Special Summon) No free monster zones for <em>' + lightDef.name + '</em>.\n\n');
+                return;
+            }
+
+            addToFeed(formatWho(who) + ' Special Summons <em>' + lightDef.name + '</em> from the ' + (chosenLight.source === 'hand' ? 'hand' : 'Graveyard') + ' in Defense Position!\n\n');
+
+            if (chosenLight.source === 'hand') {
+                // Use moveCard so the hand DOM element animates out naturally
+                var handElm = getHandCardElmByUid(who, chosenLight.inst.uid);
+                if (handElm && handElm.length) {
+                    var targetSquare = getSquareElm(who, freeZone);
+                    targetSquare.attr('data-card-name', chosenCardId);
+                    targetSquare.attr('data-card-type', 'monsters');
+                    targetSquare.attr('data-card-position', 'defense-up');
+                    var auroraHandIdx = GameState[who].hand.indexOf(chosenLight.inst);
+                    if (auroraHandIdx !== -1) GameState[who].hand.splice(auroraHandIdx, 1);
+                    await moveCard(who, handElm, targetSquare, 'defense-up', true, true);
+                } else {
+                    // Fallback: place directly
+                    var instance = new CardInstance(chosenCardId);
+                    instance.position = 'defense-up';
+                    instance.turnSummoned = turnCount;
+                    instance.turnPosChanged = turnCount;
+                    GameState[who].field.monsters[freeZone] = instance;
+                    var hIdx = GameState[who].hand.indexOf(chosenLight.inst);
+                    if (hIdx !== -1) GameState[who].hand.splice(hIdx, 1);
+                    var sq = getSquareElm(who, freeZone);
+                    sq.attr('data-card-name', chosenCardId);
+                    sq.attr('data-card-type', 'monsters');
+                    sq.attr('data-card-position', 'defense-up');
+                    if (typeof updateActionableCards === 'function') updateActionableCards();
+                }
+            } else {
+                // Graveyard source: use specialSummonMonster's spirit-flight animation
+                await specialSummonMonster(who, chosenCardId, who, 'defense-up');
+            }
+
+            updateHandDisplay(who);
+            updateGraveyardZones();
+            updateResourceCounters();
+            updateActionableCards();
+        }
     }
 }
 
@@ -1766,6 +1913,53 @@ function promptPlayerAbyssalScout(validTargets) {
     });
 }
 
+// Prompt player to choose a LIGHT monster from hand or Graveyard for Aurora Golem
+function promptPlayerAuroraGolem(who, candidates) {
+    return new Promise(function(resolve) {
+        var grid = $('#aurora-golem-grid');
+        grid.empty();
+
+        // Group by cardId to show counts and dedupe tiles
+        var distinct = {};
+        var byCardId = {};
+        candidates.forEach(function(c) {
+            var cid = c.def.id;
+            distinct[cid] = (distinct[cid] || 0) + 1;
+            if (!byCardId[cid]) byCardId[cid] = c;
+        });
+
+        Object.keys(distinct).forEach(function(cardId) {
+            var sample = byCardId[cardId];
+            var cDef = sample.def;
+            var countBadge = distinct[cardId] > 1 ? ' (x' + distinct[cardId] + ')' : '';
+            var typeBadge = 'LVL ' + (cDef.level || 1) + ' • ATK ' + (cDef.atk || 0) + ' / DEF ' + (cDef.def || 0);
+            var sourceLabel = sample.source === 'hand' ? 'HAND' : 'GRAVEYARD';
+            var ownerClass = sample.source === 'hand' ? 'tag-player' : 'tag-graveyard';
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cDef.file + '" alt="' + cDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag ' + ownerClass + '">' + sourceLabel + countBadge + '</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeBadge + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#aurora-golem-modal').fadeOut(120, function() {
+                    resolve(sample);
+                });
+            });
+
+            grid.append(tile);
+        });
+
+        $('#aurora-golem-modal').fadeIn(150);
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Celestial Tithe Discard Handlers
 // ---------------------------------------------------------------------------
@@ -1858,6 +2052,7 @@ function applyCelestialTitheDiscards(uids) {
         if (idx !== -1) {
             var discarded = GameState.player.hand.splice(idx, 1)[0];
             GameState.player.graveyard.push(discarded);
+            notifyUmbraHeraldGraveyardSend('player', discarded);
             var dDef = cards[discarded.cardId];
             discardedNames.push(dDef ? dDef.name : 'a card');
         }
@@ -1995,6 +2190,8 @@ function promptPlayerCryptAwakening(zoneNum, trapDef) {
 
         if (gyMonsters.length === 0 || getFirstFreeZone('player') === undefined) {
             addToFeed('No valid monster in Graveyard or no free zone for ' + trapName + '.\n');
+            revertContinuousTrapToSet('player', pendingCryptAwakeningTrapZone);
+            pendingCryptAwakeningTrapZone = null;
             resolve();
             return;
         }
@@ -2050,6 +2247,9 @@ function promptPlayerCryptAwakening(zoneNum, trapDef) {
 
 function cancelCryptAwakeningTarget() {
     $('#crypt-awakening-modal').fadeOut(120);
+    if (pendingCryptAwakeningTrapZone !== null) {
+        revertContinuousTrapToSet('player', pendingCryptAwakeningTrapZone);
+    }
     pendingCryptAwakeningTrapZone = null;
     if (typeof cryptAwakeningResolver === 'function') {
         var r = cryptAwakeningResolver;
@@ -2551,6 +2751,12 @@ async function applyChangeOfHeart(controllerWho, targetOppZone) {
     var monsterInst = GameState[opp].field.monsters[targetOppZone];
     if (!monsterInst) return;
 
+    if (monsterInst.cardId === 'nether-wraith') {
+        addToFeed('<em>Nether Wraith</em> was targeted by Change of Heart! Its self-destruction effect activates!\n\n');
+        await destroyMonster(opp, targetOppZone);
+        return;
+    }
+
     var freeZone = getFirstFreeZone(controllerWho);
     if (freeZone === undefined) {
         addToFeed('(Change of Heart) No free zones on ' + controllerWho + '\'s field — effect fizzles.\n\n');
@@ -2734,6 +2940,13 @@ async function applyEquipCard(who, sourceZoneNum, targetZone) {
     var monsterInst = GameState[who].field.monsters[targetZone];
     if (!equipInst || !monsterInst) return;
 
+    if (monsterInst.cardId === 'nether-wraith') {
+        addToFeed('<em>Nether Wraith</em> was targeted by an Equip Card! Its self-destruction effect activates!\n\n');
+        await destroyMonster(who, targetZone);
+        await destroySpellTrap(who, sourceZoneNum, false);
+        return;
+    }
+
     var equipDef = cards[equipInst.cardId];
     var monsterDef = cards[monsterInst.cardId];
 
@@ -2902,6 +3115,7 @@ async function handleEndPhaseEffects(who) {
                 curSq.find('.card-zone').removeData('flip-model');
                 curSq.find('.card-zone').removeAttr('style');
                 GameState[origOwner].graveyard.push(mInst);
+                notifyUmbraHeraldGraveyardSend(origOwner, mInst);
                 addToFeed('No free zones on ' + origOwner + '\'s field; <em>' + (mDef ? mDef.name : 'Monster') + '</em> is sent to the graveyard.\n\n');
             }
         }
@@ -2913,6 +3127,11 @@ async function handleEndPhaseEffects(who) {
         sideMonsters.forEach(function(entry) {
             if (entry.card && entry.card.tempStatMods) {
                 delete entry.card.tempStatMods;
+            }
+            // Void Monarch: +500 ATK ignition boost expires at the end of the turn
+            if (entry.card && entry.card.cardId === 'void-monarch' && entry.card.voidMonarchAtkBoost) {
+                entry.card.voidMonarchAtkBoost = 0;
+                entry.card.voidMonarchBoostTurn = null;
             }
         });
     });
@@ -3222,6 +3441,7 @@ async function applyHarpieLadyDiscard(cardUid, cardName) {
     }
 
     GameState.player.graveyard.push(discardedInst);
+    notifyUmbraHeraldGraveyardSend('player', discardedInst);
     updateHandDisplay('player');
     updateGraveyardZones();
 
@@ -3447,6 +3667,60 @@ async function triggerBattleDestructionGraveyardEffect(destroyedInst, destroyedW
             } else {
                 addToFeed('No free monster zones to Special Summon additional copies of <em>Giant Germ</em>.\n\n');
             }
+        }
+    } else if (destroyedInst.cardId === 'void-monarch') {
+        // "If this card is destroyed by battle: Add 1 DARK monster from your Deck to your hand."
+        var vmDef = cards[destroyedInst.cardId];
+        var vmName = vmDef ? vmDef.name : 'Void Monarch';
+        var vmDeck = GameState[destroyedWho] && GameState[destroyedWho].deck;
+
+        addToFeed('<em>' + vmName + '</em> activates from the Graveyard!\n');
+        addToFeed('<em>' + vmName + '</em> searches its Deck for a DARK monster to add to the hand!\n');
+
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        if (vmDeck && vmDeck.length > 0) {
+            var darkMonsters = [];
+            for (var di = 0; di < vmDeck.length; di++) {
+                var dmDef = cards[vmDeck[di]];
+                if (dmDef && dmDef.type === 'monsters' && dmDef.attribute === 'DARK' && !dmDef.isToken) {
+                    darkMonsters.push({ cardId: vmDeck[di], def: dmDef });
+                }
+            }
+
+            if (darkMonsters.length === 0) {
+                addToFeed('<em>' + vmName + '</em>: No DARK monsters in the Deck.\n\n');
+                return;
+            }
+
+            var chosenDark = null;
+            if (destroyedWho === 'player') {
+                chosenDark = await promptPlayerVoidMonarchSearch(darkMonsters);
+            } else {
+                // AI: pick highest ATK DARK monster
+                darkMonsters.sort(function(a, b) { return (b.def.atk || 0) - (a.def.atk || 0); });
+                chosenDark = darkMonsters[0];
+            }
+
+            if (!chosenDark) {
+                addToFeed('<em>' + vmName + '</em> search was cancelled.\n\n');
+                return;
+            }
+
+            // Remove chosen card from deck
+            var deckIdx = GameState[destroyedWho].deck.indexOf(chosenDark.cardId);
+            if (deckIdx !== -1) {
+                GameState[destroyedWho].deck.splice(deckIdx, 1);
+                if (typeof window.deck !== 'undefined') window.deck = GameState[destroyedWho].deck;
+            }
+
+            var vmInst = new CardInstance(chosenDark.cardId);
+            GameState[destroyedWho].hand.push(vmInst);
+            addCardToHand(destroyedWho, chosenDark.cardId, vmInst.uid, false);
+            updateHandDisplay(destroyedWho);
+            updateResourceCounters();
+
+            addToFeed('<em>' + vmName + '</em> added <strong>' + chosenDark.def.name + '</strong> to the hand!\n\n');
         }
     }
 }
@@ -3699,6 +3973,90 @@ async function checkTributeSummonTriggers(who, cardDef, zoneNum) {
         }
     }
 
+    // 1b. Void Sentinel: Negate 1 card in opponent's hand or Set on field
+    else if (cardDef.id === 'void-sentinel') {
+        var opp = GameState.getOpponent(who);
+        var candidates = [];
+
+        // Opponent's hand cards (revealed to the player)
+        if (GameState[opp] && GameState[opp].hand) {
+            GameState[opp].hand.forEach(function(inst) {
+                var d = cards[inst.cardId];
+                candidates.push({
+                    side: opp,
+                    zone: -1,
+                    inst: inst,
+                    def: d,
+                    name: d ? d.name : 'Card',
+                    customOwnerLabel: 'HAND',
+                    customOwnerClass: 'tag-opponent',
+                    statsHtml: '<span class="rebirth-tile-stats">' +
+                        (d && d.type === 'monsters'
+                            ? 'LVL ' + (d.level || 1) + ' • ATK ' + (d.atk || 0) + ' / DEF ' + (d.def || 0)
+                            : (d ? d.type.toUpperCase() : 'CARD')) +
+                        '</span>'
+                });
+            });
+        }
+
+        // Opponent's Set Spell/Trap cards on the field
+        for (var z = 1; z <= 6; z++) {
+            var s = GameState[opp].field.spells[z];
+            if (s && s.position === 'set') {
+                var sDef = cards[s.cardId];
+                candidates.push({
+                    side: opp,
+                    zone: z,
+                    inst: s,
+                    def: sDef,
+                    name: 'Set Card',
+                    customOwnerLabel: 'SET • ZONE #' + z,
+                    customOwnerClass: 'tag-opponent',
+                    statsHtml: '<span class="rebirth-tile-stats">Set Spell/Trap</span>'
+                });
+            }
+        }
+
+        if (candidates.length === 0) {
+            addToFeed('<em>Void Sentinel</em> was Tribute Summoned, but no valid cards found.\n\n');
+            return;
+        }
+
+        addToFeed('<em>Void Sentinel</em> triggers! Look at opponent\'s hand and Set cards.\n');
+
+        var chosen = await TargetEngine.requestTarget(who, {
+            title: 'VOID SENTINEL',
+            subtitle: 'CHOOSE 1 CARD TO NEGATE UNTIL END OF YOUR NEXT TURN',
+            badge: { category: 'VOID GAZE', color: '#a855f7', glowColor: 'rgba(168, 85, 247, 0.45)' },
+            candidates: candidates,
+            aiPick: function(list) {
+                // AI picks the player's highest-level monster or first card
+                var monsters = list.filter(function(c) { return c.def && c.def.type === 'monsters'; });
+                if (monsters.length > 0) {
+                    monsters.sort(function(a, b) { return (b.def.level || 0) - (a.def.level || 0); });
+                    return monsters[0];
+                }
+                return list[0];
+            }
+        });
+
+        if (chosen) {
+            var cDef = chosen.def || (chosen.inst ? cards[chosen.inst.cardId] : null);
+            var cName = cDef ? cDef.name : 'a card';
+
+            // Determine which turn the negation expires (end of summoner's next turn)
+            var expiryTurn = turnCount + 2;
+
+            // Store negation on the card instance
+            if (chosen.inst) {
+                chosen.inst.negatedUntilTurn = expiryTurn;
+                chosen.inst.negatedBy = 'void-sentinel';
+            }
+
+            addToFeed('<em>Void Sentinel</em> locks its gaze on ' + formatWho(chosen.side) + '\'s <strong>' + cName + '</strong> — its effects are negated until the end of your next turn!\n\n');
+        }
+    }
+
     // 2. Abyssal Leviathan: Destroy up to 2 Spell/Trap cards
     else if (cardDef.id === 'abyssal-leviathan') {
         var stCandidates = [];
@@ -3880,6 +4238,119 @@ function cancelVanguardsAccordSelection() {
 }
 
 // ---------------------------------------------------------------------------
+// Gaia Power Field Spell Destruction Trigger (Special Summon Lv4 or lower EARTH from Deck)
+// ---------------------------------------------------------------------------
+var gaiaPowerResolver = null;
+
+async function triggerGaiaPowerRebirth(who) {
+    var deckArr = (GameState && GameState[who] && GameState[who].deck) ? GameState[who].deck : [];
+    var freeZone = (typeof getFirstFreeZone === 'function') ? getFirstFreeZone(who) : undefined;
+
+    var validTargets = [];
+    deckArr.forEach(function(cardId) {
+        var d = cards[cardId];
+        if (d && d.type === 'monsters' && d.attribute === 'EARTH' && (d.level || 0) <= 4 && !d.isToken) {
+            validTargets.push({ cardId: cardId, def: d });
+        }
+    });
+
+    if (validTargets.length === 0) {
+        addToFeed('<em>Gaia Power</em>: No eligible Level 4 or lower EARTH monsters in ' + formatWho(who) + '\'s Deck.\n\n');
+        return;
+    }
+    if (freeZone === undefined) {
+        addToFeed('<em>Gaia Power</em>: No free Monster Zones for ' + formatWho(who) + ' to Special Summon.\n\n');
+        return;
+    }
+
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+    if (who === 'player') {
+        await promptPlayerGaiaPower(validTargets);
+    } else {
+        validTargets.sort(function(a, b) { return (b.def.atk || 0) - (a.def.atk || 0); });
+        var aiChoice = validTargets[0];
+        addToFeed('<em>Gaia Power</em> is destroyed: Computer Special Summons <strong>' + aiChoice.def.name + '</strong> from their Deck!\n\n');
+        await specialSummonMonsterFromDeck('computer', aiChoice.cardId, 'attack');
+    }
+}
+
+function promptPlayerGaiaPower(validTargets) {
+    return new Promise(function(resolve) {
+        gaiaPowerResolver = resolve;
+
+        var grid = $('#gaia-power-grid');
+        grid.empty();
+
+        // Deduplicate for display, count quantity
+        var counts = {};
+        validTargets.forEach(function(t) { counts[t.cardId] = (counts[t.cardId] || 0) + 1; });
+        var uniqueIds = Object.keys(counts);
+
+        uniqueIds.forEach(function(cardId) {
+            var cardDef = cards[cardId];
+            if (!cardDef) return;
+
+            var stats = 'LVL ' + (cardDef.level || 1) + ' • ATK ' + cardDef.atk + ' / DEF ' + cardDef.def;
+            var countBadge = (counts[cardId] > 1) ? (' <span class="tag-player">x' + counts[cardId] + '</span>') : '';
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + countBadge + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + stats + '</span>' +
+                    '<div class="rebirth-tile-actions">' +
+                        '<button class="rebirth-action-btn btn-summon-atk"><span>⚔ ATK</span></button>' +
+                        '<button class="rebirth-action-btn btn-summon-def"><span>🛡 DEF</span></button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>');
+
+            var executeSummon = async function(position) {
+                $('#gaia-power-modal').fadeOut(120);
+                addToFeed('<em>Gaia Power</em>: Special Summoned <strong>' + cardDef.name + '</strong> from your Deck!\n\n');
+                await specialSummonMonsterFromDeck('player', cardId, position);
+                if (typeof gaiaPowerResolver === 'function') {
+                    var r = gaiaPowerResolver;
+                    gaiaPowerResolver = null;
+                    r();
+                }
+            };
+
+            tile.find('.btn-summon-atk').on('click', function(e) {
+                e.stopPropagation();
+                executeSummon('attack');
+            });
+
+            tile.find('.btn-summon-def').on('click', function(e) {
+                e.stopPropagation();
+                executeSummon('defense-up');
+            });
+
+            // Clicking the card frame itself defaults to Attack Position
+            tile.find('.rebirth-card-preview-frame, .rebirth-tile-name, .rebirth-tile-stats').on('click', function() {
+                executeSummon('attack');
+            });
+
+            grid.append(tile);
+        });
+
+        $('#gaia-power-modal').fadeIn(150);
+    });
+}
+
+function cancelGaiaPowerSelection() {
+    $('#gaia-power-modal').fadeOut(120);
+    if (typeof gaiaPowerResolver === 'function') {
+        var r = gaiaPowerResolver;
+        gaiaPowerResolver = null;
+        r();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Gale Swiftblade Ignition Effect (Halve 1 Opponent Monster ATK/DEF)
 // ---------------------------------------------------------------------------
 async function activateGaleSwiftblade(who, zoneNum) {
@@ -3955,4 +4426,402 @@ async function activateGaleSwiftblade(who, zoneNum) {
 }
 
 
+// ---------------------------------------------------------------------------
+// Shadow Infiltrator: Discard 1 random card on battle damage
+// ---------------------------------------------------------------------------
 
+async function triggerShadowInfiltratorDiscard(attackerInst, attackerWho, defenderWho, damage) {
+    var defenderHand = GameState[defenderWho] && GameState[defenderWho].hand;
+    if (!defenderHand || defenderHand.length === 0) return;
+
+    var randomIdx = Math.floor(Math.random() * defenderHand.length);
+    var discardedInst = defenderHand.splice(randomIdx, 1)[0];
+    var discardedDef = cards[discardedInst.cardId];
+
+    GameState[defenderWho].graveyard.push(discardedInst);
+    notifyUmbraHeraldGraveyardSend(defenderWho, discardedInst);
+
+    addToFeed('<em>Shadow Infiltrator</em> forces ' + formatWho(defenderWho) + ' to discard <strong>' + (discardedDef ? discardedDef.name : 'a card') + '</strong>!\n\n');
+
+    updateHandDisplay(defenderWho);
+    updateGraveyardZones();
+    updateResourceCounters();
+}
+
+// ---------------------------------------------------------------------------
+// Void Sentinel Negation Cleanup
+// ---------------------------------------------------------------------------
+
+function cleanupExpiredNegations() {
+    ['player', 'computer'].forEach(function(who) {
+        // Check hand cards
+        if (GameState[who] && GameState[who].hand) {
+            GameState[who].hand.forEach(function(inst) {
+                if (inst.negatedUntilTurn && turnCount > inst.negatedUntilTurn) {
+                    inst.negatedUntilTurn = null;
+                    inst.negatedBy = null;
+                }
+            });
+        }
+        // Check field monsters
+        for (var z = 1; z <= 6; z++) {
+            var m = GameState[who].field.monsters[z];
+            if (m && m.negatedUntilTurn && turnCount > m.negatedUntilTurn) {
+                m.negatedUntilTurn = null;
+                m.negatedBy = null;
+            }
+        }
+        // Check field spells/traps
+        for (var z = 1; z <= 6; z++) {
+            var s = GameState[who].field.spells[z];
+            if (s && s.negatedUntilTurn && turnCount > s.negatedUntilTurn) {
+                s.negatedUntilTurn = null;
+                s.negatedBy = null;
+            }
+        }
+    });
+}
+
+// Check if a card instance is currently negated by Void Sentinel
+// (negatedUntilTurn is the last turn the lock holds; it expires at the END of that turn)
+function isNegatedByVoidSentinel(cardInst) {
+    if (!cardInst || !cardInst.negatedUntilTurn) return false;
+    return turnCount <= cardInst.negatedUntilTurn;
+}
+
+// ---------------------------------------------------------------------------
+// Void Monarch Ignition Effect: Banish 1 card from opponent's GY -> +500 ATK
+// ---------------------------------------------------------------------------
+var voidMonarchResolver = null;
+
+async function activateVoidMonarch(who, zoneNum) {
+    var opp = GameState.getOpponent(who);
+    var oppGY = GameState[opp] && GameState[opp].graveyard;
+
+    if (!oppGY || oppGY.length === 0) {
+        if (who === 'player') {
+            addToFeed('No cards in your opponent\'s Graveyard to banish for <em>Void Monarch</em>.\n\n');
+        }
+        return false;
+    }
+
+    var chosenInst = null;
+    if (who === 'player') {
+        chosenInst = await promptPlayerVoidMonarchBanish(oppGY);
+    } else {
+        // AI: target highest-ATK or most threatening card (pick last card - most recent)
+        oppGY.forEach(function(inst) {
+            var d = cards[inst.cardId];
+            inst._score = (d && d.type === 'monsters') ? (d.atk || 0) : (d && d.type === 'spells' ? 800 : 600);
+        });
+        oppGY.sort(function(a, b) { return (b._score || 0) - (a._score || 0); });
+        chosenInst = oppGY[0];
+    }
+
+    if (!chosenInst) {
+        addToFeed('<em>Void Monarch</em> effect was cancelled.\n\n');
+        return false;
+    }
+
+    // Remove from graveyard and banish
+    var gyIdx = GameState[opp].graveyard.indexOf(chosenInst);
+    if (gyIdx !== -1) GameState[opp].graveyard.splice(gyIdx, 1);
+    if (!GameState[opp].banished) GameState[opp].banished = [];
+    GameState[opp].banished.push(chosenInst);
+
+    var chosenDef = cards[chosenInst.cardId];
+    var chosenName = chosenDef ? chosenDef.name : 'a card';
+
+    addToFeed('<em>Void Monarch</em> banishes <strong>' + chosenName + '</strong> from ' + formatWho(opp) + '\'s Graveyard!\n');
+
+    // Apply +500 ATK until end of turn
+    var monarchInst = GameState[who].field.monsters[zoneNum];
+    if (monarchInst) {
+        monarchInst.voidMonarchAtkBoost = (monarchInst.voidMonarchAtkBoost || 0) + 500;
+        monarchInst.voidMonarchBoostTurn = turnCount;
+    }
+
+    updateResourceCounters();
+    updateGraveyardZones();
+
+    addToFeed('<em>Void Monarch</em> gains <strong>500 ATK</strong> until the end of this turn!\n\n');
+    updateStatModBadges();
+
+    return true;
+}
+
+// Player prompt for Void Monarch's GY banish selection
+function promptPlayerVoidMonarchBanish(oppGY) {
+    return new Promise(function(resolve) {
+        var grid = $('#void-monarch-banish-grid');
+        if (!grid.length) {
+            // Fallback: auto-pick first if no modal DOM
+            resolve(oppGY[0]);
+            return;
+        }
+        grid.empty();
+        voidMonarchResolver = resolve;
+
+        oppGY.forEach(function(inst) {
+            var d = cards[inst.cardId];
+            var displayName = d ? d.name : 'Unknown';
+            var typeLabel = d ? (d.type === 'monsters' ? (d.level || 0) + '★ ' + d.monsterType : d.type.toUpperCase()) : 'CARD';
+            var stats = (d && d.type === 'monsters')
+                ? 'ATK ' + (d.atk || 0) + ' / DEF ' + (d.def || 0)
+                : (d && d.type === 'spells' ? 'SPELL' : 'TRAP');
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + (d ? d.file : 'card_back.png') + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-opponent">OPPONENT GY</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeLabel + ' • ' + stats + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#void-monarch-banish-modal').fadeOut(120, function() {
+                    voidMonarchResolver(inst);
+                    voidMonarchResolver = null;
+                });
+            });
+
+            grid.append(tile);
+        });
+
+        $('#void-monarch-banish-modal').fadeIn(150);
+    });
+}
+
+// Player prompt for Void Monarch's Deck search (add to hand)
+function promptPlayerVoidMonarchSearch(darkMonsters) {
+    return new Promise(function(resolve) {
+        var grid = $('#void-monarch-search-grid');
+        if (!grid.length) {
+            resolve(darkMonsters[0]);
+            return;
+        }
+        grid.empty();
+        voidMonarchResolver = resolve;
+
+        darkMonsters.forEach(function(item) {
+            var cardDef = item.def;
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-player">DECK</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + '</h4>' +
+                    '<span class="rebirth-tile-stats">LVL ' + (cardDef.level || 1) + ' • ATK ' + (cardDef.atk || 0) + ' / DEF ' + (cardDef.def || 0) + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#void-monarch-search-modal').fadeOut(120, function() {
+                    voidMonarchResolver(item);
+                });
+            });
+
+            grid.append(tile);
+        });
+
+        $('#void-monarch-search-modal').fadeIn(150);
+    });
+}
+
+// AI routine to activate Void Monarch's banish effect
+async function AIPlayVoidMonarch() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var monarchEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'void-monarch' &&
+               m.card.position !== 'defense-down' &&
+               !m.card.faceDown &&
+               m.card.voidMonarchBoostTurn !== turnCount;
+    });
+
+    if (!monarchEntry) return;
+
+    // Only activate if player has cards in GY
+    var playerGY = GameState.player && GameState.player.graveyard;
+    if (!playerGY || playerGY.length === 0) return;
+
+    if (typeof activateVoidMonarch === 'function') {
+        await activateVoidMonarch('computer', monarchEntry.zone);
+        await sleep(getAnimDuration(400));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Umbra Herald: When sent to the Graveyard -> Banish 1 opponent GY card
+// ---------------------------------------------------------------------------
+var umbraHeraldResolver = null;
+
+// Central hook: call whenever a card instance is sent to the Graveyard.
+// `who` is the side that owned/sent the card.
+function notifyUmbraHeraldGraveyardSend(who, inst) {
+    if (inst && inst.cardId === 'umbra-herald' && typeof triggerUmbraHeraldBanish === 'function') {
+        setTimeout(function() {
+            triggerUmbraHeraldBanish(who);
+        }, 500);
+    }
+}
+
+async function triggerUmbraHeraldBanish(who) {
+    var opp = GameState.getOpponent(who);
+    var oppGY = GameState[opp] && GameState[opp].graveyard;
+
+    if (!oppGY || oppGY.length === 0) {
+        if (who === 'player') {
+            addToFeed('<em>Umbra Herald</em>: No cards in your opponent\'s Graveyard to banish.\n\n');
+        }
+        return false;
+    }
+
+    addToFeed('<em>Umbra Herald</em> activates from the Graveyard!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+    var chosenInst = null;
+    if (who === 'player') {
+        chosenInst = await promptPlayerUmbraHeraldBanish(oppGY);
+    } else {
+        // AI: target highest-ATK monster, then spells, then traps
+        oppGY.forEach(function(inst) {
+            var d = cards[inst.cardId];
+            inst._score = (d && d.type === 'monsters') ? (d.atk || 0) : (d && d.type === 'spells' ? 800 : 600);
+        });
+        oppGY.sort(function(a, b) { return (b._score || 0) - (a._score || 0); });
+        chosenInst = oppGY[0];
+    }
+
+    if (!chosenInst) {
+        addToFeed('<em>Umbra Herald</em> effect was cancelled.\n\n');
+        return false;
+    }
+
+    var gyIdx = GameState[opp].graveyard.indexOf(chosenInst);
+    if (gyIdx !== -1) GameState[opp].graveyard.splice(gyIdx, 1);
+    if (!GameState[opp].banished) GameState[opp].banished = [];
+    GameState[opp].banished.push(chosenInst);
+
+    var chosenDef = cards[chosenInst.cardId];
+    var chosenName = chosenDef ? chosenDef.name : 'a card';
+
+    addToFeed('<em>Umbra Herald</em> banishes <strong>' + chosenName + '</strong> from ' + formatWho(opp) + '\'s Graveyard!\n\n');
+
+    updateGraveyardZones();
+    updateResourceCounters();
+
+    return true;
+}
+
+// Player prompt for Umbra Herald's GY banish selection
+function promptPlayerUmbraHeraldBanish(oppGY) {
+    return new Promise(function(resolve) {
+        var grid = $('#umbra-herald-banish-grid');
+        if (!grid.length) {
+            resolve(oppGY[0]);
+            return;
+        }
+        grid.empty();
+        umbraHeraldResolver = resolve;
+
+        oppGY.forEach(function(inst) {
+            var d = cards[inst.cardId];
+            var displayName = d ? d.name : 'Unknown';
+            var typeLabel = d ? (d.type === 'monsters' ? (d.level || 0) + '★ ' + d.monsterType : d.type.toUpperCase()) : 'CARD';
+            var stats = (d && d.type === 'monsters')
+                ? 'ATK ' + (d.atk || 0) + ' / DEF ' + (d.def || 0)
+                : (d && d.type === 'spells' ? 'SPELL' : 'TRAP');
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + (d ? d.file : 'card_back.png') + '" alt="' + displayName + '" class="rebirth-thumb-img">' +
+                    '<span class="target-owner-tag tag-opponent">OPPONENT GY</span>' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + displayName + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + typeLabel + ' • ' + stats + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#umbra-herald-banish-modal').fadeOut(120, function() {
+                    umbraHeraldResolver(inst);
+                    umbraHeraldResolver = null;
+                });
+            });
+
+            grid.append(tile);
+        });
+
+        $('#umbra-herald-banish-modal').fadeIn(150);
+    });
+}
+// ---------------------------------------------------------------------------
+// Soul Lantern Keeper: Discard from hand during opponent's Battle Step ->
+// battle damage from that attack becomes 0
+// ---------------------------------------------------------------------------
+var soulLanternKeeperResolver = null;
+
+// Called immediately before LP subtraction at every battle damage site.
+// Returns true if the damage was zeroed (card discarded to the Graveyard).
+async function trySoulLanternKeeperZero(damagedWho, incomingDamage) {
+    if (!incomingDamage || incomingDamage <= 0) return false;
+    var hand = GameState[damagedWho] && GameState[damagedWho].hand;
+    if (!hand) return false;
+
+    var keeperIdx = -1;
+    for (var i = 0; i < hand.length; i++) {
+        if (hand[i] && hand[i].cardId === 'soul-lantern-keeper') {
+            keeperIdx = i;
+            break;
+        }
+    }
+    if (keeperIdx === -1) return false;
+
+    var useIt = false;
+    if (damagedWho === 'player') {
+        useIt = await promptPlayerSoulLanternKeeper(incomingDamage);
+    } else {
+        // AI: discard when the hit is significant or would be lethal
+        useIt = (incomingDamage >= 1000 || incomingDamage >= GameState.computer.lp);
+    }
+
+    if (!useIt) return false;
+
+    var keeperInst = hand.splice(keeperIdx, 1)[0];
+    GameState[damagedWho].graveyard.push(keeperInst);
+    notifyUmbraHeraldGraveyardSend(damagedWho, keeperInst);
+    updateHandDisplay(damagedWho);
+    updateGraveyardZones();
+    updateResourceCounters();
+
+    addToFeed(formatWho(damagedWho) + ' discards <em>Soul Lantern Keeper</em> — battle damage from this attack becomes <strong>0</strong>!\n\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+    return true;
+}
+
+function promptPlayerSoulLanternKeeper(incomingDamage) {
+    return new Promise(function(resolve) {
+        var modal = $('#soul-lantern-prompt-modal');
+        if (!modal.length) {
+            resolve(false);
+            return;
+        }
+        $('#soul-lantern-damage-preview').text('Incoming battle damage: ' + incomingDamage);
+        soulLanternKeeperResolver = resolve;
+        modal.fadeIn(150);
+    });
+}
+
+function resolveSoulLanternPrompt(useIt) {
+    $('#soul-lantern-prompt-modal').fadeOut(120);
+    if (typeof soulLanternKeeperResolver === 'function') {
+        var r = soulLanternKeeperResolver;
+        soulLanternKeeperResolver = null;
+        r(useIt);
+    }
+}

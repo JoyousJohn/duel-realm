@@ -20,8 +20,8 @@ EventBus.on("MONSTER_SUMMONED", async function(data) {
     var def = cards[instance.cardId];
     if (!def || def.type !== "monsters") return;
 
-    // Trap Hole triggers strictly on face-up Normal Summons with ATK >= 1000 (not face-down Sets or Special Summons)
-    if (!data.isSpecialSummon && instance.position !== "defense-down" && !instance.faceDown) {
+    // Trap Hole triggers on face-up Normal Summons and Flip Summons with ATK >= 1000 (not face-down Sets or Special Summons)
+    if ((!data.isSpecialSummon || data.isFlipSummon) && instance.position !== "defense-down" && !instance.faceDown) {
         var trapHoleZone = findSetTrapZone(opponent, "trap-hole");
         if (trapHoleZone !== null) {
             var atk = (typeof getMonsterAtk === "function") ? getMonsterAtk(instance) : (def.atk || 0);
@@ -505,6 +505,7 @@ async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
 
         var dDef = cards[discardedInst.cardId];
         GameState.player.graveyard.push(discardedInst);
+        notifyUmbraHeraldGraveyardSend("player", discardedInst);
         updateHandDisplay("player");
         updateGraveyardZones();
 
@@ -554,6 +555,7 @@ async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
         if (handIdx !== -1) {
             var discarded = GameState.computer.hand.splice(handIdx, 1)[0];
             GameState.computer.graveyard.push(discarded);
+            notifyUmbraHeraldGraveyardSend("computer", discarded);
         }
         updateHandDisplay("computer");
         updateGraveyardZones();

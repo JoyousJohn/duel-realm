@@ -16,6 +16,19 @@ function getHandCardElmByUid(who, uid) {
     return getHand(who).find('div.card[data-uid="' + uid + '"]').eq(0);
 }
 
+// (bool) Does `who` control at least one face-up Fiend monster?
+function controlsFaceUpFiend(who) {
+    if (typeof GameState === 'undefined' || !GameState) return false;
+    var monsters = GameState.getMonstersOnField(who);
+    for (var i = 0; i < monsters.length; i++) {
+        var d = cards[monsters[i].card.cardId];
+        if (d && d.monsterType === 'Fiend' && !monsters[i].card.faceDown && monsters[i].card.position !== 'defense-down') {
+            return true;
+        }
+    }
+    return false;
+}
+
 // (int) Return the ID of the first available card zone
 function getFirstFreeZone(who) {
     for (var i = 1; i <= 6; i++) {
