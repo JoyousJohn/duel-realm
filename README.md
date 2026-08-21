@@ -36,7 +36,13 @@ A classic tactical Trading Card Game (TCG) simulator running natively in the bro
 │   ├── state.js            # Central GameState manager & CardInstance structure
 │   ├── cards.js            # Card database, base stats, and effect descriptions
 │   ├── game.js             # Core board interactions, summoning, and modal controllers
-│   ├── card-effects.js     # Spell, Trap, and Monster effect resolution engine
+│   ├── effects-core.js     # TargetEngine, continuous locks, shared helpers
+│   ├── effects-targeting.js# On-mat spell target picker UX
+│   ├── effects-dispatch.js # Central activateCard dispatcher
+│   ├── effects-spells.js   # Spell modals: Rebirth, TTTD, equip, MST, etc.
+│   ├── effects-traps.js    # Trap responses: Prism, Vortex, Radiant, etc.
+│   ├── effects-monsters.js # Monster ignition/flip/graveyard triggers
+│   ├── card-effects.js     # Compat shim (see modules above)
 │   ├── phases.js           # Turn lifecycle and phase management
 │   ├── ai.js               # Autonomous AI decision-making algorithms
 │   ├── battle-fx.js        # Battle calculations, screen shake, and damage indicators

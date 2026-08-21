@@ -2,7 +2,7 @@
  * Trap Triggers Engine: Auto-trigger event handlers (MONSTER_SUMMONED),
  * counter trap interception (Arcane Disruptor), and banishment utilities.
  * Attack response windows (Radiant Backlash, Prism of Retribution) and
- * standby upkeep traps live in card-effects.js.
+ * standby upkeep traps live in effects-traps.js.
  */
 
 // ---------------------------------------------------------------------------

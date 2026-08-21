@@ -1,4 +1,4 @@
-var CACHE_NAME = 'duel-realm-v35';
+var CACHE_NAME = 'duel-realm-v36';
 var CORE_ASSETS = [
     './',
     './index.html',
@@ -18,9 +18,14 @@ var CORE_ASSETS = [
     './js/cards.js',
     './js/state.js',
     './js/effects-core.js',
+    './js/effects-targeting.js',
+    './js/effects-dispatch.js',
+    './js/effects-spells.js',
+    './js/effects-traps.js',
+    './js/effects-monsters.js',
+    './js/card-effects.js',
     './js/stat-engine.js',
     './js/trap-triggers.js',
-    './js/card-effects.js',
     './js/ai.js',
     './js/battle-fx.js',
     './js/deck.js',

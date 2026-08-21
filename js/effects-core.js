@@ -226,3 +226,208 @@ function isMausoleumActive() {
            (cField && cField.cardId === "mausoleum-of-offerings" && cField.position !== "set");
 }
 
+// ---------------------------------------------------------------------------
+// Shared Field / Graveyard Helpers (migrated from card-effects.js)
+// ---------------------------------------------------------------------------
+
+// A monster with "cannot be targeted by the effects of Spell Cards" immunity (Deepsea Warrior).
+function isImmuneToSpellTargeting(monsterInst, spellController) {
+    if (!monsterInst) return false;
+    if (monsterInst.cardId !== 'deepsea-warrior') return false;
+    if (monsterInst.faceDown || monsterInst.position === 'defense-down') return false;
+    return true;
+}
+
+// Keep DOM in sync with a just-activated spell/trap instance.
+function targetSquareStateFix(who, zoneNum, position) {
+    var square = zoneNum === null || zoneNum === undefined ? getFieldZoneElm(who) : getSpellSquareElm(who, zoneNum);
+    if (square && square.length) {
+        square.attr('data-card-position', position);
+        square.find('div.card-zone').flip(false);
+    }
+}
+
+// Return a continuous trap that failed to resolve back to its face-down Set state.
+function revertContinuousTrapToSet(who, zoneNum) {
+    if (zoneNum === null || zoneNum === undefined) return;
+    var inst = GameState[who] && GameState[who].field.spells[zoneNum];
+    if (inst) {
+        inst.position = 'set';
+        inst.faceDown = true;
+    }
+    var square = getSpellSquareElm(who, zoneNum);
+    if (square && square.length) {
+        square.attr('data-card-position', 'set');
+        var zoneElm = square.find('div.card-zone');
+        if (typeof zoneElm.flip === 'function') {
+            try {
+                zoneElm.flip({ trigger: 'manual' });
+                zoneElm.flip(true);
+            } catch (e) {}
+        }
+    }
+}
+
+// Find the first face-up trap on a side's spell zones.
+function findFaceUpTrap(who) {
+    var spells = GameState[who].field.spells;
+    for (var i = 1; i <= 6; i++) {
+        var inst = spells[i];
+        if (inst && cards[inst.cardId] && cards[inst.cardId].type === 'traps' && inst.position !== 'set') {
+            return { zone: i, card: inst };
+        }
+    }
+    return null;
+}
+
+// Find all face-up traps across both fields (as array of { who, zone, card })
+function getAllFaceUpTraps() {
+    var result = [];
+    ['computer', 'player'].forEach(function(side) {
+        var spells = GameState[side].field.spells;
+        for (var i = 1; i <= 6; i++) {
+            var inst = spells[i];
+            if (inst && cards[inst.cardId] && cards[inst.cardId].type === 'traps' && inst.position !== 'set') {
+                result.push({ who: side, zone: i, card: inst });
+            }
+        }
+    });
+    return result;
+}
+
+// Collect monster instances from both graveyards (as { who, cardId }).
+function getGraveyardMonsters() {
+    var result = [];
+    ['player', 'computer'].forEach(function(who) {
+        GameState[who].graveyard.forEach(function(inst) {
+            var def = cards[inst.cardId];
+            if (def && def.type === 'monsters' && !def.isToken && def.subType !== 'token' && !inst.isToken) {
+                result.push({ who: who, cardId: inst.cardId });
+            }
+        });
+    });
+    return result;
+}
+
+// Find the spell zone where `cardId` sits on `who`'s field (or null).
+function findSpellZoneByCard(who, cardId) {
+    var spells = GameState[who].field.spells;
+    for (var i = 1; i <= 6; i++) {
+        if (spells[i] && spells[i].cardId === cardId) return i;
+    }
+    return null;
+}
+
+// Find the spell zone on `who`'s field containing a SET copy of cardId (or null).
+function findSetTrapZone(who, cardId) {
+    var spells = GameState[who].field.spells;
+    for (var i = 1; i <= 6; i++) {
+        if (spells[i] && spells[i].cardId === cardId && spells[i].position === 'set') {
+            return i;
+        }
+    }
+    return null;
+}
+
+// All monsters on `who`'s field that are currently face-up (valid equip targets)
+function getFaceUpMonstersOnField(who) {
+    return GameState.getMonstersOnField(who).filter(function(m) {
+        return m.card && !m.card.faceDown && m.card.position !== 'defense-down';
+    });
+}
+
+// Find the active (face-up) Swords zone on `who`'s field (or null).
+function findActiveSwordsZone(who) {
+    var spells = GameState[who].field.spells;
+    for (var i = 1; i <= 6; i++) {
+        if (spells[i] && spells[i].cardId === 'swords-of-revealing-light' && spells[i].position === 'active') {
+            return i;
+        }
+    }
+    return null;
+}
+
+// Update or create the visual turn counter badge floating over Swords of Revealing Light
+function updateSwordsVisualCounter(who, zoneNum, turnsLeft) {
+    var square = getSpellSquareElm(who, zoneNum);
+    if (!square || !square.length) return;
+
+    var existingBadge = square.find('.swords-turn-counter-badge');
+    if (turnsLeft > 0) {
+        var label = turnsLeft + (turnsLeft === 1 ? ' TURN' : ' TURNS');
+        if (!existingBadge.length) {
+            existingBadge = $('<div class="swords-turn-counter-badge">' +
+                '<span class="swords-counter-icon">⚔</span>' +
+                '<span class="swords-counter-label">' + label + '</span>' +
+            '</div>');
+            square.append(existingBadge);
+        } else {
+            existingBadge.find('.swords-counter-label').text(label);
+        }
+        existingBadge.addClass('counter-updated');
+        setTimeout(function() { existingBadge.removeClass('counter-updated'); }, 400);
+    } else if (existingBadge.length) {
+        existingBadge.remove();
+    }
+}
+
+function hasSpellTrapOnField() {
+    var targets = [];
+    ['player', 'computer'].forEach(function(side) {
+        for (var z = 1; z <= 6; z++) {
+            if (GameState[side].field.spells[z]) {
+                targets.push({ side: side, zone: z, isField: false });
+            }
+        }
+        if (GameState[side].field.fieldZone) {
+            targets.push({ side: side, zone: null, isField: true });
+        }
+    });
+    return targets.length > 0;
+}
+
+// Remove the EQUIPPED visual tag from a monster square (by monster uid).
+function removeEquipTag(who, monsterUid) {
+    var monsters = GameState[who].field.monsters;
+    for (var zoneNum = 1; zoneNum <= 6; zoneNum++) {
+        if (monsters[zoneNum] && monsters[zoneNum].uid === monsterUid) {
+            var square = getSquareElm(who, zoneNum);
+            if (square && square.length) square.find('.equip-tag-badge').remove();
+            return;
+        }
+    }
+}
+
+// Void Sentinel: Check if a card instance is currently negated
+function isNegatedByVoidSentinel(cardInst) {
+    if (!cardInst || !cardInst.negatedUntilTurn) return false;
+    return turnCount <= cardInst.negatedUntilTurn;
+}
+
+function cleanupExpiredNegations() {
+    ['player', 'computer'].forEach(function(who) {
+        if (GameState[who] && GameState[who].hand) {
+            GameState[who].hand.forEach(function(inst) {
+                if (inst.negatedUntilTurn && turnCount > inst.negatedUntilTurn) {
+                    inst.negatedUntilTurn = null;
+                    inst.negatedBy = null;
+                }
+            });
+        }
+        for (var z = 1; z <= 6; z++) {
+            var m = GameState[who].field.monsters[z];
+            if (m && m.negatedUntilTurn && turnCount > m.negatedUntilTurn) {
+                m.negatedUntilTurn = null;
+                m.negatedBy = null;
+            }
+        }
+        for (var z = 1; z <= 6; z++) {
+            var s = GameState[who].field.spells[z];
+            if (s && s.negatedUntilTurn && turnCount > s.negatedUntilTurn) {
+                s.negatedUntilTurn = null;
+                s.negatedBy = null;
+            }
+        }
+    });
+}
+
