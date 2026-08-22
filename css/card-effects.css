@@ -1495,6 +1495,55 @@ body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candida
    so it wins cascade ties against all base modal rules.
    ========================================================================== */
 @media (max-width: 900px) {
+    /* Rotate empty Field Zone labels along the slot's true diagonal so the
+       text fits the narrower mobile slots without shrinking the font.
+       Slots are 2:3 (h/w = 1.5), so the corner-to-corner angle is
+       atan(1.5) ~= 56.3 degrees. */
+    .field-zone-label {
+        transform: translate(-50%, -50%) rotate(-56.31deg);
+    }
+
+    /* Shrink card badges ~55% on mobile so they stop overlapping nearby
+       slots. Base rules use large rem sizes tuned for desktop mats; the
+       higher-specificity defense-position variants are beaten via !important. */
+    .swords-turn-counter-badge,
+    .borrowed-monster-badge,
+    .stat-mod-badge,
+    .def-locked-badge,
+    .flip-effect-badge,
+    .immune-badge,
+    .no-tribute-badge,
+    .tributable-bound-badge,
+    .attack-locked-badge,
+    .effect-ready-badge,
+    .free-summon-badge,
+    .equip-tag-badge,
+    .hand-tribute-badge {
+        padding: 1rem 3rem !important;
+        gap: 1.5rem !important;
+        font-size: 4.5rem !important;
+        letter-spacing: 0.4rem !important;
+    }
+
+    /* Mobile-only: drop the emoji/glyphs entirely, keep the badge words.
+       (Every badge type has its own icon span: ⚔ ⇄ 🔥 ✦ ⚡ 🔄 🛡 🔮 etc.) */
+    .swords-counter-icon,
+    .borrowed-badge-icon,
+    .equip-tag-icon,
+    .effect-ready-icon,
+    .def-locked-icon,
+    .flip-badge-icon,
+    .immune-badge-icon,
+    .no-tribute-icon,
+    .attack-locked-icon,
+    .tributable-bound-icon,
+    .stat-mod-icon,
+    .free-summon-badge .hand-tribute-icon,
+    .hand-tribute-badge .hand-tribute-icon {
+        display: none !important;
+    }
+
+
     .tactical-action-modal {
         padding: 8px;
     }

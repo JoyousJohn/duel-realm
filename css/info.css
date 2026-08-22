@@ -736,6 +736,15 @@ body.sidebar-is-resizing * {
     gap: 5rem;
 }
 
+@media (max-width: 900px) {
+    .preview-media-container { display: contents; }
+    .scanner-active-view .preview-primary-meta { order: 1; }
+    .scanner-active-view #preview-combat-stats,
+    .scanner-active-view .preview-combat-grid { order: 2; }
+    .scanner-active-view .preview-desc-container { order: 3; }
+    .scanner-active-view .preview-img-container { order: 4; }
+}
+
 .preview-badge-row {
     display: flex;
     align-items: center;
@@ -1011,6 +1020,8 @@ body.sidebar-is-resizing * {
 }
 
 .command-btn {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     padding: 9rem 12rem;
     border-radius: 6rem;
@@ -1026,6 +1037,60 @@ body.sidebar-is-resizing * {
     text-transform: uppercase;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+.command-btn::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+    pointer-events: none;
+    transition: width 0.38s ease, height 0.38s ease, opacity 0.38s ease;
+}
+
+.command-btn:active::after {
+    width: 320px;
+    height: 320px;
+    opacity: 1;
+    transition: 0s;
+}
+
+.command-btn:disabled:active,
+.command-btn[disabled]:active {
+    transform: none !important;
+    filter: none !important;
+}
+
+.command-btn:disabled::after,
+.command-btn[disabled]::after {
+    display: none;
+}
+
+.btn-ripple-dot {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.33);
+    border-radius: 50%;
+    transform: translate(0, 0);
+    pointer-events: none;
+    opacity: 0;
+    transition: width 0.38s ease, height 0.38s ease, opacity 0.38s ease, margin 0.38s ease;
+    z-index: 1;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    /* On touch devices the JS point-ripple is used; hide the centered CSS ripple to avoid double */
+    .command-btn::after { display: none; }
 }
 
 .command-btn.primary-command {
@@ -1042,7 +1107,17 @@ body.sidebar-is-resizing * {
 }
 
 .command-btn.primary-command:active {
-    transform: translateY(0);
+    transform: translateY(0) scale(0.96);
+    background: linear-gradient(180deg, #b8941f 0%, #7a5f08 100%);
+    box-shadow: 0 1px 6px rgba(212, 175, 55, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.35);
+    filter: brightness(0.92);
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .command-btn.primary-command:active {
+        transform: scale(0.94);
+        filter: brightness(0.88);
+    }
 }
 
 .command-btn.secondary-command {
@@ -1202,10 +1277,76 @@ body.sidebar-is-resizing * {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(212, 175, 55, 0.25);
     backdrop-filter: blur(10px);
 }
+/* LP HUD in sidebar (moved from mat overlay for mobile visibility) */
+.lp-module {
+    display: flex;
+    flex-direction: column;
+    gap: 6rem;
+    padding: 8rem 10rem;
+}
+
+.lp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8rem;
+    padding: 7rem 12rem;
+    border-radius: 20rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.lp-opponent-row {
+    background: linear-gradient(135deg, rgba(26, 16, 20, 0.92) 0%, rgba(13, 17, 23, 0.94) 100%);
+    border: 1px solid rgba(248, 81, 73, 0.45);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 10px rgba(248, 81, 73, 0.18);
+}
+
+.lp-player-row {
+    background: linear-gradient(135deg, rgba(24, 22, 15, 0.92) 0%, rgba(13, 17, 23, 0.94) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 10px rgba(212, 175, 55, 0.18);
+}
+
+.lp-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 9rem;
+    font-weight: 800;
+    letter-spacing: 1rem;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.lp-opponent-label { color: #ff7b72; }
+.lp-player-label { color: #fde68a; }
+
+#lp-hud #opponent-lp,
+#lp-hud #player-lp {
+    position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    font-family: 'Cinzel', serif;
+    font-size: 14rem;
+    font-weight: 900;
+    letter-spacing: 1rem;
+}
+
+#lp-hud #opponent-lp { color: #ff7b72; }
+#lp-hud #player-lp { color: #fef08a; }
+
 /* ==========================================================================
-   Mobile Overrides — kept at the END of the file so they win the cascade
-   against all base rules (equal-specificity ties resolve to last match).
-   ========================================================================== */
+    Mobile Overrides — kept at the END of the file so they win the cascade
+    against all base rules (equal-specificity ties resolve to last match).
+    ========================================================================== */
 @media (max-width: 900px) {
     /* Hide the desktop phase module entirely; the dedicated mobile
        strip (#phase-tracker-mobile) replaces it. */

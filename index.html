@@ -112,8 +112,6 @@
     
     <div id="viewport" style="display: none;">
 
-        <div id="opponent-lp">5000 LP</div>
-
         <div id="turn-popup" style="display: none;"><span></span></div>
 
         <!-- AAA Tactical Summon Stance HUD -->
@@ -1471,6 +1469,18 @@
                 </button>
             </div>
 
+            <!-- LP HUD — moved from mat overlay to sidebar so mat can use full width on mobile -->
+            <div id="lp-hud" class="hud-module lp-module">
+                <div class="lp-row lp-opponent-row">
+                    <span class="lp-label lp-opponent-label">OPPONENT</span>
+                    <span id="opponent-lp" class="lp-value lp-opponent-value">5000 LP</span>
+                </div>
+                <div class="lp-row lp-player-row">
+                    <span class="lp-label lp-player-label">YOU</span>
+                    <span id="player-lp" class="lp-value lp-player-value">5000 LP</span>
+                </div>
+            </div>
+
             <!-- Duel Turn & Phase Master Module -->
             <div id="info-stats" class="hud-module phase-module">
                 <div class="phase-display-container">
@@ -1588,9 +1598,7 @@
 
         </aside>
 
-        <div id="mat-wrapper" style="position: relative;"> <!-- So player-lp can be attatched to bottom left -->
-
-            <div id="player-lp">5000 LP</div>
+        <div id="mat-wrapper" style="position: relative;">
 
             <div id="mat">
 
@@ -1932,6 +1940,41 @@
             window.addEventListener('orientationchange', function() {
                 setTimeout(function() { attempted = false; }, 300);
             });
+        })();
+    </script>
+    <script>
+        // End Turn button — touch feedback: haptic + point-ripple
+        (function() {
+            var btn = document.getElementById('end-turn-btn');
+            if (!btn) return;
+            btn.addEventListener('touchstart', function(e) {
+                if (btn.disabled) return;
+                if (navigator.vibrate) try { navigator.vibrate(18); } catch (_) {}
+                // point ripple
+                var rect = btn.getBoundingClientRect();
+                var t = e.touches[0];
+                var x = t.clientX - rect.left;
+                var y = t.clientY - rect.top;
+                var dot = document.createElement('span');
+                dot.className = 'btn-ripple-dot';
+                dot.style.left = x + 'px';
+                dot.style.top = y + 'px';
+                dot.style.marginLeft = '-3px';
+                dot.style.marginTop = '-3px';
+                btn.appendChild(dot);
+                // force reflow then expand
+                void dot.offsetWidth;
+                dot.style.width = '340px';
+                dot.style.height = '340px';
+                dot.style.opacity = '1';
+                dot.style.marginLeft = '-170px';
+                dot.style.marginTop = '-170px';
+                setTimeout(function() { dot.style.opacity = '0'; }, 260);
+                setTimeout(function() { if (dot.parentNode) dot.parentNode.removeChild(dot); }, 520);
+            }, { passive: true });
+            btn.addEventListener('touchend', function() {
+                // CSS :active handles scale; clean any lingering dots handled above
+            }, { passive: true });
         })();
     </script>
 
