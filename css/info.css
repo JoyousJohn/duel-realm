@@ -1400,13 +1400,33 @@ body.sidebar-is-resizing * {
 
     #player-lp,
     #opponent-lp {
-        font-size: 7rem;
+        font-size: 9rem;
     }
 
-    /* While a card is being previewed, hide the turn header and phase
-       strip so the card image is the first element at the top. */
+    /* LP rows sit side-by-side in a single row on mobile */
+    #lp-hud.lp-module {
+        flex-direction: row;
+        gap: 4px;
+        padding: 0;
+    }
+
+    #lp-hud .lp-row {
+        flex: 1 1 50%;
+        justify-content: center;
+        gap: 4px;
+        padding: 4rem 6rem;
+    }
+
+    #lp-hud .lp-label {
+        font-size: 7rem;
+        letter-spacing: 0.5rem;
+    }
+
+    /* While a card is being previewed, hide the turn header, phase
+       strip and LP HUD so the card image is the first element at the top. */
     #info-panel.sidebar-inspecting .sidebar-header,
-    #info-panel.sidebar-inspecting #phase-tracker-mobile {
+    #info-panel.sidebar-inspecting #phase-tracker-mobile,
+    #info-panel.sidebar-inspecting #lp-hud {
         display: none;
     }
 
