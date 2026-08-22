@@ -1168,15 +1168,12 @@ async function applyHarpieLadyDiscard(cardUid, cardName) {
         gIdx = GameState.player.hand.findIndex(function(c) { return c.cardId === cardName; });
     }
     if (gIdx !== -1) {
-        discardedInst = GameState.player.hand.splice(gIdx, 1)[0];
+        discardedInst = GameState.player.hand[gIdx];
     } else {
         discardedInst = new CardInstance(cardName);
     }
 
-    GameState.player.graveyard.push(discardedInst);
-    notifyUmbraHeraldGraveyardSend('player', discardedInst);
-    updateHandDisplay('player');
-    updateGraveyardZones();
+    discardCardToGraveyard('player', discardedInst);
 
     await sleep(300);
     openHarpieLadyTargetModal();

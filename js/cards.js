@@ -834,7 +834,23 @@ var cards = {
         'level': 10,
         'atk': 4000,
         'def': 4000,
+        'cannotBeSpecialSummoned': true,
         'desc': 'Requires 3 Tributes to Normal Summon (cannot be Special Summoned). Cannot be targeted by Spells, Traps, or card effects.'
+    },
+
+    'warden-of-the-hollow-crown': {
+        'id': 'warden-of-the-hollow-crown',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'warden_of_the_hollow_crown.png',
+        'name': 'Warden of the Hollow Crown',
+        'monsterType': 'Divine-Beast',
+        'attribute': 'DIVINE',
+        'level': 10,
+        'atk': 3500,
+        'def': 4000,
+        'cannotBeSpecialSummoned': true,
+        'desc': 'Requires 3 Tributes to Normal Summon (cannot be Special Summoned). Cannot be targeted by Spells, Traps, or card effects. Monsters your opponent controls lose 500 ATK and DEF.'
     },
 
     'double-tribute-surge': {

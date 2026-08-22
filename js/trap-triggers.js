@@ -63,6 +63,11 @@ EventBus.on("MONSTER_SUMMONED", async function(data) {
         if (prismZone !== null) {
             var prismAtk = (typeof getMonsterAtk === "function") ? getMonsterAtk(instance) : (def.atk || 0);
             if (prismAtk >= 3000) {
+                // If another trap (e.g. Trap Hole) already removed the summoned
+                // monster, stay set — don't burn Prism on a target that's gone.
+                var prismTarget = GameState[summonerWho] && GameState[summonerWho].field && GameState[summonerWho].field.monsters[data.zone];
+                if (!prismTarget || prismTarget.uid !== instance.uid) return;
+
                 var prismDef = cards["eclipse-null-prism"];
                 var prismSquare = getSpellSquareElm(opponent, prismZone);
 
@@ -85,31 +90,19 @@ EventBus.on("MONSTER_SUMMONED", async function(data) {
                 await sleep(getAnimDuration(400));
                 await destroySpellTrap(opponent, prismZone, false);
 
-                // Check monster still on field before destroying (not already removed by prior trap)
-                var stillOnField = GameState[summonerWho] && GameState[summonerWho].field && GameState[summonerWho].field.monsters[data.zone];
-                if (stillOnField && stillOnField.uid === instance.uid) {
-                    await destroyMonster(summonerWho, data.zone);
-                    addToFeed("Eclipse Null Prism destroyed " + def.name + "!\n");
+                await destroyMonster(summonerWho, data.zone);
+                addToFeed("Eclipse Null Prism destroyed " + def.name + "!\n");
 
-                    // Opponent (summoner) discards 1 random card if they have cards in hand
-                    var oppHand = GameState[summonerWho] && GameState[summonerWho].hand;
-                    if (oppHand && oppHand.length > 0) {
-                        var rIdx = Math.floor(Math.random() * oppHand.length);
-                        var discarded = oppHand.splice(rIdx, 1)[0];
-                        var dDef = cards[discarded.cardId];
-                        GameState[summonerWho].graveyard.push(discarded);
-                        if (typeof notifyUmbraHeraldGraveyardSend === "function") {
-                            notifyUmbraHeraldGraveyardSend(summonerWho, discarded);
-                        }
-                        updateHandDisplay(summonerWho);
-                        updateGraveyardZones();
-                        updateResourceCounters();
-                        addToFeed(formatWho(summonerWho) + " discards <strong>" + (dDef ? dDef.name : "a card") + "</strong> to the Graveyard!\n\n");
-                    } else {
-                        addToFeed(formatWho(summonerWho) + " has no cards to discard.\n\n");
-                    }
+                // Opponent (summoner) discards 1 random card if they have cards in hand
+                var oppHand = GameState[summonerWho] && GameState[summonerWho].hand;
+                if (oppHand && oppHand.length > 0) {
+                    var rIdx = Math.floor(Math.random() * oppHand.length);
+                    var discarded = oppHand[rIdx];
+                    var dDef = cards[discarded.cardId];
+                    addToFeed(formatWho(summonerWho) + " discards <strong>" + (dDef ? dDef.name : "a card") + "</strong> to the Graveyard!\n\n");
+                    discardCardToGraveyard(summonerWho, discarded);
                 } else {
-                    addToFeed(def.name + " was already removed from the field.\n\n");
+                    addToFeed(formatWho(summonerWho) + " has no cards to discard.\n\n");
                 }
 
                 if (typeof BattleFX !== "undefined" && typeof BattleFX.cancelTargetSelection === "function") {
@@ -224,7 +217,14 @@ function resolveTorrentialTributePrompt(shouldActivate) {
     }
 }
 
+var torrentialExecutionLock = false;
+
 async function executeTorrentialTribute(who, zoneNum) {
+    // Reentrancy guard: overlapping MONSTER_SUMMONED events must never run
+    // this wipe twice (second invocation sees the trap already consumed).
+    if (torrentialExecutionLock) return;
+    torrentialExecutionLock = true;
+
     var trapSquare = getSpellSquareElm(who, zoneNum);
 
     // Reveal Trap card face-up
@@ -245,10 +245,15 @@ async function executeTorrentialTribute(who, zoneNum) {
         BattleFX.triggerScreenShake("heavy");
     }
 
-    await sleep(getAnimDuration(450));
+    try {
+        await sleep(getAnimDuration(450));
 
-    // Destroy the trap itself
-    await destroySpellTrap(who, zoneNum, false);
+        // Destroy the trap itself BEFORE resolving victims so a concurrent
+        // summon event can no longer re-find and re-execute this copy.
+        await destroySpellTrap(who, zoneNum, false);
+    } finally {
+        torrentialExecutionLock = false;
+    }
 
     // Collect all monsters currently on both fields
     var victims = [];
@@ -561,16 +566,13 @@ async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
             gIdx = GameState.player.hand.findIndex(function(c) { return c.cardId === discardCard.cardId; });
         }
         if (gIdx !== -1) {
-            discardedInst = GameState.player.hand.splice(gIdx, 1)[0];
+            discardedInst = GameState.player.hand[gIdx];
         } else {
             discardedInst = new CardInstance(discardCard.cardId);
         }
 
         var dDef = cards[discardedInst.cardId];
-        GameState.player.graveyard.push(discardedInst);
-        notifyUmbraHeraldGraveyardSend("player", discardedInst);
-        updateHandDisplay("player");
-        updateGraveyardZones();
+        discardCardToGraveyard("player", discardedInst);
 
         // Reveal & destroy Arcane Disruptor
         var trapSquare = getSpellSquareElm("player", trapZone);
@@ -614,14 +616,7 @@ async function checkArcaneDisruptorResponse(who, instance, zoneNum, spellDef) {
         var aiDiscard = handCards[0];
         var aiDiscardDef = cards[aiDiscard.cardId];
 
-        var handIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === aiDiscard.uid; });
-        if (handIdx !== -1) {
-            var discarded = GameState.computer.hand.splice(handIdx, 1)[0];
-            GameState.computer.graveyard.push(discarded);
-            notifyUmbraHeraldGraveyardSend("computer", discarded);
-        }
-        updateHandDisplay("computer");
-        updateGraveyardZones();
+        discardCardToGraveyard("computer", aiDiscard);
 
         var trapSquare = getSpellSquareElm("computer", trapZone);
         if (trapSquare && trapSquare.length) {

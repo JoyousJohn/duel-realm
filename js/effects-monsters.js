@@ -833,17 +833,12 @@ async function triggerShadowInfiltratorDiscard(attackerInst, attackerWho, defend
     if (!defenderHand || defenderHand.length === 0) return;
 
     var randomIdx = Math.floor(Math.random() * defenderHand.length);
-    var discardedInst = defenderHand.splice(randomIdx, 1)[0];
+    var discardedInst = defenderHand[randomIdx];
     var discardedDef = cards[discardedInst.cardId];
-
-    GameState[defenderWho].graveyard.push(discardedInst);
-    notifyUmbraHeraldGraveyardSend(defenderWho, discardedInst);
 
     addToFeed('<em>Shadow Infiltrator</em> forces ' + formatWho(defenderWho) + ' to discard <strong>' + (discardedDef ? discardedDef.name : 'a card') + '</strong>!\n\n');
 
-    updateHandDisplay(defenderWho);
-    updateGraveyardZones();
-    updateResourceCounters();
+    await discardCardToGraveyard(defenderWho, discardedInst);
 }
 
 // ---------------------------------------------------------------------------
@@ -1149,15 +1144,12 @@ async function trySoulLanternKeeperZero(damagedWho, incomingDamage) {
 
     if (!useIt) return false;
 
-    var keeperInst = hand.splice(keeperIdx, 1)[0];
-    GameState[damagedWho].graveyard.push(keeperInst);
-    notifyUmbraHeraldGraveyardSend(damagedWho, keeperInst);
-    updateHandDisplay(damagedWho);
-    updateGraveyardZones();
-    updateResourceCounters();
+    var keeperInst = hand[keeperIdx];
 
     addToFeed(formatWho(damagedWho) + ' discards <em>Soul Lantern Keeper</em> — battle damage from this attack becomes <strong>0</strong>!\n\n');
     if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+    await discardCardToGraveyard(damagedWho, keeperInst);
     return true;
 }
 

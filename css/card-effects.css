@@ -902,6 +902,49 @@ div.card-zone.field-available-zone {
 }
 
 /* ==========================================================================
+   Hand Special Summon Ready "FREE SUMMON" Badge (e.g. Umbra Herald)
+   ========================================================================== */
+
+.free-summon-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 4rem;
+    padding: 1.5rem 6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3rem;
+    font-family: 'Cinzel', serif;
+    font-size: 7.5rem;
+    font-weight: 900;
+    letter-spacing: 0.8rem;
+    white-space: nowrap;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%);
+    border: 1px solid #a7f3d0;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.85), 0 2px 5px rgba(0, 0, 0, 0.6);
+    z-index: 60;
+    pointer-events: none;
+    animation: freeSummonBadgeGlow 1.6s infinite alternate ease-in-out;
+}
+
+.free-summon-badge .hand-tribute-icon {
+    font-size: 8rem;
+    line-height: 1;
+}
+
+@keyframes freeSummonBadgeGlow {
+    from {
+        box-shadow: 0 0 6px rgba(52, 211, 153, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(16, 185, 129, 0.95), 0 2px 6px rgba(0, 0, 0, 0.6);
+        filter: brightness(1.15);
+    }
+}
+
+/* ==========================================================================
    Equip Card "EQUIPPED" Tag (shown on the equipped monster)
    ========================================================================== */
 

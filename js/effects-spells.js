@@ -193,16 +193,12 @@ function tttdDiscardCardSelected(uid) {
     $('#tttd-discard-modal').fadeOut(120);
 
     // Remove the card from hand
-    var idx = GameState.player.hand.findIndex(function(c) { return c.uid === uid; });
-    if (idx !== -1) {
-        var discarded = GameState.player.hand.splice(idx, 1)[0];
-        GameState.player.graveyard.push(discarded);
-        notifyUmbraHeraldGraveyardSend('player', discarded);
-        tttdDiscardedCardId = discarded.cardId;
+    var inst = GameState.player.hand.find(function(c) { return c.uid === uid; });
+    if (inst) {
+        tttdDiscardedCardId = inst.cardId;
         var discardDef = cards[tttdDiscardedCardId];
         addToFeed('<em>Tribute to the Doomed</em>: You discard <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
-        updateHandDisplay('player');
-        updateGraveyardZones();
+        discardCardToGraveyard('player', inst);
     }
 
     // Now open Step 2 — pick a monster to destroy
@@ -905,13 +901,11 @@ function cleanupCelestialTitheUI() {
 function applyCelestialTitheDiscards(uids) {
     var discardedNames = [];
     uids.forEach(function(uid) {
-        var idx = GameState.player.hand.findIndex(function(c) { return c.uid === uid; });
-        if (idx !== -1) {
-            var discarded = GameState.player.hand.splice(idx, 1)[0];
-            GameState.player.graveyard.push(discarded);
-            notifyUmbraHeraldGraveyardSend('player', discarded);
-            var dDef = cards[discarded.cardId];
+        var inst = GameState.player.hand.find(function(c) { return c.uid === uid; });
+        if (inst) {
+            var dDef = cards[inst.cardId];
             discardedNames.push(dDef ? dDef.name : 'a card');
+            discardCardToGraveyard('player', inst);
         }
     });
     updateHandDisplay('player');

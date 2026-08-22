@@ -91,6 +91,113 @@ var BattleFX = {
     },
 
     /**
+     * Divine Strike: unique attack animation for Divine-Beast god cards.
+     * Phase 1: The arena dims while every lesser monster cowers.
+     * Phase 2: The god charges with golden radiance.
+     * Phase 3: A silhouette of the god descends from above onto the target,
+     *          impacting with a light pillar, shockwave ring, and heavy shake.
+     */
+    animateDivineAttack: async function(attackerSquare, defenderSquare, isDirect) {
+        this.isAnimating = true;
+        var self = this;
+
+        return new Promise(async function(resolve) {
+            var attackerCard = $(attackerSquare).find('.card-zone.main-zone');
+            if (!attackerCard.length) attackerCard = $(attackerSquare);
+
+            var targetElem = defenderSquare;
+            if (isDirect) {
+                var isPlayerAttacking = $(attackerSquare).closest('#player-field').length > 0;
+                targetElem = isPlayerAttacking ? $('#opponent-lp') : $('#player-lp');
+            }
+
+            if (!targetElem || !targetElem.length) {
+                self.isAnimating = false;
+                resolve();
+                return;
+            }
+
+            var imgSrc = attackerCard.find('img.card-img').attr('src') ||
+                         ($(attackerSquare).find('img.card-img').attr('src') || '');
+
+            // 1. Arena dims + lesser monsters cower
+            var veil = $('<div class="divine-strike-veil"></div>').appendTo('body');
+            veil.css({ opacity: 0 }).transition({ opacity: 1 }, getAnimDuration(280));
+
+            $('.card-zone-square[data-card-type="monsters"]').each(function() {
+                if (!$(this).is($(attackerSquare)) && !defenderSquare) return void $(this).find('.card-zone').addClass('monster-cowering');
+                if ($(this).is($(attackerSquare)) || (defenderSquare && $(this).is($(defenderSquare)))) return;
+                $(this).find('.card-zone').addClass('monster-cowering');
+            });
+
+            // 2. Divine charge windup: attacker glows and rises
+            attackerCard.addClass('card-divine-charge');
+            await new Promise(function(r) {
+                attackerCard.transition({ y: -10, scale: 1.08 }, getAnimDuration(380), 'easeOut', r);
+            });
+
+            // 3. Silhouette descent from above the target
+            var tOffset = targetElem.offset();
+            var cx = tOffset.left + (targetElem.outerWidth() / 2);
+            var tWidth = targetElem.outerWidth() || 120;
+            var tHeight = targetElem.outerHeight() || 170;
+            var cy = tOffset.top + (tHeight / 2);
+            var godSize = Math.max(tWidth * 1.15, 130);
+
+            var silhouette = $(
+                '<div class="divine-descent-silhouette"><img src="' + imgSrc + '"></div>'
+            ).css({
+                width: godSize,
+                height: godSize * 1.45,
+                left: cx - (godSize / 2),
+                top: tOffset.top - (godSize * 1.9)
+            }).appendTo('body');
+
+            void silhouette[0].offsetWidth; // Force reflow so the descent animates from off-position
+            silhouette.transition({
+                top: tOffset.top - ((godSize * 1.45) - tHeight) / 2
+            }, getAnimDuration(240), 'cubic-bezier(0.55, 0, 1, 0.45)');
+
+            await sleep(getAnimDuration(240));
+
+            // 4. Impact: light pillar + shockwave ring + heavy shake
+            self.triggerScreenShake('heavy');
+            self.spawnImpactVFX(targetElem, isDirect);
+
+            var pillar = $('<div class="divine-light-pillar"></div>').css({
+                left: cx,
+                top: tOffset.top - tHeight * 0.8,
+                height: tHeight * 1.9,
+                width: tWidth * 0.85
+            }).appendTo('body');
+
+            var ring = $('<div class="divine-shockwave-ring"></div>').css({
+                left: cx,
+                top: cy
+            }).appendTo('body');
+
+            silhouette.transition({ opacity: 0 }, getAnimDuration(200), function() {
+                silhouette.remove();
+            });
+
+            await sleep(getAnimDuration(420));
+
+            // 5. Cleanup: lift veil, un-cower, reset attacker
+            pillar.fadeOut(180, function() { pillar.remove(); });
+            ring.fadeOut(220, function() { ring.remove(); });
+            veil.transition({ opacity: 0 }, getAnimDuration(220), function() { veil.remove(); });
+            $('.monster-cowering').removeClass('monster-cowering');
+            attackerCard.removeClass('card-divine-charge');
+            attackerCard.transition({ y: 0, scale: 1 }, getAnimDuration(160), 'easeIn', function() {
+                attackerCard.removeClass('card-attacking-aura active-card');
+                if (typeof resetActiveCardClass === 'function') resetActiveCardClass();
+                self.isAnimating = false;
+                resolve();
+            });
+        });
+    },
+
+    /**
      * Trigger Screen / Arena Micro-Shake
      */
     triggerScreenShake: function(intensity) {

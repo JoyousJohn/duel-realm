@@ -113,6 +113,40 @@ function getEquipMods(monsterInst) {
 }
 
 // Effective ATK of a monster CardInstance (base + field/equip ATK modifier, min 0)
+// Find which side controls this monster instance on the field
+function findInstanceController(instance) {
+    if (!instance || typeof GameState === "undefined" || !GameState) return null;
+    var result = null;
+    ["player", "computer"].forEach(function(who) {
+        if (result || !GameState[who] || !GameState[who].field || !GameState[who].field.monsters) return;
+        for (var z = 1; z <= 6; z++) {
+            var m = GameState[who].field.monsters[z];
+            if (m && (m === instance || (instance.uid && m.uid === instance.uid))) {
+                result = who;
+                break;
+            }
+        }
+    });
+    return result;
+}
+
+// True if the opponent of `instance`'s controller controls a face-up
+// Warden of the Hollow Crown (its oppressive DIVINE presence).
+function isWardenAuraActiveOn(instance) {
+    if (!instance || typeof GameState === "undefined" || !GameState) return false;
+    var controller = findInstanceController(instance);
+    if (!controller) return false;
+    var oppSide = GameState.getOpponent(controller);
+    if (!GameState[oppSide] || !GameState[oppSide].field || !GameState[oppSide].field.monsters) return false;
+    for (var z = 1; z <= 6; z++) {
+        var m = GameState[oppSide].field.monsters[z];
+        if (m && m.cardId === "warden-of-the-hollow-crown" && !m.faceDown && m.position !== "defense-down") {
+            return true;
+        }
+    }
+    return false;
+}
+
 function getMonsterAtk(instance) {
     var def = cards[instance.cardId];
     if (!def || def.type !== "monsters") return 0;
@@ -224,6 +258,11 @@ function getMonsterAtk(instance) {
         }
     }
 
+    // Warden of the Hollow Crown: opponent's monsters lose 500 ATK
+    if (isWardenAuraActiveOn(instance)) {
+        selfMod -= 500;
+    }
+
     var tempMod = (instance && instance.tempStatMods && typeof instance.tempStatMods.atk === "number") ? instance.tempStatMods.atk : 0;
     var totalAtk = Math.max(0, (def.atk || 0) + fieldMods.atk + equipMods.atk + selfMod + tempMod);
     if (instance && instance.isGaleHalved && instance.galeHalvedTurn === turnCount) {
@@ -259,6 +298,11 @@ function getMonsterDef(instance) {
             });
             selfMod += (otherWingedBeastCount * 300);
         }
+    }
+
+    // Warden of the Hollow Crown: opponent's monsters lose 500 DEF
+    if (isWardenAuraActiveOn(instance)) {
+        selfMod -= 500;
     }
 
     var tempMod = (instance && instance.tempStatMods && typeof instance.tempStatMods.def === "number") ? instance.tempStatMods.def : 0;
@@ -519,7 +563,7 @@ function updateImmuneBadges() {
             var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
             var existing = square.find(".immune-badge");
 
-            if (monsterInst && !isFaceDown && (monsterInst.cardId === "deepsea-warrior" || monsterInst.cardId === "colossus-of-the-endless-sky")) {
+            if (monsterInst && !isFaceDown && (monsterInst.cardId === "deepsea-warrior" || monsterInst.cardId === "colossus-of-the-endless-sky" || monsterInst.cardId === "warden-of-the-hollow-crown")) {
                 if (!existing.length) {
                     var badge = $("<div class=\"immune-badge\">" +
                         "<span class=\"immune-badge-icon\">🛡</span>" +

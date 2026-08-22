@@ -159,15 +159,8 @@ async function activateCard(who, instance, zoneNum) {
                     });
                     for (var d = 0; d < 2; d++) {
                         var discardInst = handCards[d];
-                        var dIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
-                        if (dIdx !== -1) {
-                            var discarded = GameState.computer.hand.splice(dIdx, 1)[0];
-                            GameState.computer.graveyard.push(discarded);
-                            notifyUmbraHeraldGraveyardSend('computer', discarded);
-                        }
+                        await discardCardToGraveyard('computer', discardInst);
                     }
-                    updateHandDisplay('computer');
-                    updateGraveyardZones();
                 }
             }
             await destroySpellTrap(who, zoneNum, false);
@@ -772,15 +765,8 @@ async function activateCard(who, instance, zoneNum) {
                 var discardInst = handCards[0];
                 var discardDef = cards[discardInst.cardId];
                 // Remove from hand and push to graveyard
-                var handIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
-                if (handIdx !== -1) {
-                    var discardedCard = GameState.computer.hand.splice(handIdx, 1)[0];
-                    GameState.computer.graveyard.push(discardedCard);
-                    notifyUmbraHeraldGraveyardSend('computer', discardedCard);
-                }
                 addToFeed('<em>' + def.name + '</em>: AI discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong>.\n');
-                updateHandDisplay('computer');
-                updateGraveyardZones();
+                await discardCardToGraveyard('computer', discardInst);
 
                 // Target highest ATK opponent monster (skip any immune to spell targeting)
                 var oppField = GameState.getMonstersOnField('player').filter(function(m) {

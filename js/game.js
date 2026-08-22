@@ -219,6 +219,19 @@ function updateActionableCards() {
             existingTributeBadge.remove();
         }
 
+        // Umbra Herald: FREE SUMMON badge while its Fiend-based Special Summon is available
+        var existingFreeSummonBadge = $(this).find('.free-summon-badge');
+        var isFreeSpecialReady = (cardDef.id === 'umbra-herald' && canPlayFromHand &&
+            typeof controlsFaceUpFiend === 'function' && controlsFaceUpFiend('player') &&
+            getNumOfFreeZones('player') > 0);
+        if (isFreeSpecialReady) {
+            if (!existingFreeSummonBadge.length) {
+                $(this).append('<div class="free-summon-badge"><span class="hand-tribute-icon">✦</span><span class="hand-tribute-label">FREE SUMMON</span></div>');
+            }
+        } else {
+            existingFreeSummonBadge.remove();
+        }
+
         // During Main Phase, mark cards that have no available action so they
         // can be visually de-emphasized (e.g. partial grayscale)
         if (canPlayFromHand && !isPlayable) {
@@ -927,6 +940,11 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
         hideSummonOptionsIfVisible();
         hidePositionChangeOptionsIfVisible();
         hideAtkMenuIfVisible();
+        // Disarm any pending attack-target selection so a later click on an
+        // opponent monster doesn't attack with the now-deselected attacker.
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+            BattleFX.cancelTargetSelection();
+        }
         return;
     }
 
@@ -1424,8 +1442,7 @@ async function confirmTributeSummon(position) {
             var dInst = remainingCards[d];
             var dDef = cards[dInst.cardId];
             discardedNames.push(dDef ? dDef.name : 'a card');
-            GameState.player.graveyard.push(dInst);
-            notifyUmbraHeraldGraveyardSend('player', dInst);
+            await discardCardToGraveyard('player', dInst);
         }
         GameState.player.hand = GameState.player.hand.filter(function(c) { return c.uid === sourceUid; });
         updateHandDisplay('player');
@@ -1705,6 +1722,11 @@ function changePositionSelected(position) {
 // Activate monster ignition effect or set spell/trap card
 function activateSelectedMonsterEffect() {
     hideAtkMenuIfVisible();
+    // Cancel any armed attack-target selection so clicking the effect target
+    // doesn't also trigger an immediate attack (stale click.targetAttack handlers).
+    if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+        BattleFX.cancelTargetSelection();
+    }
     if (!selectedSquare || !selectedSquare.length) return;
 
     var zoneNum = parseInt(selectedSquare.attr('data-zone'));
@@ -1911,7 +1933,11 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
 
         // Play Direct Attack Strike Animation
         if (typeof BattleFX !== 'undefined') {
-            await BattleFX.animateAttack(attackerSquare, null, true);
+            if (attackerDef.monsterType === 'Divine-Beast' && typeof BattleFX.animateDivineAttack === 'function') {
+                await BattleFX.animateDivineAttack(attackerSquare, null, true);
+            } else {
+                await BattleFX.animateAttack(attackerSquare, null, true);
+            }
         }
 
         addToFeed(formatWho(attackerWho) + '\'s ' + attackerDef.name + ' direct attacks for ' + damage + ' damage!\n\n');
@@ -2174,7 +2200,7 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
 
             if (typeof BattleFX !== 'undefined') {
-                BattleFX.spawnFloatingDamage(attackerSquare, diff, 'def-blocked');
+                BattleFX.spawnFloatingDamage(attackerWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), diff, 'def-blocked');
                 BattleFX.animateLPCount(attackerWho, GameState[attackerWho].lp);
             }
             EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: diff });

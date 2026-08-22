@@ -231,12 +231,44 @@ function isMausoleumActive() {
 // ---------------------------------------------------------------------------
 
 // A monster with "cannot be targeted by the effects of Spell Cards" immunity (Deepsea Warrior),
-// or full "cannot be targeted" protection (Colossus of the Endless Sky).
+// or full "cannot be targeted" protection (Colossus of the Endless Sky / Warden of the Hollow Crown).
 function isImmuneToSpellTargeting(monsterInst, spellController) {
     if (!monsterInst) return false;
-    if (monsterInst.cardId !== 'deepsea-warrior' && monsterInst.cardId !== 'colossus-of-the-endless-sky') return false;
+    if (monsterInst.cardId !== 'deepsea-warrior' && monsterInst.cardId !== 'colossus-of-the-endless-sky' && monsterInst.cardId !== 'warden-of-the-hollow-crown') return false;
     if (monsterInst.faceDown || monsterInst.position === 'defense-down') return false;
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Shared Discard Pipeline
+// ---------------------------------------------------------------------------
+
+// Remove `inst` from `who`'s hand (if present), send it to the Graveyard,
+// fly it there via BattleFX.animateCardDiscard when a hand element exists,
+// and refresh counters + Umbra Herald triggers. Safe for cards that are not
+// physically in hand (falls back to instant state update). Returns `inst`.
+async function discardCardToGraveyard(who, inst) {
+    if (!inst || typeof GameState === 'undefined' || !GameState || !GameState[who]) return null;
+
+    var handIdx = GameState[who].hand ? GameState[who].hand.indexOf(inst) : -1;
+    if (handIdx !== -1) GameState[who].hand.splice(handIdx, 1);
+    if (!GameState[who].graveyard) GameState[who].graveyard = [];
+    if (GameState[who].graveyard.indexOf(inst) === -1) GameState[who].graveyard.push(inst);
+
+    var handElm = (typeof getHandCardElmByUid === 'function') ? getHandCardElmByUid(who, inst.uid) : null;
+    var animated = false;
+    if (typeof BattleFX !== 'undefined' && typeof BattleFX.animateCardDiscard === 'function' &&
+        handElm && handElm.length && handElm.is(':visible')) {
+        await BattleFX.animateCardDiscard(who, inst.cardId, handElm);
+        animated = true;
+    }
+    if (!animated) {
+        if (typeof updateHandDisplay === 'function') updateHandDisplay(who);
+        if (typeof updateGraveyardZones === 'function') updateGraveyardZones();
+    }
+    if (typeof updateResourceCounters === 'function') updateResourceCounters();
+    if (typeof notifyUmbraHeraldGraveyardSend === 'function') notifyUmbraHeraldGraveyardSend(who, inst);
+    return inst;
 }
 
 // Keep DOM in sync with a just-activated spell/trap instance.

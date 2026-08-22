@@ -587,11 +587,7 @@ async function AIPlayHarpieLady() {
 
     var gIdx = GameState.computer.hand.findIndex(function(c) { return c.uid === discardInst.uid; });
     if (gIdx === -1) return;
-    var discardedInst = GameState.computer.hand.splice(gIdx, 1)[0];
-
-    GameState.computer.graveyard.push(discardedInst);
-    notifyUmbraHeraldGraveyardSend('computer', discardedInst);
-    updateHandDisplay('computer');
+    var discardedInst = GameState.computer.hand[gIdx];
 
     harpieEntry.card.lastEffectTurn = turnCount;
 
@@ -600,6 +596,8 @@ async function AIPlayHarpieLady() {
     var targetName = targetDef ? targetDef.name : 'Spell/Trap card';
 
     addToFeed('Computer activates <em>Harpie Lady</em>: discards <strong>' + (discardDef ? discardDef.name : 'a card') + '</strong> and destroys your <strong>' + targetName + '</strong>!\n\n');
+
+    await discardCardToGraveyard('computer', discardedInst);
 
     await destroySpellTrap('player', target.zone, target.isField, false);
     updateResourceCounters();
@@ -841,6 +839,19 @@ async function AISummonMonsterRoutine() {
         var isMausoleum = (typeof isMausoleumActive === 'function') && isMausoleumActive() && mDef.id !== 'solar-apex-tyrant';
         var lpCost = req * 1000;
 
+        // Effect-retrigger monsters (e.g. Void Sentinel) are only worth tribute
+        // summoning (via tributes OR Mausoleum LP) if their on-summon effect
+        // has live targets.
+        if (mDef.id === 'void-sentinel' && req > 0) {
+            var vsPlayerHand = (GameState.player.hand) ? GameState.player.hand.length : 0;
+            var vsPlayerSets = 0;
+            for (var vsz = 1; vsz <= 6; vsz++) {
+                var vsp = GameState.player.field.spells[vsz];
+                if (vsp && vsp.position === 'set') vsPlayerSets++;
+            }
+            if (vsPlayerHand === 0 && vsPlayerSets === 0) return;
+        }
+
         if (req === 0 && freeZones > 0) {
             summonable.push({ name: mName, def: mDef, reqTributes: 0, score: AIEffectiveSummonAtk(mDef) });
         } else if (req > 0 && isMausoleum && freeZones > 0 && GameState.computer.lp > lpCost + 1000) {
@@ -862,6 +873,12 @@ async function AISummonMonsterRoutine() {
                 return !entry.card.cannotBeTributed && !(fDef && fDef.cannotBeTributed);
             }).map(function(entry) {
                 return { who: 'computer', zone: entry.zone, card: entry.card, isOpponent: false };
+            });
+
+            // Never tribute a copy of X to tribute summon another copy of X
+            // unless an opponent monster is being sacrificed instead.
+            tributableField = tributableField.filter(function(t) {
+                return t.card.cardId !== mDef.id;
             });
 
             if (validOppCandidate) {
@@ -990,8 +1007,7 @@ async function AISummonMonsterRoutine() {
             discardedCount = remainingCards.length;
 
             for (var d = 0; d < remainingCards.length; d++) {
-                GameState.computer.graveyard.push(remainingCards[d]);
-                notifyUmbraHeraldGraveyardSend('computer', remainingCards[d]);
+                await discardCardToGraveyard('computer', remainingCards[d]);
             }
 
             GameState.computer.hand = infernalInst ? [infernalInst] : [];
