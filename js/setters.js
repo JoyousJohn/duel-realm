@@ -256,6 +256,11 @@ function isCardCurrentlyPlayable(cardDef) {
             return !entry.card.cannotBeTributed && !(mDef && mDef.cannotBeTributed);
         }).length : 0;
 
+        // Tribute of the Ages: the marked opponent monster counts as an
+        // available tribute for this summon.
+        var soulActive = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.tributeOfTheAgesTarget && GameState.turn.tributeOfTheAgesTarget.who === 'player');
+        if (soulActive) eligibleTributes++;
+
         if (eligibleTributes < reqTributes && !canMausoleum) return false;
         if (reqTributes === 0 && freeSlots <= 0) return false;
         if (reqTributes > 0 && (freeSlots + (canMausoleum ? 0 : reqTributes)) < 1 && freeSlots <= 0) return false;
@@ -368,11 +373,15 @@ function getCardUnplayableReason(cardDef) {
         var canMausoleum = isMausoleum && (typeof GameState !== 'undefined') && GameState && GameState.player && (GameState.player.lp > lpCost);
 
         var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player').length : 0;
+        // Tribute of the Ages: the marked opponent monster counts as an
+        // available tribute for this summon.
+        var soulActive = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.tributeOfTheAgesTarget && GameState.turn.tributeOfTheAgesTarget.who === 'player');
+        if (soulActive) ownMonsters++;
         if (ownMonsters < reqTributes && !canMausoleum) {
             if (reqTributes === 1) {
                 return 'Requires 1 Tribute (Level 5-6), but you control no monsters on your field.';
             } else {
-                return 'Requires 2 Tributes (Level 7+), but you only control ' + ownMonsters + ' monster(s) on your field.';
+                return 'Requires ' + reqTributes + ' Tributes, but you only control ' + (ownMonsters - (soulActive ? 1 : 0)) + ' eligible monster(s) on your field.';
             }
         }
         if (freeSlots <= 0 && reqTributes === 0) {

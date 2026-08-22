@@ -443,6 +443,47 @@ async function triggerFlipEffect(monsterInst, who, zoneNum) {
         monsterInst.spearCretinPrimed = true;
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT primed: When this card is sent to the Graveyard, both players can Special Summon 1 monster from their respective Graveyards!\n\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+    } else if (monsterInst.cardId === 'vault-whisperer') {
+        addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
+        if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+
+        var whispererDeck = (GameState[who] && GameState[who].deck) ? GameState[who].deck : [];
+        var eligibleIds = whispererDeck.filter(function(id) {
+            var d = cards[id];
+            return d && d.type === 'monsters' && (!d.subType || d.subType === 'normal' || d.subType === '') && (d.level || 0) <= 4 && !d.isToken;
+        });
+        var counts = {};
+        eligibleIds.forEach(function(id) { counts[id] = (counts[id] || 0) + 1; });
+        var uniqueEligible = Object.keys(counts);
+
+        if (uniqueEligible.length === 0) {
+            addToFeed('<em>Vault Whisperer</em>: No Level 4 or lower Normal Monsters found in the Deck.\n\n');
+            return;
+        }
+
+        var chosenWhisper = null;
+        if (who === 'player') {
+            chosenWhisper = await promptPlayerVaultWhisperer(uniqueEligible, counts);
+        } else {
+            uniqueEligible.sort(function(a, b) { return (cards[b].atk || 0) - (cards[a].atk || 0); });
+            chosenWhisper = uniqueEligible[0];
+        }
+        if (!chosenWhisper) {
+            addToFeed('<em>Vault Whisperer</em>\'s search was dismissed.\n\n');
+            return;
+        }
+
+        var wIdx = whispererDeck.indexOf(chosenWhisper);
+        if (wIdx !== -1) whispererDeck.splice(wIdx, 1);
+        GameState[who].hand.push(new CardInstance(chosenWhisper));
+
+        var wDef = cards[chosenWhisper];
+        addToFeed('<em>Vault Whisperer</em> unlocks the vault — <strong>' + (wDef ? wDef.name : 'a monster') + '</strong> is added to ' + formatWho(who) + '\'s hand from the Deck!\n\n');
+
+        updateHandDisplay(who);
+        updateResourceCounters();
+        if (typeof BattleFX !== 'undefined' && typeof BattleFX.updateDeckVisuals === 'function') BattleFX.updateDeckVisuals();
+        if (typeof updateActionableCards === 'function') updateActionableCards();
     } else if (monsterInst.cardId === 'aurora-golem') {
         addToFeed('<em>' + def.name + '</em> FLIP EFFECT activated!\n');
         if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
@@ -839,13 +880,6 @@ function promptPlayerCelestialTitheDiscards() {
         $('body').addClass('counter-trap-discard-mode');
         $('#player-hand > .card').each(function() {
             $(this).addClass('counter-trap-discard-candidate');
-            var cardRelative = $(this).find('.card-relative, .card-front').first();
-            if (cardRelative.length && !cardRelative.find('.monster-destruct-preview-overlay').length) {
-                var overlay = $('<div class="monster-destruct-preview-overlay">' +
-                    '<div class="monster-destruct-x"></div>' +
-                '</div>');
-                cardRelative.append(overlay);
-            }
         });
 
         // Click handler to toggle up to 2 cards in hand for Celestial Tithe
@@ -857,14 +891,19 @@ function promptPlayerCelestialTitheDiscards() {
             if (idx !== -1) {
                 // Deselect
                 celestialTitheSelectedUids.splice(idx, 1);
-                $(this).removeClass('active-card');
-                $(this).find('.monster-destruct-preview-overlay').removeClass('force-show-destruct-x');
+                $(this).removeClass('ct-discard-selected');
+                $(this).find('.monster-destruct-preview-overlay').remove();
             } else {
                 // Select up to 2
                 if (celestialTitheSelectedUids.length < 2) {
                     celestialTitheSelectedUids.push(uid);
-                    $(this).addClass('active-card');
-                    $(this).find('.monster-destruct-preview-overlay').addClass('force-show-destruct-x');
+                    $(this).addClass('ct-discard-selected');
+                    var cardRelative = $(this).find('.card-relative, .card-front').first();
+                    if (cardRelative.length && !cardRelative.find('.monster-destruct-preview-overlay').length) {
+                        cardRelative.append('<div class="monster-destruct-preview-overlay">' +
+                            '<div class="monster-destruct-x"></div>' +
+                        '</div>');
+                    }
                 }
             }
 
@@ -892,8 +931,8 @@ function confirmCelestialTitheDiscards() {
 
 function cleanupCelestialTitheUI() {
     $('body').removeClass('counter-trap-discard-mode');
-    $('#player-hand > .card').removeClass('counter-trap-discard-candidate active-card');
-    $('.monster-destruct-preview-overlay').removeClass('force-show-destruct-x');
+    $('#player-hand > .card').removeClass('counter-trap-discard-candidate ct-discard-selected');
+    $('#player-hand .monster-destruct-preview-overlay').remove();
     $('#player-hand').off('click.ct_discard');
     $('#celestial-tithe-action-bar').stop(true, true).fadeOut(120);
 }
@@ -1204,20 +1243,127 @@ async function applyLunarGrimoireFlip(side, zoneNum) {
 }
 
 // ---------------------------------------------------------------------------
-// Bloodprice Altar: Continuous Spell burn on attack declaration
+// Bloodprice Altar: Normal Spell — pay LP equal to target's current ATK to
+// destroy it, then draw 1 card. Cannot be activated on a turn this player
+// summoned; once per turn (enforced via canActivate + per-turn flag).
 // ---------------------------------------------------------------------------
-async function applyBloodpriceAltarBurn(attackerWho) {
-    var defenderWho = (attackerWho === 'player') ? 'computer' : 'player';
-    if (!hasActiveCard(defenderWho, 'bloodprice-altar')) return;
+var bloodpriceAltarUsedTurn = { player: -1, computer: -1 };
 
-    var BLOODPRICE_DAMAGE = 400;
-    GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - BLOODPRICE_DAMAGE);
-
-    addToFeed('🩸 <em>Bloodprice Altar</em> exacts its toll — ' + formatWho(attackerWho) + ' takes <strong>' + BLOODPRICE_DAMAGE + '</strong> damage for declaring an attack!\n');
-    if (typeof BattleFX !== 'undefined') {
-        BattleFX.spawnFloatingDamage(attackerWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), BLOODPRICE_DAMAGE, 'direct');
-        BattleFX.animateLPCount(attackerWho, GameState[attackerWho].lp);
+async function applyBloodpriceAltarEffect(who, zoneNum) {
+    var opp = GameState.getOpponent(who);
+    var candidates = GameState.getMonstersOnField(opp).filter(function(m) {
+        return m.card && (typeof isImmuneToSpellTargeting !== 'function' || !isImmuneToSpellTargeting(m.card, who));
+    });
+    if (candidates.length === 0) {
+        addToFeed('<em>Bloodprice Altar</em> fizzles — no valid target.\n');
+        await destroySpellTrap(who, zoneNum, false);
+        return;
     }
-    EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: BLOODPRICE_DAMAGE });
+
+    // Sort cheapest-first for AI preference; the picker shows all options.
+    candidates.sort(function(a, b) { return getMonsterAtk(a.card) - getMonsterAtk(b.card); });
+
+    var chosen = await requestFieldTargetChoice(who, {
+        cardName: 'BLOODPRICE ALTAR',
+        prompt: 'SELECT 1 OPPONENT MONSTER TO DESTROY (PAY LP EQUAL TO ITS ATK)',
+        confirmLabel: 'DESTROY',
+        confirmIcon: '🩸',
+        candidates: candidates,
+        aiPick: function(cands) {
+            // Destroy the biggest threat the altar can afford.
+            var affordable = cands.filter(function(c) { return GameState[who].lp > getMonsterAtk(c.card); });
+            if (affordable.length === 0) return cands[0];
+            return affordable.reduce(function(best, c) {
+                return getMonsterAtk(c.card) > getMonsterAtk(best.card) ? c : best;
+            }, affordable[0]);
+        }
+    });
+
+    if (!chosen) {
+        addToFeed('<em>Bloodprice Altar</em> was cancelled.\n');
+        await destroySpellTrap(who, zoneNum, false);
+        return;
+    }
+
+    var cost = getMonsterAtk(chosen.card);
+    var def = cards[chosen.card.cardId];
+    var nameStr = def ? def.name : 'a monster';
+
+    // Pay the price
+    GameState[who].lp = Math.max(0, GameState[who].lp - cost);
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.spawnFloatingDamage(who === 'computer' ? $('#opponent-lp') : $('#player-lp'), cost, 'direct');
+        BattleFX.animateLPCount(who, GameState[who].lp);
+    }
+    EventBus.emit('LP_CHANGED', { who: who, lp: GameState[who].lp, damage: cost });
     updateResourceCounters();
+    addToFeed('🩸 <em>Bloodprice Altar</em>: ' + formatWho(who) + ' pays <strong>' + cost + '</strong> LP and destroys <strong>' + nameStr + '</strong>!\n');
+
+    await destroyMonster(opp, chosen.zone);
+
+    // Draw 1 card
+    await getCards(who, 1);
+    addToFeed(formatWho(who) + ' draws 1 card from <em>Bloodprice Altar</em>.\n\n');
+
+    bloodpriceAltarUsedTurn[who] = turnCount;
+
+    await destroySpellTrap(who, zoneNum, false);
+}
+
+// ---------------------------------------------------------------------------
+// Vault Whisperer: Deck search picker (Level 4 or lower Normal Monster)
+// ---------------------------------------------------------------------------
+var vaultWhispererResolver = null;
+
+function promptPlayerVaultWhisperer(uniqueEligible, counts) {
+    return new Promise(function(resolve) {
+        var grid = $('#vault-whisperer-grid');
+        if (!grid.length) {
+            resolve(uniqueEligible[0]);
+            return;
+        }
+        grid.empty();
+        vaultWhispererResolver = resolve;
+
+        uniqueEligible.forEach(function(cardId) {
+            var cardDef = cards[cardId];
+            if (!cardDef) return;
+
+            var stats = 'LVL ' + (cardDef.level || 1) + ' • ATK ' + cardDef.atk + ' / DEF ' + cardDef.def;
+            var countBadge = (counts[cardId] > 1) ? (' <span class="tag-player">x' + counts[cardId] + '</span>') : '';
+
+            var tile = $('<div class="rebirth-card-tile target-trap-tile" style="cursor: pointer;">' +
+                '<div class="rebirth-card-preview-frame">' +
+                    '<img src="cards/' + cardDef.file + '" alt="' + cardDef.name + '" class="rebirth-thumb-img">' +
+                '</div>' +
+                '<div class="rebirth-tile-meta">' +
+                    '<h4 class="rebirth-tile-name">' + cardDef.name + countBadge + '</h4>' +
+                    '<span class="rebirth-tile-stats">' + stats + '</span>' +
+                '</div>' +
+            '</div>');
+
+            tile.on('click', function() {
+                $('#vault-whisperer-modal').fadeOut(120, function() {
+                    if (typeof vaultWhispererResolver === 'function') {
+                        var r = vaultWhispererResolver;
+                        vaultWhispererResolver = null;
+                        r(cardId);
+                    }
+                });
+            });
+
+            grid.append(tile);
+        });
+
+        $('#vault-whisperer-modal').fadeIn(150);
+    });
+}
+
+function cancelVaultWhispererSelection() {
+    $('#vault-whisperer-modal').fadeOut(120);
+    if (typeof vaultWhispererResolver === 'function') {
+        var r = vaultWhispererResolver;
+        vaultWhispererResolver = null;
+        r(null);
+    }
 }

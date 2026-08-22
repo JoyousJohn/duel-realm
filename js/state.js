@@ -95,7 +95,8 @@ var GameState = {
             active: 'player',
             count: 0,
             phase: 0,
-            normalSummonUsed: false,
+        normalSummonUsed: false,
+        monsterSummonedThisTurn: false,
             extraNormalSummons: 0
         };
         this.player = {

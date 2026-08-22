@@ -113,13 +113,13 @@ function resolvePrismOfRetributionPrompt(shouldActivate) {
 // ---------------------------------------------------------------------------
 var wardingVeilResolver = null;
 
-async function checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef) {
+async function checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef, defenderZone) {
     if (isJinzoidActive()) return false;
     var wvZone = findSetTrapZone(defenderWho, 'warding-veil');
     if (wvZone === null) return false;
 
     if (defenderWho === 'player') {
-        var shouldActivate = await promptPlayerWardingVeil(wvZone, attackerDef);
+        var shouldActivate = await promptPlayerWardingVeil(wvZone, attackerDef, attackerWho, attackerZone, defenderZone);
         if (!shouldActivate) return false;
         await activateWardingVeil('player', wvZone, attackerWho, attackerDef);
         return true;
@@ -157,14 +157,40 @@ async function activateWardingVeil(trapWho, zoneNum, attackerWho, attackerDef) {
     }
 }
 
-function promptPlayerWardingVeil(zoneNum, attackerDef) {
+function promptPlayerWardingVeil(zoneNum, attackerDef, attackerWho, attackerZone, defenderZone) {
     return new Promise(function(resolve) {
         wardingVeilResolver = resolve;
 
         $('#wv-trigger-cause').text((attackerDef ? attackerDef.name : 'OPPONENT') + ' DECLARED AN ATTACK!');
-        $('#wv-modal-preview').html(
-            '<strong>Incoming Monster:</strong> ' + (attackerDef ? attackerDef.name : 'Monster')
-        );
+
+        var isDirect = (defenderZone === 'direct' || defenderZone === null || defenderZone === undefined);
+        var attackerInst = (attackerWho && GameState[attackerWho] && GameState[attackerWho].field) ? GameState[attackerWho].field.monsters[attackerZone] : null;
+        var attackerAtk = (attackerInst && typeof getMonsterAtk === 'function') ? getMonsterAtk(attackerInst) : (attackerDef ? attackerDef.atk : 0);
+
+        var previewHtml = '<strong>Incoming Monster:</strong> ' + (attackerDef ? attackerDef.name : 'Monster') + ' <span style="color:#f87171;">(ATK ' + attackerAtk + ')</span><br>';
+
+        if (isDirect) {
+            previewHtml += '<strong>Target:</strong> Direct Attack — <span style="color:#f87171;">you would lose ~' + attackerAtk + ' LP!</span>';
+        } else {
+            var defInst = GameState.player.field.monsters[defenderZone];
+            var defCardDef = defInst ? cards[defInst.cardId] : null;
+            if (!defInst) {
+                previewHtml += '<strong>Target:</strong> Your monster in zone #' + defenderZone;
+            } else if (defInst.faceDown || defInst.position === 'defense-down') {
+                previewHtml += '<strong>Target:</strong> Your face-down Set monster (zone #' + defenderZone + ')';
+            } else {
+                var defName = defCardDef ? defCardDef.name : 'Monster';
+                previewHtml += '<strong>Target:</strong> Your ' + defName + ' <span style="color:#93c5fd;">(' +
+                    (defInst.position === 'attack' ? 'ATK ' : 'DEF ') +
+                    (typeof getMonsterAtk === 'function' && defInst.position === 'attack' ? getMonsterAtk(defInst) : getMonsterDef(defInst)) +
+                    ')</span>' +
+                    (defCardDef && typeof getMonsterAtk === 'function' && attackerAtk > getMonsterAtk(defInst) && defInst.position === 'attack'
+                        ? ' — <span style="color:#f87171;">it would be destroyed and you would lose ~' + (attackerAtk - getMonsterAtk(defInst)) + ' LP</span>'
+                        : '');
+            }
+        }
+
+        $('#wv-modal-preview').html(previewHtml);
 
         $('#warding-veil-prompt-modal').fadeIn(150);
     });
@@ -181,32 +207,40 @@ function resolveWardingVeilPrompt(shouldActivate) {
 
 // ---------------------------------------------------------------------------
 // Mirrorfall Attack Response Handlers
+// Destroys the attacking monster, then 1 other Attack Position monster.
 // ---------------------------------------------------------------------------
 var mirrorfallResolver = null;
+
+function collectAttackPositionMonsters(side, excludeZone) {
+    var list = [];
+    for (var z = 1; z <= 6; z++) {
+        if (z === excludeZone) continue;
+        var m = GameState[side].field.monsters[z];
+        if (m && m.position === 'attack') {
+            list.push({ side: side, zone: z, inst: m, card: m });
+        }
+    }
+    return list;
+}
 
 async function checkMirrorfallResponse(attackerWho, attackerZone, defenderWho) {
     if (isJinzoidActive()) return false;
     var mfZone = findSetTrapZone(defenderWho, 'mirrorfall');
     if (mfZone === null) return false;
 
-    var atkMonsters = [];
-    for (var z = 1; z <= 6; z++) {
-        var m = GameState[attackerWho].field.monsters[z];
-        if (m && m.position === 'attack') {
-            atkMonsters.push({ zone: z, card: m });
-        }
-    }
-    if (atkMonsters.length === 0) return false;
+    // Needs the attacker plus at least 1 other Attack Position monster to resolve fully
+    var otherTargets = collectAttackPositionMonsters(attackerWho, attackerZone);
+    if (otherTargets.length === 0) return false;
 
     if (defenderWho === 'player') {
-        var shouldActivate = await promptPlayerMirrorfall(mfZone, atkMonsters);
+        var shouldActivate = await promptPlayerMirrorfall(mfZone);
         if (!shouldActivate) return false;
-        await activateMirrorfall('player', mfZone, attackerWho, atkMonsters);
+        await activateMirrorfall('player', mfZone, attackerWho, attackerZone);
         return true;
     } else {
-        var shouldAIActivate = (atkMonsters.length >= 2) || (attackerAtkThreshold(atkMonsters));
+        var shouldAIActivate = (attackerAtkThreshold(collectAttackPositionMonsters(attackerWho, -1)));
         if (!shouldAIActivate) return false;
-        await activateMirrorfall('computer', mfZone, attackerWho, atkMonsters);
+        await activateMirrorfall('computer', mfZone, attackerWho, attackerZone);
         return true;
     }
 }
@@ -218,7 +252,7 @@ function attackerAtkThreshold(atkMonsters) {
     return false;
 }
 
-async function activateMirrorfall(trapWho, zoneNum, attackerWho, atkMonsters) {
+async function activateMirrorfall(trapWho, zoneNum, attackerWho, attackerZone) {
     var trapSquare = getSpellSquareElm(trapWho, zoneNum);
     if (trapSquare && trapSquare.length) {
         var trapZoneElm = trapSquare.find('div.card-zone');
@@ -231,29 +265,62 @@ async function activateMirrorfall(trapWho, zoneNum, attackerWho, atkMonsters) {
     }
 
     addToFeed((trapWho === 'player' ? 'Player' : 'Computer') + ' activates Trap Card: <strong>Mirrorfall</strong>!\n');
-    addToFeed('🪞 A mirror barrier shatters into a storm of shards, striking down all enemy Attack Position monsters!\n');
+    addToFeed('🪞 The mirror barrier shatters — shards spear through the attacking monster!\n');
     if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
-    await sleep(getAnimDuration(450));
+
+    // 1. Destroy the attacking monster first
+    var attackerInst = GameState[attackerWho].field.monsters[attackerZone];
+    var attackerDef = attackerInst ? cards[attackerInst.cardId] : null;
+    await destroyMonster(attackerWho, attackerZone);
+
+    // 2. Choose and destroy 1 other Attack Position monster
+    var candidates = collectAttackPositionMonsters(attackerWho, attackerZone);
+    var chosenSecond = null;
+
+    if (trapWho === 'player') {
+        chosenSecond = await requestFieldTargetChoice('player', {
+            cardName: 'Mirrorfall',
+            prompt: 'DESTROY 1 OTHER ATTACK POSITION MONSTER',
+            confirmLabel: 'SHATTER',
+            confirmIcon: '🪞',
+            candidates: candidates,
+            aiPick: function(list) {
+                list.sort(function(a, b) {
+                    return getMonsterAtk(b.inst || b.card) - getMonsterAtk(a.inst || a.card);
+                });
+                return list[0];
+            }
+        });
+    } else {
+        chosenSecond = candidates.slice().sort(function(a, b) {
+            return getMonsterAtk(b.inst || b.card) - getMonsterAtk(a.inst || a.card);
+        })[0] || null;
+    }
 
     await destroySpellTrap(trapWho, zoneNum, false);
 
-    for (var i = 0; i < atkMonsters.length; i++) {
-        await destroyMonster(attackerWho, atkMonsters[i].zone);
+    if (chosenSecond) {
+        var secondDef = cards[(chosenSecond.inst || chosenSecond.card).cardId];
+        await destroyMonster(chosenSecond.side, chosenSecond.zone);
+        addToFeed('🪞 Falling shards strike again — <strong>' + (secondDef ? secondDef.name : 'monster') + '</strong> is destroyed by Mirrorfall!\n\n');
+    } else {
+        addToFeed('🪞 Mirrorfall destroyed the attacking monster' + (attackerDef ? ' <strong>' + attackerDef.name + '</strong>' : '') + '.\n\n');
     }
-    addToFeed('Mirrorfall destroyed ' + atkMonsters.length + ' Attack Position monster(s)!\n\n');
+
+    updateStatModBadges();
 
     if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
         BattleFX.cancelTargetSelection();
     }
 }
 
-function promptPlayerMirrorfall(zoneNum, atkMonsters) {
+function promptPlayerMirrorfall(zoneNum) {
     return new Promise(function(resolve) {
         mirrorfallResolver = resolve;
 
         $('#mf-modal-casualty-preview').html(
-            '<strong>Enemy Casualties:</strong> ' +
-            '<span style="color: #f87171;">' + atkMonsters.length + ' Attack Monster(s) destroyed</span>'
+            '<strong>Effect:</strong> <span style="color: #f87171;">Attacking monster destroyed</span>, ' +
+            '<span style="color: #f87171;">+ 1 other Attack Position monster</span>'
         );
 
         $('#mirrorfall-prompt-modal').fadeIn(150);
@@ -735,8 +802,9 @@ async function applyEquipCard(who, sourceZoneNum, targetZone) {
     var monsterInst = GameState[who].field.monsters[targetZone];
     if (!equipInst || !monsterInst) return;
 
-    if (monsterInst.cardId === 'nether-wraith') {
-        addToFeed('<em>Nether Wraith</em> was targeted by an Equip Card! Its self-destruction effect activates!\n\n');
+    var targetDef = cards[monsterInst.cardId];
+    if (targetDef && targetDef.selfDestructsOnTargeting) {
+        addToFeed('<em>' + (targetDef ? targetDef.name : 'Monster') + '</em> was targeted by an Equip Card! Its self-destruction effect activates!\n\n');
         await destroyMonster(who, targetZone);
         await destroySpellTrap(who, sourceZoneNum, false);
         return;

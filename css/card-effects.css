@@ -1459,24 +1459,23 @@ body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candida
 }
 
 body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate .monster-destruct-preview-overlay {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.18s ease;
+    display: none;
 }
 
-body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate:hover .monster-destruct-preview-overlay,
-body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate .monster-destruct-preview-overlay.force-show-destruct-x {
-    opacity: 1;
-}
-
-body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.active-card {
+/* Selected-for-discard cards: lifted, red glow, destruction X visible */
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.ct-discard-selected {
     transform: translateY(-10px) scale(1.06) !important;
     z-index: 50 !important;
 }
 
-body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.active-card .card-front {
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.ct-discard-selected .card-front {
     border-color: #ef4444 !important;
     box-shadow: 0 0 24px 6px rgba(239, 68, 68, 0.95), inset 0 0 12px rgba(239, 68, 68, 0.6) !important;
+}
+
+body.counter-trap-discard-mode #player-hand > .card.counter-trap-discard-candidate.ct-discard-selected .monster-destruct-preview-overlay {
+    display: block;
+    opacity: 1;
 }
 
 @keyframes discardHandCardPulse {

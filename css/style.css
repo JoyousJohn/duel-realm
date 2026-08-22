@@ -186,11 +186,19 @@ img {
     margin: 0 6px;
 }
 
-/* Mobile — hand cards are already spread by default; skip the hover spread */
+/* Mobile — no hover exists on touch devices: keep base overlap tappable-safe
+   and disable layout transitions so cards never slide out from under a finger
+   mid-tap (the 0.5s margin/top transition retargets taps to neighbors). */
 @media (max-width: 900px) and (hover: none) {
+    #player-hand > div,
+    #computer-hand > div {
+        margin: 0 -4px;
+        transition: none;
+    }
+
     #player-hand > div:hover,
     #player-hand:hover > .card {
-        margin: 0 1px;
+        margin: 0 -4px;
     }
 }
 

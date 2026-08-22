@@ -1089,6 +1089,12 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
                     canUseEffect = true;
                     effectBtnText = 'VOID DRAIN';
                 }
+            } else if (monsterInst.cardId === 'pyrelord-of-the-first-dawn') {
+                var plOppCount = (GameState) ? GameState.getMonstersOnField('computer').length : 0;
+                if (plOppCount > 0 && monsterInst.pyrelordBurnTurn !== turnCount) {
+                    canUseEffect = true;
+                    effectBtnText = 'DAWNFIRE (' + (plOppCount * 600) + ' DMG)';
+                }
             }
         }
 
@@ -1767,6 +1773,8 @@ function activateSelectedMonsterEffect() {
         openGryphonStormlordModal(zoneNum);
     } else if (monsterInst.cardId === 'void-monarch') {
         activateVoidMonarch('player', zoneNum);
+    } else if (monsterInst.cardId === 'pyrelord-of-the-first-dawn') {
+        activatePyrelordBurn('player', zoneNum);
     }
 }
 
@@ -1866,11 +1874,6 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         addToFeed('<em>Lionhearted Locomotive</em>\'s ATK is halved to ' + attackerAtk + ' until the end of the Damage Step!\n');
     }
 
-    // Bloodprice Altar: burn the attacker for declaring an attack
-    if (typeof applyBloodpriceAltarBurn === 'function') {
-        await applyBloodpriceAltarBurn(attackerWho);
-    }
-
     // Mark the attack as consumed BEFORE trap responses resolve: a negated
     // attack still counts as the turn's attack declaration.
     var attackerSquare = getSquareElm(attackerWho, attackerZone);
@@ -1910,7 +1913,7 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
 
     // Warding Veil response on attack declaration
     if (typeof checkWardingVeilResponse === 'function') {
-        var wvTriggered = await checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef);
+        var wvTriggered = await checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef, defenderZone);
         if (wvTriggered) {
             return;
         }

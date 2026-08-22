@@ -357,6 +357,20 @@ var cards = {
         'desc': 'FLIP: Target 1 monster on the field; destroy that target.'
     },
 
+    'vault-whisperer': {
+        'id': 'vault-whisperer',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'vault_whisperer.png',
+        'name': 'Vault Whisperer',
+        'monsterType': 'Spellcaster',
+        'attribute': 'LIGHT',
+        'level': 2,
+        'atk': 300,
+        'def': 500,
+        'desc': 'FLIP: Add 1 Level 4 or lower Normal Monster from your Deck to your hand.'
+    },
+
     'zephyr-imp': {
         'id': 'zephyr-imp',
         'type': 'monsters',
@@ -788,6 +802,7 @@ var cards = {
         'level': 3,
         'atk': 300,
         'def': 200,
+        'selfDestructsOnTargeting': true,
         'desc': 'This card cannot be destroyed by battle. If this card is targeted by a Spell, Trap, or card effect: Destroy this card.'
     },
 
@@ -851,6 +866,22 @@ var cards = {
         'def': 4000,
         'cannotBeSpecialSummoned': true,
         'desc': 'Requires 3 Tributes to Normal Summon (cannot be Special Summoned). Cannot be targeted by Spells, Traps, or card effects. Monsters your opponent controls lose 500 ATK and DEF.'
+    },
+
+    'pyrelord-of-the-first-dawn': {
+        'id': 'pyrelord-of-the-first-dawn',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'pyrelord_of_the_first_dawn.png',
+        'name': 'Pyrelord of the First Dawn',
+        'monsterType': 'Divine-Beast',
+        'attribute': 'DIVINE',
+        'level': 10,
+        'atk': 3000,
+        'def': 3000,
+        'cannotBeSpecialSummoned': true,
+        'hasIgnitionEffect': true,
+        'desc': 'Requires 3 Tributes to Normal Summon (cannot be Special Summoned). Cannot be targeted by Spells, Traps, or card effects. Once per turn: inflict 600 damage to your opponent for each monster they control. This card gains 300 ATK during each of your Standby Phases.'
     },
 
     'double-tribute-surge': {
@@ -993,10 +1024,33 @@ var cards = {
     'bloodprice-altar': {
         'id': 'bloodprice-altar',
         'type': 'spells',
-        'subType': 'continuous',
+        'subType': 'normal',
         'file': 'bloodprice_altar.png',
         'name': 'Bloodprice Altar',
-        'desc': 'Each time your opponent\'s monster declares an attack, they take 400 damage.'
+        'desc': 'You cannot activate this card during the same turn you Normal or Special Summon. Target 1 monster your opponent controls; pay LP equal to its current ATK to destroy it, and if you do, draw 1 card. You can only activate 1 "Bloodprice Altar" per turn.',
+        canActivate: function(who) {
+            if (typeof GameState === 'undefined' || !GameState || !GameState[who]) return false;
+            // Cannot activate the turn you Normal/Special Summoned
+            if (GameState.turn && GameState.turn.monsterSummonedThisTurn) return false;
+            // Once per turn
+            if (typeof bloodpriceAltarUsedTurn !== 'undefined' && bloodpriceAltarUsedTurn && bloodpriceAltarUsedTurn[who] === turnCount) return false;
+            var opp = GameState.getOpponent(who);
+            var candidates = GameState.getMonstersOnField(opp).filter(function(m) {
+                return m.card && (typeof isImmuneToSpellTargeting !== 'function' || !isImmuneToSpellTargeting(m.card, who));
+            });
+            if (candidates.length === 0) return false;
+            // Must be able to afford at least one target and have a free spell zone
+            var affordable = candidates.some(function(m) {
+                return (GameState[who].lp || 0) > getMonsterAtk(m.card);
+            });
+            return affordable;
+        },
+        unplayableReason: function(who) {
+            return 'No affordable target (need LP greater than a monster\'s current ATK), or you already summoned this turn.';
+        },
+        onActivate: async function(ctx) {
+            await applyBloodpriceAltarEffect(ctx.who, ctx.zoneNum);
+        }
     },
 
     'mirrorfall': {
@@ -1005,7 +1059,7 @@ var cards = {
         'subType': 'normal',
         'file': 'mirrorfall.png',
         'name': 'Mirrorfall',
-        'desc': 'When an opponent\'s monster declares an attack: Destroy all your opponent\'s Attack Position monsters.'
+        'desc': 'When an opponent\'s monster declares an attack: Destroy the attacking monster, then destroy 1 other Attack Position monster your opponent controls.'
     },
 
     'warding-veil': {

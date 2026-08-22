@@ -30,6 +30,7 @@ async function playerTurn() {
     GameState.turn.count = turnCount;
     GameState.turn.normalSummonUsed = false;
     GameState.turn.extraNormalSummons = 0;
+    GameState.turn.monsterSummonedThisTurn = false;
 
     // Reset attack flags for player monsters
     var playerMonsters = GameState.getMonstersOnField('player');
@@ -45,6 +46,7 @@ async function playerTurn() {
 
     // 2. Standby checks (no separate phase)
     checkStandbyTraps('computer');
+    if (typeof growPyrelords === 'function') growPyrelords('player');
     await sleep(getAnimDuration(200));
 
     // 3. Main Phase (combines M1 + Battle + M2)
@@ -64,6 +66,7 @@ async function computerTurn() {
     GameState.turn.count = turnCount;
     GameState.turn.normalSummonUsed = false;
     GameState.turn.extraNormalSummons = 0;
+    GameState.turn.monsterSummonedThisTurn = false;
 
     // Reset attack flags for computer monsters
     var computerMonsters = GameState.getMonstersOnField('computer');
@@ -78,6 +81,7 @@ async function computerTurn() {
 
     // Standby checks (no separate phase)
     checkStandbyTraps('player');
+    if (typeof growPyrelords === 'function') growPyrelords('computer');
     await sleep(getAnimDuration(150));
 
     setPhase(1); // Main Phase (combines M1 + Battle + M2)
@@ -125,6 +129,9 @@ async function computerTurn() {
     }
     if (typeof AIPlayGaleSwiftblade === 'function') {
         await AIPlayGaleSwiftblade();
+    }
+    if (typeof AIPlayPyrelordBurn === 'function') {
+        await AIPlayPyrelordBurn();
     }
 
     // 4. Play burn spells (Ookazi, Hinotama) before battle to potentially finish the game

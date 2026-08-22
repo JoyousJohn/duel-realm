@@ -260,6 +260,15 @@ function dismissMobilePreview() {
     $('#preview-card-img').removeAttr('src');
 }
 
+// Mobile-only: tapping any non-card surface (mat background, empty zones,
+// HUD) dismisses a lingering sidebar preview, since mouseleave never fires.
+$(document).on('click', function(e) {
+    if (!window.matchMedia('(max-width: 900px)').matches) return;
+    var $t = $(e.target);
+    if ($t.closest('.card-zone-square, .card, .rebirth-card-tile, .gy-card-tile, [data-target-card], [data-card-name], #info-panel').length) return;
+    dismissMobilePreview();
+});
+
 // ---------------------------------------------------------------------------
 // Draggable Left Sidebar Resizer
 // ---------------------------------------------------------------------------

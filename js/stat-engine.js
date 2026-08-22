@@ -258,6 +258,11 @@ function getMonsterAtk(instance) {
         }
     }
 
+    // Pyrelord of the First Dawn: +300 ATK per controller Standby Phase (permanent)
+    if (instance.cardId === "pyrelord-of-the-first-dawn") {
+        selfMod += (instance.pyrelordAtkGrowth || 0);
+    }
+
     // Warden of the Hollow Crown: opponent's monsters lose 500 ATK
     if (isWardenAuraActiveOn(instance)) {
         selfMod -= 500;
@@ -563,7 +568,7 @@ function updateImmuneBadges() {
             var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
             var existing = square.find(".immune-badge");
 
-            if (monsterInst && !isFaceDown && (monsterInst.cardId === "deepsea-warrior" || monsterInst.cardId === "colossus-of-the-endless-sky" || monsterInst.cardId === "warden-of-the-hollow-crown")) {
+            if (monsterInst && !isFaceDown && (monsterInst.cardId === "deepsea-warrior" || monsterInst.cardId === "colossus-of-the-endless-sky" || monsterInst.cardId === "warden-of-the-hollow-crown" || monsterInst.cardId === "pyrelord-of-the-first-dawn")) {
                 if (!existing.length) {
                     var badge = $("<div class=\"immune-badge\">" +
                         "<span class=\"immune-badge-icon\">🛡</span>" +

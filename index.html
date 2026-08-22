@@ -856,7 +856,7 @@
 
                 <div style="padding: 16px 20px; text-align: center;">
                     <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
-                        Opponent declared an attack. Activate your face-down <strong style="color: #94a3ff;">Mirrorfall</strong> to destroy <em>all Attack Position monsters</em> on your opponent's side of the field?
+                        Opponent declared an attack. Activate your face-down <strong style="color: #94a3ff;">Mirrorfall</strong> to destroy <em>the attacking monster</em>, then destroy 1 other Attack Position monster your opponent controls?
                     </div>
                     <div id="mf-modal-casualty-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 255, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
                         <!-- Casualties summary -->
@@ -987,6 +987,28 @@
         </div>
 
 
+
+        <!-- Vault Whisperer Deck Search Modal -->
+        <div id="vault-whisperer-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="cancelVaultWhispererSelection()"></div>
+            <div class="action-modal-panel rebirth-modal-panel">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(250, 204, 21, 0.4) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(250, 204, 21, 0.15); border-color: rgba(250, 204, 21, 0.4);">
+                        <span class="action-pulse-dot" style="background: #facc15; box-shadow: 0 0 8px #facc15;"></span>
+                        <span class="action-header-category" style="color: #fde047;">FLIP EFFECT &#160;DECK SEARCH</span>
+                    </div>
+                    <h3 class="action-modal-card-name">VAULT WHISPERER</h3>
+                    <div class="action-modal-card-stats">ADD 1 LEVEL 4 OR LOWER NORMAL MONSTER FROM YOUR DECK TO YOUR HAND</div>
+                </div>
+                <div class="rebirth-cards-scroll-container">
+                    <div id="vault-whisperer-grid" class="rebirth-cards-grid"></div>
+                </div>
+                <div class="action-modal-footer">
+                    <button class="action-cancel-btn" onclick="cancelVaultWhispererSelection()"><span>&times; CANCEL</span></button>
+                </div>
+            </div>
+        </div>
 
         <!-- Vanguard's Accord Deck Selection Modal -->
         <div id="vanguards-accord-modal" class="tactical-action-modal" style="display: none;">

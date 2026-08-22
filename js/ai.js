@@ -664,6 +664,27 @@ async function AIPlayGaleSwiftblade() {
     }
 }
 
+// AI evaluates whether to fire Pyrelord of the First Dawn's dawnfire burn
+async function AIPlayPyrelordBurn() {
+    var computerMonsters = GameState.getMonstersOnField('computer');
+    var pyrelordEntry = computerMonsters.find(function(m) {
+        return m.card.cardId === 'pyrelord-of-the-first-dawn' &&
+               m.card.position !== 'defense-down' &&
+               !m.card.faceDown &&
+               m.card.pyrelordBurnTurn !== turnCount;
+    });
+    if (!pyrelordEntry) return;
+
+    var playerMonsterCount = GameState.getMonstersOnField('player').length;
+    // Fire when it deals meaningful damage (1200+) or can threaten lethal
+    if (playerMonsterCount * 600 < 1200 && GameState.player.lp >= 1800) return;
+
+    if (typeof activatePyrelordBurn === 'function') {
+        await activatePyrelordBurn('computer', pyrelordEntry.zone);
+        await sleep(getAnimDuration(350));
+    }
+}
+
 // Step 2b: AI plays summon enabler spells (Double Tribute Surge, Phantom Catalyst, Mausoleum) BEFORE the summon routine
 async function AIPlaySummonEnablerSpells() {
     var hand = GameState.computer.hand.slice();
@@ -1041,6 +1062,10 @@ async function AISummonMonsterRoutine() {
 function AIEvaluateEquipSpell(equipDef) {
     if (!equipDef || equipDef.subType !== 'equip') return null;
     var faceUpOwn = GameState.getMonstersOnField('computer').filter(function(m) {
+        var fDef = cards[m.card.cardId];
+        // Monsters that self-destruct when targeted (e.g. Nether Wraith) can
+        // never be valid equip targets — equipping them kills them.
+        if (fDef && (fDef.selfDestructsOnTargeting || m.card.selfDestructsOnTargeting)) return false;
         return m.card && !m.card.faceDown && m.card.position !== 'defense-down' && (typeof isImmuneToSpellTargeting === 'function' ? !isImmuneToSpellTargeting(m.card, 'computer') : true);
     });
     if (faceUpOwn.length === 0) return null;
@@ -1267,8 +1292,6 @@ async function AIPlaySpellTrapCards() {
                             shouldPlay = (oppMonsters.length > 0 && hasTributeMonsterInHand && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
-                        } else if (def.id === 'bloodprice-altar') {
-                            shouldPlay = !hasActiveCard('computer', 'bloodprice-altar');
                         } else if (def.id === 'gravity-tether') {
                             shouldPlay = !hasActiveCard('computer', 'gravity-tether');
                         } else if (def.subType === 'equip') {

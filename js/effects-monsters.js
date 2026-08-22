@@ -825,6 +825,58 @@ async function activateGaleSwiftblade(who, zoneNum) {
 
 
 // ---------------------------------------------------------------------------
+// Pyrelord of the First Dawn: Once per turn, 600 damage per opponent monster
+// ---------------------------------------------------------------------------
+async function activatePyrelordBurn(who, zoneNum) {
+    var monsterInst = GameState[who].field.monsters[zoneNum];
+    if (!monsterInst) return false;
+
+    if (monsterInst.pyrelordBurnTurn === turnCount) {
+        if (who === 'player') {
+            addToFeed('<em>Pyrelord of the First Dawn</em> has already unleashed its dawnfire this turn.\n\n');
+        }
+        return false;
+    }
+
+    var opp = GameState.getOpponent(who);
+    var oppMonsterCount = GameState.getMonstersOnField(opp).length;
+    if (oppMonsterCount === 0) {
+        if (who === 'player') {
+            addToFeed('No opponent monsters on the field — <em>Pyrelord of the First Dawn</em>\'s dawnfire finds no fuel.\n\n');
+        }
+        return false;
+    }
+
+    monsterInst.pyrelordBurnTurn = turnCount;
+    var dmg = oppMonsterCount * 600;
+
+    GameState[opp].lp = Math.max(0, GameState[opp].lp - dmg);
+    addToFeed('☀️ <em>Pyrelord of the First Dawn</em> ignites the horizon — ' + formatWho(opp) + ' takes <strong>' + dmg + '</strong> damage (' + oppMonsterCount + ' × 600)!\n');
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.triggerScreenShake('heavy');
+        BattleFX.spawnFloatingDamage(opp === 'computer' ? $('#opponent-lp') : $('#player-lp'), dmg, 'burn');
+        BattleFX.animateLPCount(opp, GameState[opp].lp);
+    }
+    EventBus.emit('LP_CHANGED', { who: opp, lp: GameState[opp].lp, damage: dmg });
+    updateResourceCounters();
+    updateStatModBadges();
+    return true;
+}
+
+// Standby Phase growth: all face-up Pyrelords owned by `who` gain +300 ATK permanently
+function growPyrelords(who) {
+    if (!GameState || !GameState[who] || !GameState[who].field || !GameState[who].field.monsters) return;
+    for (var z = 1; z <= 6; z++) {
+        var m = GameState[who].field.monsters[z];
+        if (m && m.cardId === 'pyrelord-of-the-first-dawn' && !m.faceDown && m.position !== 'defense-down') {
+            m.pyrelordAtkGrowth = (m.pyrelordAtkGrowth || 0) + 300;
+            addToFeed('<em>Pyrelord of the First Dawn</em> absorbs the first light — its ATK rises by <strong>300</strong>!\n');
+        }
+    }
+    if (typeof updateStatModBadges === 'function') updateStatModBadges();
+}
+
+// ---------------------------------------------------------------------------
 // Shadow Infiltrator: Discard 1 random card on battle damage
 // ---------------------------------------------------------------------------
 

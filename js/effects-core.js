@@ -234,7 +234,7 @@ function isMausoleumActive() {
 // or full "cannot be targeted" protection (Colossus of the Endless Sky / Warden of the Hollow Crown).
 function isImmuneToSpellTargeting(monsterInst, spellController) {
     if (!monsterInst) return false;
-    if (monsterInst.cardId !== 'deepsea-warrior' && monsterInst.cardId !== 'colossus-of-the-endless-sky' && monsterInst.cardId !== 'warden-of-the-hollow-crown') return false;
+    if (monsterInst.cardId !== 'deepsea-warrior' && monsterInst.cardId !== 'colossus-of-the-endless-sky' && monsterInst.cardId !== 'warden-of-the-hollow-crown' && monsterInst.cardId !== 'pyrelord-of-the-first-dawn') return false;
     if (monsterInst.faceDown || monsterInst.position === 'defense-down') return false;
     return true;
 }
@@ -270,6 +270,13 @@ async function discardCardToGraveyard(who, inst) {
     if (typeof notifyUmbraHeraldGraveyardSend === 'function') notifyUmbraHeraldGraveyardSend(who, inst);
     return inst;
 }
+
+// Track whether either player Normal/Special Summoned a monster this turn
+// (used by cards like Bloodprice Altar that can't be activated on a summon turn).
+EventBus.on("MONSTER_SUMMONED", function(data) {
+    if (typeof GameState === "undefined" || !GameState || !GameState.turn || !data) return;
+    GameState.turn.monsterSummonedThisTurn = true;
+});
 
 // Keep DOM in sync with a just-activated spell/trap instance.
 function targetSquareStateFix(who, zoneNum, position) {
