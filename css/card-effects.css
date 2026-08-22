@@ -846,6 +846,18 @@ div.card-zone.field-available-zone {
     transform: translate(-50%, -50%);
 }
 
+/* Hand-held variant (e.g. Soul Lantern Keeper): slightly smaller pill */
+.effect-ready-hand {
+    padding: 1rem 3.5rem;
+    font-size: 5.5rem;
+    gap: 2.5rem;
+    z-index: 60;
+}
+
+.effect-ready-hand .effect-ready-icon {
+    font-size: 6.2rem;
+}
+
 /* ==========================================================================
    Hand Tribute Summon Ready "TRIBUTE" Badge
    ========================================================================== */

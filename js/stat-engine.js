@@ -416,6 +416,32 @@ function updateStatModBadges(previewFieldSpellId) {
 
     // 10. Update Destruction Preview Red X Marks when mass removal cards are selected
     updateDestructionPreviewMarks();
+
+    // 11. Update hand EFFECT badges for monsters with hand-trigger effects (e.g. Soul Lantern Keeper)
+    updateHandEffectBadges();
+}
+
+// Hand-held monsters with always-available hand triggers get an "EFFECT READY" badge
+// so the player doesn't forget they hold a Battle Step / damage-step out.
+function updateHandEffectBadges() {
+    var HAND_EFFECT_MONSTERS = ["soul-lantern-keeper"];
+
+    $("#player-hand > .card").each(function() {
+        var cardName = $(this).attr("data-card-name");
+        var existing = $(this).find(".effect-ready-badge");
+
+        if (cardName && HAND_EFFECT_MONSTERS.indexOf(cardName) !== -1) {
+            if (!existing.length) {
+                var badge = $("<div class=\"effect-ready-badge effect-ready-hand\">" +
+                    "<span class=\"effect-ready-icon\">⚡</span>" +
+                    "<span class=\"effect-ready-label\">EFFECT</span>" +
+                "</div>");
+                $(this).append(badge);
+            }
+        } else if (existing.length) {
+            existing.remove();
+        }
+    });
 }
 
 // Update or create visual "DEF LOCKED" badges for Dragon monsters affected by Dragon Capture Jar

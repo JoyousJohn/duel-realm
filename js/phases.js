@@ -145,6 +145,11 @@ async function computerTurn() {
         await AIPlayTributeToTheDoomed();
     }
 
+    // 4d. Play Dark Hole to clear the opponent's board BEFORE committing summons
+    if (typeof AIPlayDarkHole === 'function') {
+        await AIPlayDarkHole();
+    }
+
     // 5. Computer plays spells and sets traps dynamically
     await AIPlaySpellTrapCards();
 
@@ -435,7 +440,7 @@ function resetAllSquares(squareElm) {
     $('.immune-badge').remove();
     $('.no-tribute-badge').remove();
     $('.attack-locked-badge').remove();
-    $('.effect-ready-badge').remove();
+    $('.card-zone-square .effect-ready-badge').remove();
     $('.tributable-bound-badge').remove();
     $('.monster-destruct-preview-overlay').remove();
     $('.monster-target-preview-overlay').remove();

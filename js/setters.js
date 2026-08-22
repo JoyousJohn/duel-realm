@@ -237,7 +237,8 @@ function isCardCurrentlyPlayable(cardDef) {
     var normalSummonExhausted = (typeof GameState !== 'undefined' && GameState && GameState.turn && GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0));
 
     if (cardDef.type === 'monsters') {
-        if (normalSummonExhausted) return false;
+        var canSpecialHerald = (cardDef.id === 'umbra-herald' && typeof controlsFaceUpFiend === 'function' && controlsFaceUpFiend('player') && freeSlots > 0);
+        if (normalSummonExhausted && !canSpecialHerald) return false;
         if (cardDef.id === 'infernal-incinerator') {
             var ownMonsters = (typeof GameState !== 'undefined' && GameState) ? GameState.getMonstersOnField('player') : [];
             var eligibleTributes = ownMonsters.filter(function(m) {

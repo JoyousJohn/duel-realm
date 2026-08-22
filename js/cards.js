@@ -1016,7 +1016,17 @@ var cards = {
         'subType': 'continuous',
         'file': 'crypt_awakening.png',
         'name': 'Crypt Awakening',
-        'desc': 'Target 1 monster in your Graveyard; Special Summon that target in Attack Position. When this card leaves the field, destroy that monster.'
+        'desc': 'Target 1 monster in your Graveyard; Special Summon that target in Attack Position. When this card leaves the field, destroy that monster.',
+        canActivate: function(who) {
+            var gyMonsters = (typeof GameState !== 'undefined' && GameState && GameState[who] && GameState[who].graveyard) ? GameState[who].graveyard.filter(function(inst) {
+                var d = cards[inst.cardId];
+                return d && d.type === 'monsters' && !d.isToken && d.subType !== 'token';
+            }) : [];
+            return gyMonsters.length > 0 && (typeof getFirstFreeZone === 'function' ? getFirstFreeZone(who) !== undefined : true);
+        },
+        unplayableReason: function() {
+            return 'There is no monster in your Graveyard to revive (or no free monster zone).';
+        }
     },
 
     'eldritch-tether': {
@@ -1025,7 +1035,17 @@ var cards = {
         'subType': 'continuous',
         'file': 'eldritch_tether.png',
         'name': 'Eldritch Tether',
-        'desc': 'Target 1 monster in your Graveyard; Special Summon it in Attack Position. When this card leaves the field, destroy that monster. When that monster is destroyed, destroy this card.'
+        'desc': 'Target 1 monster in your Graveyard; Special Summon it in Attack Position. When this card leaves the field, destroy that monster. When that monster is destroyed, destroy this card.',
+        canActivate: function(who) {
+            var gyMonsters = (typeof GameState !== 'undefined' && GameState && GameState[who] && GameState[who].graveyard) ? GameState[who].graveyard.filter(function(inst) {
+                var d = cards[inst.cardId];
+                return d && d.type === 'monsters' && !d.isToken && d.subType !== 'token';
+            }) : [];
+            return gyMonsters.length > 0 && (typeof getFirstFreeZone === 'function' ? getFirstFreeZone(who) !== undefined : true);
+        },
+        unplayableReason: function() {
+            return 'There is no monster in your Graveyard to revive (or no free monster zone).';
+        }
     },
 
     'vortex-recall': {

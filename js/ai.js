@@ -460,6 +460,45 @@ async function AIPlayFissure() {
     await sleep(getAnimDuration(400));
 }
 
+// Play Dark Hole during the early removal pass — BEFORE committing summons,
+// so the wipe never destroys monsters the AI just played this turn.
+// Only worth it when: the AI controls nothing, it is badly outnumbered
+// (2+ monster deficit), or the opponent's board is significantly stronger.
+async function AIPlayDarkHole() {
+    var inst = GameState.computer.hand.find(function(c) { return c.cardId === 'dark-hole'; });
+    if (!inst) return;
+    if (getNumOfFreeZones('computer') <= 0) return;
+
+    var playerMonsters = GameState.getMonstersOnField('player');
+    if (playerMonsters.length === 0) return;
+
+    var compMonsters = GameState.getMonstersOnField('computer');
+
+    // Total ATK comparison (face-up, attack-position boards matter most)
+    var playerAtk = 0;
+    playerMonsters.forEach(function(m) {
+        if (m.card && !m.card.faceDown && m.card.position !== 'defense-down') playerAtk += getMonsterAtk(m.card);
+    });
+    var compAtk = 0;
+    compMonsters.forEach(function(m) {
+        if (m.card && !m.card.faceDown && m.card.position !== 'defense-down') compAtk += getMonsterAtk(m.card);
+    });
+
+    var shouldWipe =
+        compMonsters.length === 0 ||
+        (playerMonsters.length - compMonsters.length) >= 2 ||
+        (playerAtk > compAtk && playerAtk - compAtk >= 1000);
+
+    if (!shouldWipe) return;
+
+    var zoneNum = getFirstFreeZone('computer');
+    if (zoneNum === undefined) return;
+    var def = cards['dark-hole'];
+    await playNonMonsterCard('computer', getHandCardElmByUid('computer', inst.uid), getSquareElm('computer', zoneNum), def, 'slot');
+    updateResourceCounters();
+    await sleep(getAnimDuration(400));
+}
+
 // Play Tribute to the Doomed — only if AI has >1 card in hand and player has a monster on field
 async function AIPlayTributeToTheDoomed() {
     var inst = GameState.computer.hand.find(function(c) { return c.cardId === 'tribute-to-the-doomed'; });
@@ -731,6 +770,18 @@ async function AIPlaySummonEnablerSpells() {
 }
 
 // Step 3: AI Normal/Tribute Summons the best monster currently in hand
+
+// Effective ATK a hand monster will have once summoned, accounting for an
+// active opposing Gravity Tether (-100 ATK per Level on face-up monsters).
+function AIEffectiveSummonAtk(mDef) {
+    if (!mDef) return 0;
+    var atk = (mDef.atk || 0);
+    if (typeof hasActiveCard === 'function' && hasActiveCard('player', 'gravity-tether')) {
+        atk = Math.max(0, atk - ((mDef.level || 1) * 100));
+    }
+    return atk;
+}
+
 async function AISummonMonsterRoutine() {
     if (GameState.turn.normalSummonUsed && (!GameState.turn.extraNormalSummons || GameState.turn.extraNormalSummons <= 0)) return;
 
@@ -773,7 +824,7 @@ async function AISummonMonsterRoutine() {
                 var tribute = eligibleTributes[0];
                 var oppMonstersCount = GameState.getMonstersOnField('player').length;
                 var otherOwnMonsters = Math.max(0, fieldMonsters.length - 1);
-                var estimatedAtk = (mDef.atk || 2800) + (oppMonstersCount * 200) - (otherOwnMonsters * 500);
+                var estimatedAtk = AIEffectiveSummonAtk(mDef) + (oppMonstersCount * 200) - (otherOwnMonsters * 500);
                 summonable.push({
                     name: mName,
                     def: mDef,
@@ -791,10 +842,10 @@ async function AISummonMonsterRoutine() {
         var lpCost = req * 1000;
 
         if (req === 0 && freeZones > 0) {
-            summonable.push({ name: mName, def: mDef, reqTributes: 0, score: (mDef.atk || 0) });
+            summonable.push({ name: mName, def: mDef, reqTributes: 0, score: AIEffectiveSummonAtk(mDef) });
         } else if (req > 0 && isMausoleum && freeZones > 0 && GameState.computer.lp > lpCost + 1000) {
             // Mausoleum of Offerings option: pay LP to summon high-level monster directly
-            var gainAtk = (mDef.atk || 0);
+            var gainAtk = AIEffectiveSummonAtk(mDef);
             if (gainAtk >= 1800) {
                 summonable.push({
                     name: mName,
@@ -827,7 +878,7 @@ async function AISummonMonsterRoutine() {
             });
             var tributes = sortedField.slice(0, req);
             var lostAtk = tributes.reduce(function(acc, t) { return acc + (t.isOpponent ? 0 : getMonsterAtk(t.card)); }, 0);
-            var gainAtk = (mDef.atk || 0);
+            var gainAtk = AIEffectiveSummonAtk(mDef);
 
             // AI considers tribute worth it if opponent monster is sacrificed or gain is positive
             if (validOppCandidate || gainAtk >= 2000 || gainAtk > (lostAtk * 0.8)) {
@@ -1082,9 +1133,9 @@ async function AIPlaySpellTrapCards() {
                         } else if (def.id === 'raigeki') {
                             shouldPlay = GameState.getMonstersOnField('player').length > 0;
                         } else if (def.id === 'dark-hole') {
-                            var compCount = GameState.getMonstersOnField('computer').length;
-                            var playerCount = GameState.getMonstersOnField('player').length;
-                            shouldPlay = playerCount > 0 && (compCount === 0 || playerCount > compCount);
+                            // Handled in the early removal pass (AIPlayDarkHole)
+                            // so the wipe never hits monsters summoned this turn.
+                            shouldPlay = false;
                         } else if (def.id === 'change-of-heart') {
                             var cohTargets = GameState.getMonstersOnField('player').filter(function(m) {
                                 return !isImmuneToSpellTargeting(m.card, 'computer');
@@ -1138,7 +1189,8 @@ async function AIPlaySpellTrapCards() {
                             var hasHighLvl = handMonsters.some(function(c) {
                                 var d = cards[c.cardId]; return d && (d.level >= 5 || d.id === 'infernal-incinerator');
                             });
-                            shouldPlay = (hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined);
+                            shouldPlay = GameState.isFieldZoneEmpty('computer') &&
+                                ((hasHighLvl && getFirstFreeZone('computer') !== undefined) || ((compMons === 0 || playerMons > compMons) && getFirstFreeZone('computer') !== undefined));
                         } else if (def.id === 'vanguards-accord') {
                             var compCount = GameState.getMonstersOnField('computer').length;
                             var compDeck = (GameState.computer && GameState.computer.deck) ? GameState.computer.deck : [];

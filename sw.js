@@ -1,4 +1,4 @@
-var CACHE_NAME = 'duel-realm-v39';
+var CACHE_NAME = 'duel-realm-v41';
 var CORE_ASSETS = [
     './',
     './index.html',
@@ -6,6 +6,8 @@ var CORE_ASSETS = [
     './icons/icon-192.png',
     './icons/icon-512.png',
     './icons/icon-maskable-512.png',
+    './cards/card_back.png',
+    './cards/card_back_2.png',
     './css/style.css',
     './css/selection.css',
     './css/game.css',

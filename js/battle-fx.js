@@ -642,7 +642,7 @@ var BattleFX = {
                 var targetOffset = targetCardElm.offset();
 
                 var cardDef = cards[cardName];
-                var imgSrc = cardDef ? cardDef.file : 'card_back_2.png';
+                var imgSrc = cardDef ? 'cards/' + cardDef.file : 'cards/card_back_2.png';
                 var isPlayer = (who === 'player');
 
                 var cardWidth = (targetCardElm && targetCardElm.outerWidth()) ? targetCardElm.outerWidth() : (deckZone.find('.card-zone').outerWidth() || 70);
@@ -740,7 +740,7 @@ var BattleFX = {
                 var targetOffset = targetCardElm.offset();
 
                 var cardDef = cards[cardName];
-                var imgSrc = cardDef ? cardDef.file : 'card_back_2.png';
+                var imgSrc = cardDef ? 'cards/' + cardDef.file : 'cards/card_back_2.png';
                 var isRecipientPlayer = (ownerWho === 'player');
 
                 var cardWidth = (targetCardElm && targetCardElm.outerWidth()) ? targetCardElm.outerWidth() : 70;
@@ -820,7 +820,7 @@ var BattleFX = {
 
                 var gyOffset = gyTarget.offset();
                 var cardDef = (typeof cards !== 'undefined' && cards[cardName]) ? cards[cardName] : null;
-                var imgSrc = cardDef ? cardDef.file : 'card_back_2.png';
+                var imgSrc = cardDef ? 'cards/' + cardDef.file : 'cards/card_back_2.png';
                 var isPlayer = (who === 'player');
 
                 var sourceOffset;

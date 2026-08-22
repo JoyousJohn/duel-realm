@@ -845,6 +845,24 @@ $(document).on('click', '#player-hand > .card', function() {
     if (turn !== 0) return;
     if ($(this).attr('is-moving-clone')) return;
 
+    // Leaving tribute-selection mode via a hand-card click:
+    // clicking the summoning card cancels the whole tribute flow;
+    // clicking a different card cancels and then selects the new one.
+    if ($('body').hasClass('tribute-selection-mode')) {
+        var wasSameCard = $(this).is(activeCard);
+        clearTributeSelectionMode();
+        $('.active-card').removeClass('active-card');
+        activeCard = null;
+        if (wasSameCard) {
+            hideSummonOptionsIfVisible();
+            hidePositionChangeOptionsIfVisible();
+            hideAtkMenuIfVisible();
+            clearAvailableZones();
+            updateStatModBadges();
+            return;
+        }
+    }
+
     var cardId = $(this).attr('data-card-name');
     var cardDef = getCardDef(cardId);
 
@@ -1100,11 +1118,13 @@ $(document).on('click', '#player-field div.card-zone-square, #opponent-field div
         var cardDef = spellInst ? cards[spellInst.cardId] : null;
 
         if (isMainPhase && spellInst && cardDef && (cardDef.id === 'vortex-recall' || cardDef.id === 'crypt-awakening' || cardDef.id === 'eldritch-tether' || cardDef.id === 'mystical-space-typhoon' || cardDef.id === 'dragon-capture-jar')) {
+            var canActivateOnMat = (typeof cardDef.canActivate !== 'function') || cardDef.canActivate('player');
             var ctxBar = $('#card-context-actions');
             $('#ctx-btn-defense').hide();
             $('#ctx-btn-to-attack').hide();
             var btnEffect = $('#ctx-btn-effect');
             btnEffect.find('span').text('ACTIVATE ' + (cardDef.name ? cardDef.name.toUpperCase() : 'TRAP'));
+            btnEffect.toggleClass('disabled', !canActivateOnMat);
             btnEffect.show();
             ctxBar.show();
             var offset = $(this).offset();
@@ -1694,6 +1714,11 @@ function activateSelectedMonsterEffect() {
     if (spellInst) {
         var sDef = cards[spellInst.cardId];
         if (sDef) {
+            if (typeof sDef.canActivate === 'function' && !sDef.canActivate('player')) {
+                var reason = (typeof sDef.unplayableReason === 'function') ? sDef.unplayableReason('player') : 'Conditions to activate this card are not met.';
+                addToFeed('(Action) Cannot activate <em>' + sDef.name + '</em>: ' + reason + '\n\n');
+                return;
+            }
             activateCard('player', spellInst, zoneNum);
             return;
         }
@@ -1823,6 +1848,11 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
     if (typeof applyBloodpriceAltarBurn === 'function') {
         await applyBloodpriceAltarBurn(attackerWho);
     }
+
+    // Mark the attack as consumed BEFORE trap responses resolve: a negated
+    // attack still counts as the turn's attack declaration.
+    var attackerSquare = getSquareElm(attackerWho, attackerZone);
+    attackerInst.hasAttacked = true;
 
     // Radiant Backlash response on attack declaration
     if (typeof checkRadiantBacklashResponse === 'function') {
