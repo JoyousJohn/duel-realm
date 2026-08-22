@@ -1819,6 +1819,11 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         addToFeed('<em>Lionhearted Locomotive</em>\'s ATK is halved to ' + attackerAtk + ' until the end of the Damage Step!\n');
     }
 
+    // Bloodprice Altar: burn the attacker for declaring an attack
+    if (typeof applyBloodpriceAltarBurn === 'function') {
+        await applyBloodpriceAltarBurn(attackerWho);
+    }
+
     // Radiant Backlash response on attack declaration
     if (typeof checkRadiantBacklashResponse === 'function') {
         var rbTriggered = await checkRadiantBacklashResponse(attackerWho, attackerZone, defenderWho);
@@ -1843,6 +1848,22 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         }
     }
 
+    // Mirrorfall response on attack declaration
+    if (typeof checkMirrorfallResponse === 'function') {
+        var mfTriggered = await checkMirrorfallResponse(attackerWho, attackerZone, defenderWho);
+        if (mfTriggered) {
+            return;
+        }
+    }
+
+    // Warding Veil response on attack declaration
+    if (typeof checkWardingVeilResponse === 'function') {
+        var wvTriggered = await checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef);
+        if (wvTriggered) {
+            return;
+        }
+    }
+
     var attackerSquare = getSquareElm(attackerWho, attackerZone);
     attackerInst.hasAttacked = true;
 
@@ -1850,6 +1871,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
         // DIRECT ATTACK
         var damage = attackerAtk;
         if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, damage)) {
+            damage = 0;
+        }
+        if (typeof hasNoBattleDamage === 'function' && hasNoBattleDamage(defenderWho)) {
+            if (damage > 0) addToFeed('🛡️ <em>Warding Veil</em> prevents all battle damage this turn!\n');
             damage = 0;
         }
         GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - damage);
@@ -1952,6 +1977,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, diff)) {
                 diff = 0;
             }
+            if (diff > 0 && typeof hasNoBattleDamage === 'function' && hasNoBattleDamage(defenderWho)) {
+                addToFeed('🛡️ <em>Warding Veil</em> prevents all battle damage this turn!\n');
+                diff = 0;
+            }
             GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - diff);
             
             if (typeof BattleFX !== 'undefined') {
@@ -2023,6 +2052,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
             if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(attackerWho, diff)) {
                 diff = 0;
             }
+            if (diff > 0 && typeof hasNoBattleDamage === 'function' && hasNoBattleDamage(attackerWho)) {
+                addToFeed('🛡️ <em>Warding Veil</em> prevents all battle damage this turn!\n');
+                diff = 0;
+            }
             GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - diff);
 
             if (typeof BattleFX !== 'undefined') {
@@ -2064,6 +2097,10 @@ async function executeBattle(attackerWho, attackerZone, defenderZone) {
 
             if (isPiercing && pierceDamage > 0) {
                 if (typeof trySoulLanternKeeperZero === 'function' && await trySoulLanternKeeperZero(defenderWho, pierceDamage)) {
+                    pierceDamage = 0;
+                }
+                if (pierceDamage > 0 && typeof hasNoBattleDamage === 'function' && hasNoBattleDamage(defenderWho)) {
+                    addToFeed('🛡️ <em>Warding Veil</em> prevents all battle damage this turn!\n');
                     pierceDamage = 0;
                 }
                 GameState[defenderWho].lp = Math.max(0, GameState[defenderWho].lp - pierceDamage);

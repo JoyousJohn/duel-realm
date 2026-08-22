@@ -823,6 +823,20 @@ var cards = {
         'desc': 'This card can be used as a "Catalyst Token".'
     },
 
+    'colossus-of-the-endless-sky': {
+        'id': 'colossus-of-the-endless-sky',
+        'type': 'monsters',
+        'subType': 'effect',
+        'file': 'colossus_of_the_endless_sky.png',
+        'name': 'Colossus of the Endless Sky',
+        'monsterType': 'Divine-Beast',
+        'attribute': 'DIVINE',
+        'level': 10,
+        'atk': 4000,
+        'def': 4000,
+        'desc': 'Requires 3 Tributes to Normal Summon (cannot be Special Summoned). Cannot be targeted by Spells, Traps, or card effects.'
+    },
+
     'double-tribute-surge': {
         'id': 'double-tribute-surge',
         'type': 'spells',
@@ -958,6 +972,33 @@ var cards = {
         'file': 'prism_of_retribution.png',
         'name': 'Prism of Retribution',
         'desc': 'When an opponent\'s monster declares an attack: Negate the attack, and if you do, inflict damage to your opponent equal to that monster\'s ATK.'
+    },
+
+    'bloodprice-altar': {
+        'id': 'bloodprice-altar',
+        'type': 'spells',
+        'subType': 'continuous',
+        'file': 'bloodprice_altar.png',
+        'name': 'Bloodprice Altar',
+        'desc': 'Each time your opponent\'s monster declares an attack, they take 400 damage.'
+    },
+
+    'mirrorfall': {
+        'id': 'mirrorfall',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'mirrorfall.png',
+        'name': 'Mirrorfall',
+        'desc': 'When an opponent\'s monster declares an attack: Destroy all your opponent\'s Attack Position monsters.'
+    },
+
+    'warding-veil': {
+        'id': 'warding-veil',
+        'type': 'traps',
+        'subType': 'normal',
+        'file': 'warding_veil.png',
+        'name': 'Warding Veil',
+        'desc': 'When an opponent\'s monster declares an attack: Negate that attack. You take no battle damage this turn.'
     },
 
     'eclipse-null-prism': {

@@ -493,7 +493,7 @@ function updateImmuneBadges() {
             var isFaceDown = monsterInst ? (monsterInst.position === "defense-down" || monsterInst.faceDown) : false;
             var existing = square.find(".immune-badge");
 
-            if (monsterInst && !isFaceDown && monsterInst.cardId === "deepsea-warrior") {
+            if (monsterInst && !isFaceDown && (monsterInst.cardId === "deepsea-warrior" || monsterInst.cardId === "colossus-of-the-endless-sky")) {
                 if (!existing.length) {
                     var badge = $("<div class=\"immune-badge\">" +
                         "<span class=\"immune-badge-icon\">🛡</span>" +

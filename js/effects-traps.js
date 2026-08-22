@@ -109,6 +109,167 @@ function resolvePrismOfRetributionPrompt(shouldActivate) {
 }
 
 // ---------------------------------------------------------------------------
+// Warding Veil Attack Response Handlers
+// ---------------------------------------------------------------------------
+var wardingVeilResolver = null;
+
+async function checkWardingVeilResponse(attackerWho, attackerZone, defenderWho, attackerDef) {
+    if (isJinzoidActive()) return false;
+    var wvZone = findSetTrapZone(defenderWho, 'warding-veil');
+    if (wvZone === null) return false;
+
+    if (defenderWho === 'player') {
+        var shouldActivate = await promptPlayerWardingVeil(wvZone, attackerDef);
+        if (!shouldActivate) return false;
+        await activateWardingVeil('player', wvZone, attackerWho, attackerDef);
+        return true;
+    } else {
+        var shouldAIActivate = (GameState.computer.lp <= 2000) || (GameState.player.lp <= 4000);
+        if (!shouldAIActivate) return false;
+        await activateWardingVeil('computer', wvZone, attackerWho, attackerDef);
+        return true;
+    }
+}
+
+async function activateWardingVeil(trapWho, zoneNum, attackerWho, attackerDef) {
+    var trapSquare = getSpellSquareElm(trapWho, zoneNum);
+    if (trapSquare && trapSquare.length) {
+        var trapZoneElm = trapSquare.find('div.card-zone');
+        if (typeof trapZoneElm.flip === 'function') {
+            try {
+                trapZoneElm.flip({ trigger: 'manual' });
+                trapZoneElm.flip(false);
+            } catch (e) {}
+        }
+    }
+
+    addToFeed((trapWho === 'player' ? 'Player' : 'Computer') + ' activates Trap Card: <strong>Warding Veil</strong>!\n');
+    addToFeed('🛡️ Warding Veil shrouds ' + formatWho(trapWho) + ' in protective light — the attack is negated and no battle damage can be taken this turn!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('light');
+    await sleep(getAnimDuration(450));
+
+    setNoBattleDamage(trapWho);
+
+    await destroySpellTrap(trapWho, zoneNum, false);
+
+    if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+        BattleFX.cancelTargetSelection();
+    }
+}
+
+function promptPlayerWardingVeil(zoneNum, attackerDef) {
+    return new Promise(function(resolve) {
+        wardingVeilResolver = resolve;
+
+        $('#wv-trigger-cause').text((attackerDef ? attackerDef.name : 'OPPONENT') + ' DECLARED AN ATTACK!');
+        $('#wv-modal-preview').html(
+            '<strong>Incoming Monster:</strong> ' + (attackerDef ? attackerDef.name : 'Monster')
+        );
+
+        $('#warding-veil-prompt-modal').fadeIn(150);
+    });
+}
+
+function resolveWardingVeilPrompt(shouldActivate) {
+    $('#warding-veil-prompt-modal').fadeOut(120);
+    if (typeof wardingVeilResolver === 'function') {
+        var res = wardingVeilResolver;
+        wardingVeilResolver = null;
+        res(shouldActivate);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mirrorfall Attack Response Handlers
+// ---------------------------------------------------------------------------
+var mirrorfallResolver = null;
+
+async function checkMirrorfallResponse(attackerWho, attackerZone, defenderWho) {
+    if (isJinzoidActive()) return false;
+    var mfZone = findSetTrapZone(defenderWho, 'mirrorfall');
+    if (mfZone === null) return false;
+
+    var atkMonsters = [];
+    for (var z = 1; z <= 6; z++) {
+        var m = GameState[attackerWho].field.monsters[z];
+        if (m && m.position === 'attack') {
+            atkMonsters.push({ zone: z, card: m });
+        }
+    }
+    if (atkMonsters.length === 0) return false;
+
+    if (defenderWho === 'player') {
+        var shouldActivate = await promptPlayerMirrorfall(mfZone, atkMonsters);
+        if (!shouldActivate) return false;
+        await activateMirrorfall('player', mfZone, attackerWho, atkMonsters);
+        return true;
+    } else {
+        var shouldAIActivate = (atkMonsters.length >= 2) || (attackerAtkThreshold(atkMonsters));
+        if (!shouldAIActivate) return false;
+        await activateMirrorfall('computer', mfZone, attackerWho, atkMonsters);
+        return true;
+    }
+}
+
+function attackerAtkThreshold(atkMonsters) {
+    for (var i = 0; i < atkMonsters.length; i++) {
+        if (getMonsterAtk(atkMonsters[i].card) >= 1500) return true;
+    }
+    return false;
+}
+
+async function activateMirrorfall(trapWho, zoneNum, attackerWho, atkMonsters) {
+    var trapSquare = getSpellSquareElm(trapWho, zoneNum);
+    if (trapSquare && trapSquare.length) {
+        var trapZoneElm = trapSquare.find('div.card-zone');
+        if (typeof trapZoneElm.flip === 'function') {
+            try {
+                trapZoneElm.flip({ trigger: 'manual' });
+                trapZoneElm.flip(false);
+            } catch (e) {}
+        }
+    }
+
+    addToFeed((trapWho === 'player' ? 'Player' : 'Computer') + ' activates Trap Card: <strong>Mirrorfall</strong>!\n');
+    addToFeed('🪞 A mirror barrier shatters into a storm of shards, striking down all enemy Attack Position monsters!\n');
+    if (typeof BattleFX !== 'undefined') BattleFX.triggerScreenShake('heavy');
+    await sleep(getAnimDuration(450));
+
+    await destroySpellTrap(trapWho, zoneNum, false);
+
+    for (var i = 0; i < atkMonsters.length; i++) {
+        await destroyMonster(attackerWho, atkMonsters[i].zone);
+    }
+    addToFeed('Mirrorfall destroyed ' + atkMonsters.length + ' Attack Position monster(s)!\n\n');
+
+    if (typeof BattleFX !== 'undefined' && typeof BattleFX.cancelTargetSelection === 'function') {
+        BattleFX.cancelTargetSelection();
+    }
+}
+
+function promptPlayerMirrorfall(zoneNum, atkMonsters) {
+    return new Promise(function(resolve) {
+        mirrorfallResolver = resolve;
+
+        $('#mf-modal-casualty-preview').html(
+            '<strong>Enemy Casualties:</strong> ' +
+            '<span style="color: #f87171;">' + atkMonsters.length + ' Attack Monster(s) destroyed</span>'
+        );
+
+        $('#mirrorfall-prompt-modal').fadeIn(150);
+    });
+}
+
+function resolveMirrorfallPrompt(shouldActivate) {
+    $('#mirrorfall-prompt-modal').fadeOut(120);
+    if (typeof mirrorfallResolver === 'function') {
+        var res = mirrorfallResolver;
+        mirrorfallResolver = null;
+        res(shouldActivate);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Vortex Recall Attack Response & Target Handlers
 // ---------------------------------------------------------------------------
 var vortexRecallResolver = null;

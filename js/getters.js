@@ -132,6 +132,7 @@ function isAtkMenuVisible() { return $('#attack-menu, #card-context-actions').is
 function getRequiredTributes(level) {
     if (!level || level <= 4) return 0;
     if (level <= 6) return 1;
+    if (level >= 10) return 3;
     return 2;
 }
 

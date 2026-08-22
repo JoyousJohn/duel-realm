@@ -50,7 +50,6 @@ A classic tactical Trading Card Game (TCG) simulator running natively in the bro
 │   ├── setters.js          # Board updates and playability validators
 │   └── preview.js          # Card inspection hover & sidebar preview
 ├── index.html              # Main game interface and tactical modals
-└── .agentrules             # Internal AI assistant rules and generation prompts
 ```
 
 ---

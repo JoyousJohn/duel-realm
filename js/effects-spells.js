@@ -1208,3 +1208,22 @@ async function applyLunarGrimoireFlip(side, zoneNum) {
     updateStatModBadges();
     addToFeed('<em>Lunar Grimoire</em> changed ' + formatWho(side) + '\'s <strong>' + (mDef ? mDef.name : 'monster') + '</strong> to face-down Defense Position!\n\n');
 }
+
+// ---------------------------------------------------------------------------
+// Bloodprice Altar: Continuous Spell burn on attack declaration
+// ---------------------------------------------------------------------------
+async function applyBloodpriceAltarBurn(attackerWho) {
+    var defenderWho = (attackerWho === 'player') ? 'computer' : 'player';
+    if (!hasActiveCard(defenderWho, 'bloodprice-altar')) return;
+
+    var BLOODPRICE_DAMAGE = 400;
+    GameState[attackerWho].lp = Math.max(0, GameState[attackerWho].lp - BLOODPRICE_DAMAGE);
+
+    addToFeed('🩸 <em>Bloodprice Altar</em> exacts its toll — ' + formatWho(attackerWho) + ' takes <strong>' + BLOODPRICE_DAMAGE + '</strong> damage for declaring an attack!\n');
+    if (typeof BattleFX !== 'undefined') {
+        BattleFX.spawnFloatingDamage(attackerWho === 'computer' ? $('#opponent-lp') : $('#player-lp'), BLOODPRICE_DAMAGE, 'direct');
+        BattleFX.animateLPCount(attackerWho, GameState[attackerWho].lp);
+    }
+    EventBus.emit('LP_CHANGED', { who: attackerWho, lp: GameState[attackerWho].lp, damage: BLOODPRICE_DAMAGE });
+    updateResourceCounters();
+}

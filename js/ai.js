@@ -991,7 +991,9 @@ function AIEvaluateEquipSpell(equipDef) {
     var hasTrapProtection = (typeof findSetTrapZone === 'function') && (
         findSetTrapZone('computer', 'radiant-backlash') !== null ||
         findSetTrapZone('computer', 'prism-of-retribution') !== null ||
-        findSetTrapZone('computer', 'vortex-recall') !== null
+        findSetTrapZone('computer', 'vortex-recall') !== null ||
+        findSetTrapZone('computer', 'warding-veil') !== null ||
+        findSetTrapZone('computer', 'mirrorfall') !== null
     );
     var hasSafeBoard = hasSwordsProtection || hasTrapProtection || playerMonsters.length === 0;
 
@@ -1197,6 +1199,8 @@ async function AIPlaySpellTrapCards() {
                             shouldPlay = (oppMonsters.length > 0 && hasTributeMonsterInHand && getFirstFreeZone('computer') !== undefined);
                         } else if (def.id === 'swords-of-revealing-light') {
                             shouldPlay = !hasActiveCard('computer', 'swords-of-revealing-light');
+                        } else if (def.id === 'bloodprice-altar') {
+                            shouldPlay = !hasActiveCard('computer', 'bloodprice-altar');
                         } else if (def.id === 'gravity-tether') {
                             shouldPlay = !hasActiveCard('computer', 'gravity-tether');
                         } else if (def.subType === 'equip') {
@@ -1253,7 +1257,7 @@ async function AIPlaySpellTrapCards() {
                             shouldSet = false;
                         }
                     }
-                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'eldritch-tether' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall' || def.id === 'eclipse-null-prism') {
+                } else if (def.id === 'torrential-tribute' || def.id === 'radiant-backlash' || def.id === 'crypt-awakening' || def.id === 'eldritch-tether' || def.id === 'arcane-disruptor' || def.id === 'arcane-ward' || def.id === 'prism-of-retribution' || def.id === 'vortex-recall' || def.id === 'eclipse-null-prism' || def.id === 'warding-veil' || def.id === 'mirrorfall') {
                     var alreadySet = (typeof findSetTrapZone === 'function') && (findSetTrapZone('computer', def.id) !== null);
                     if (alreadySet) {
                         shouldSet = false;

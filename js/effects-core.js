@@ -230,10 +230,11 @@ function isMausoleumActive() {
 // Shared Field / Graveyard Helpers (migrated from card-effects.js)
 // ---------------------------------------------------------------------------
 
-// A monster with "cannot be targeted by the effects of Spell Cards" immunity (Deepsea Warrior).
+// A monster with "cannot be targeted by the effects of Spell Cards" immunity (Deepsea Warrior),
+// or full "cannot be targeted" protection (Colossus of the Endless Sky).
 function isImmuneToSpellTargeting(monsterInst, spellController) {
     if (!monsterInst) return false;
-    if (monsterInst.cardId !== 'deepsea-warrior') return false;
+    if (monsterInst.cardId !== 'deepsea-warrior' && monsterInst.cardId !== 'colossus-of-the-endless-sky') return false;
     if (monsterInst.faceDown || monsterInst.position === 'defense-down') return false;
     return true;
 }
@@ -405,8 +406,20 @@ function isNegatedByVoidSentinel(cardInst) {
     return turnCount <= cardInst.negatedUntilTurn;
 }
 
+// Warding Veil: no battle damage for the rest of the turn
+function setNoBattleDamage(who) {
+    GameState[who].noBattleDamageUntilTurn = turnCount;
+}
+
+function hasNoBattleDamage(who) {
+    return GameState[who] && GameState[who].noBattleDamageUntilTurn && turnCount <= GameState[who].noBattleDamageUntilTurn;
+}
+
 function cleanupExpiredNegations() {
     ['player', 'computer'].forEach(function(who) {
+        if (GameState[who] && GameState[who].noBattleDamageUntilTurn && turnCount > GameState[who].noBattleDamageUntilTurn) {
+            GameState[who].noBattleDamageUntilTurn = null;
+        }
         if (GameState[who] && GameState[who].hand) {
             GameState[who].hand.forEach(function(inst) {
                 if (inst.negatedUntilTurn && turnCount > inst.negatedUntilTurn) {

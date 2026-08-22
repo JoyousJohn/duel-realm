@@ -1,4 +1,4 @@
-var CACHE_NAME = 'duel-realm-v38';
+var CACHE_NAME = 'duel-realm-v39';
 var CORE_ASSETS = [
     './',
     './index.html',

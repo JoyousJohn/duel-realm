@@ -806,6 +806,74 @@
             </div>
         </div>
 
+        <!-- Warding Veil Prompt Modal -->
+        <div id="warding-veil-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveWardingVeilPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(192, 132, 252, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(192, 132, 252, 0.18); border-color: rgba(192, 132, 252, 0.45);">
+                        <span class="action-pulse-dot" style="background: #c084fc; box-shadow: 0 0 8px #c084fc;"></span>
+                        <span class="action-header-category" style="color: #d8b4fe;">TRAP ACTIVATION WINDOW</span>
+                    </div>
+                    <h3 class="action-modal-card-name">WARDING VEIL</h3>
+                    <div class="action-modal-card-stats" id="wv-trigger-cause">OPPONENT DECLARED AN ATTACK!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+                        Opponent declared an attack. Activate your face-down <strong style="color: #c084fc;">Warding Veil</strong> to negate the attack? You take no battle damage for the rest of this turn.
+                    </div>
+                    <div id="wv-modal-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(192, 132, 252, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <!-- Incoming attacker summary -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #9333ea, #7e22ce); border: 1px solid #c084fc; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveWardingVeilPrompt(true)">
+                        🛡️ ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveWardingVeilPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mirrorfall Prompt Modal -->
+        <div id="mirrorfall-prompt-modal" class="tactical-action-modal" style="display: none;">
+            <div class="action-modal-backdrop" onclick="resolveMirrorfallPrompt(false)"></div>
+            <div class="action-modal-panel coin-toss-modal-panel" style="max-width: 480px;">
+                <div class="action-panel-top-glow" style="background: radial-gradient(circle, rgba(148, 163, 255, 0.5) 0%, transparent 70%);"></div>
+                <div class="action-modal-header">
+                    <div class="action-header-badge" style="background: rgba(148, 163, 255, 0.18); border-color: rgba(148, 163, 255, 0.45);">
+                        <span class="action-pulse-dot" style="background: #94a3ff; box-shadow: 0 0 8px #94a3ff;"></span>
+                        <span class="action-header-category" style="color: #b6c0ff;">TRAP ACTIVATION WINDOW</span>
+                    </div>
+                    <h3 class="action-modal-card-name">MIRRORFALL</h3>
+                    <div class="action-modal-card-stats">OPPONENT DECLARED AN ATTACK!</div>
+                </div>
+
+                <div style="padding: 16px 20px; text-align: center;">
+                    <div style="margin-bottom: 12px; font-size: 14px; color: #cbd5e1; line-height: 1.5;">
+                        Opponent declared an attack. Activate your face-down <strong style="color: #94a3ff;">Mirrorfall</strong> to destroy <em>all Attack Position monsters</em> on your opponent's side of the field?
+                    </div>
+                    <div id="mf-modal-casualty-preview" style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 255, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #94a3b8; margin-bottom: 8px;">
+                        <!-- Casualties summary -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: center; padding: 0 20px 20px 20px;">
+                    <button class="tactical-action-btn" style="flex: 1.2; background: linear-gradient(135deg, #4f46e5, #4338ca); border: 1px solid #94a3ff; color: #fff; font-weight: bold; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveMirrorfallPrompt(true)">
+                        🪞 ACTIVATE TRAP
+                    </button>
+                    <button class="action-cancel-btn" style="flex: 1; padding: 12px 14px; border-radius: 6px; cursor: pointer;" onclick="resolveMirrorfallPrompt(false)">
+                        <span>&times; PASS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Soul Lantern Keeper Prompt Modal -->
         <div id="soul-lantern-prompt-modal" class="tactical-action-modal" style="display: none;">
             <div class="action-modal-backdrop" onclick="resolveSoulLanternPrompt(false)"></div>
